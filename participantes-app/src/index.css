@@ -1,0 +1,32 @@
+@config "../tailwind.config.js";
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    font-family: "IBM Plex Sans", sans-serif;
+    background-color: #F7F6F2;
+    color: #1C1B19;
+  }
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C8C4BC; border-radius: 3px; }
+
+/* Transiciones solo en elementos interactivos */
+a,
+button,
+input,
+select,
+textarea {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 100ms;
+  transition-timing-function: ease;
+}

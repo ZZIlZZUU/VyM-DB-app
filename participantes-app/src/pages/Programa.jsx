@@ -81,19 +81,19 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
   const esApertCierre = parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE'
 
   return (
-    <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start
-      ${esApertCierre ? 'grid-cols-[48px_1fr_160px_100px]' : 'grid-cols-[48px_1fr_200px_100px]'}`}
+    <div className={`grid gap-3 py-3 border-b border-border last:border-0 items-start
+      ${esApertCierre ? 'grid-cols-[60px_1fr_160px_100px]' : 'grid-cols-[60px_1fr_200px_100px]'}`}
     >
       {/* Hora */}
-      <div className="text-xs font-mono text-text3 pt-1">
+      <div className="text-xs font-mono text-text3 pt-2 px-2">
         {parte.hora_inicio || ''}
       </div>
 
       {/* Título y tipo */}
-      <div>
+      <div className="px-2">
         <div className="text-sm text-text1 leading-tight">{parte.titulo}</div>
-        <div className="flex items-center gap-1 mt-0.5">
-          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${TIPO_COLOR[parte.tipo_asignacion] || 'bg-bg text-text2'}`}>
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`text-xs font-mono px-2 py-1 rounded ${TIPO_COLOR[parte.tipo_asignacion] || 'bg-bg text-text2'}`}>
             {parte.tipo_asignacion}
           </span>
           {parte.duracion_min && (

@@ -4,6 +4,7 @@
 		"tailwindcss": "^4.2.4"
 	},
 	"dependencies": {
+		"docx": "^9.7.1",
 		"jszip": "^3.10.1"
 	}
 }

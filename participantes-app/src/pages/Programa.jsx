@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
+import { generarYDescargarS140, buildAsignaciones } from '../lib/generarS140'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -40,60 +41,54 @@ const TIPO_PARTICIPACION = {
 }
 
 // ── Componente selector de persona ───────────────────────────
-function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled, sugeridoPorApp }) {
+function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
   const candidatos = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
 
   return (
-    <div className="relative">
-      <select
-        value={value || ''}
-        onChange={e => onChange(e.target.value || null)}
-        disabled={disabled}
-        className={`w-full px-2 py-1 border rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50
-          ${sugeridoPorApp && value ? 'border-accent/50 bg-accent-bg/30' : 'border-border2'}`}
-      >
-        <option value="">— Sin asignar —</option>
-        {candidatos.map(p => {
-          const penalizado  = p._score < 50
-          const advertencia = p._score >= 50 && p._score < 80
-          return (
-            <option key={p.clave} value={p.clave}>
-              {penalizado ? '⚠ ' : advertencia ? '↻ ' : '✓ '}
-              {p.clave} — {p.nombre}
-            </option>
-          )
-        })}
-      </select>
-      {sugeridoPorApp && value && (
-        <span className="absolute -top-1.5 -right-1 text-xs bg-accent text-white rounded-full px-1 leading-tight pointer-events-none">
-          app
-        </span>
-      )}
-    </div>
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value || null)}
+      disabled={disabled}
+      className="w-full px-2 py-1 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50"
+    >
+      <option value="">— Sin asignar —</option>
+      {candidatos.map(p => {
+        const penalizado = p._score < 50
+        const advertencia = p._score >= 50 && p._score < 80
+        return (
+          <option key={p.clave} value={p.clave}>
+            {penalizado ? '⚠ ' : advertencia ? '↻ ' : '✓ '}
+            {p.clave} — {p.nombre}
+          </option>
+        )
+      })}
+    </select>
   )
 }
 
 // ── Fila de parte ─────────────────────────────────────────────
 function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar }) {
-  const principal = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'principal') || null
-  const ayudante  = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'ayudante')  || null
-
-  const esApertCierre = parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE'
+  const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
+  const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
+  const principal = asig[0] || null
+  const ayudante  = asigAyu[0] || null
 
   return (
-    <div className={`grid gap-3 py-3 border-b border-border last:border-0 items-start
-      ${esApertCierre ? 'grid-cols-[60px_1fr_160px_100px]' : 'grid-cols-[60px_1fr_200px_100px]'}`}
+    <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start
+      ${parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE'
+        ? 'grid-cols-[auto_1fr_120px]'
+        : 'grid-cols-[auto_1fr_180px_120px]'}`}
     >
       {/* Hora */}
-      <div className="text-xs font-mono text-text3 pt-2 px-2">
+      <div className="text-xs font-mono text-text3 w-12 pt-1 shrink-0">
         {parte.hora_inicio || ''}
       </div>
 
       {/* Título y tipo */}
-      <div className="px-2">
+      <div>
         <div className="text-sm text-text1 leading-tight">{parte.titulo}</div>
-        <div className="flex items-center gap-2 mt-1">
-          <span className={`text-xs font-mono px-2 py-1 rounded ${TIPO_COLOR[parte.tipo_asignacion] || 'bg-bg text-text2'}`}>
+        <div className="flex items-center gap-1 mt-0.5">
+          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${TIPO_COLOR[parte.tipo_asignacion] || 'bg-bg text-text2'}`}>
             {parte.tipo_asignacion}
           </span>
           {parte.duracion_min && (
@@ -102,8 +97,38 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
         </div>
       </div>
 
-      {/* Selector(es) — siempre presente, una columna */}
-      <div className="flex flex-col gap-1">
+      {/* Selector principal + ayudante */}
+      {parte.seccion !== 'APERTURA' && parte.seccion !== 'CIERRE' && (
+        <div className="flex flex-col gap-1">
+          <PersonaSelector
+            tipo={parte.tipo_asignacion}
+            value={principal?.clave}
+            onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
+            personas={personas}
+            historial={historial}
+            mes={mes}
+            yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
+            disabled={false}
+          />
+          {parte.requiere_ayudante && (
+            <PersonaSelector
+              tipo={parte.tipo_asignacion}
+              value={ayudante?.clave}
+              onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+              personas={personas}
+              historial={historial}
+              mes={mes}
+              yaAsignados={[
+                ...semanaAsignados.filter(c => c !== ayudante?.clave),
+                principal?.clave,
+              ].filter(Boolean)}
+              disabled={!principal?.clave}
+            />
+          )}
+        </div>
+      )}
+
+      {parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE' ? (
         <PersonaSelector
           tipo={parte.tipo_asignacion}
           value={principal?.clave}
@@ -112,38 +137,20 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
           historial={historial}
           mes={mes}
           yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
-          disabled={false}
-          sugeridoPorApp={principal?.sugerido_por_app || false}
         />
-        {parte.requiere_ayudante && (
-          <PersonaSelector
-            tipo={parte.tipo_asignacion}
-            value={ayudante?.clave}
-            onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
-            personas={personas}
-            historial={historial}
-            mes={mes}
-            yaAsignados={[
-              ...semanaAsignados.filter(c => c !== ayudante?.clave),
-              principal?.clave,
-            ].filter(Boolean)}
-            disabled={!principal?.clave}
-            sugeridoPorApp={ayudante?.sugerido_por_app || false}
-          />
-        )}
-      </div>
+      ) : null}
 
       {/* Estado confirmado */}
       <div className="flex items-center justify-end">
         {principal?.clave && (
           <button
             onClick={() => onConfirmar(parte.id, principal, ayudante)}
-            className={`text-xs px-2 py-1 rounded-lg border transition-none whitespace-nowrap
+            className={`text-xs px-2 py-1 rounded-lg border transition-none
               ${principal?.confirmado
                 ? 'bg-accent-bg text-accent border-accent/30'
                 : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'}`}
           >
-            {principal?.confirmado ? '✓ Ok' : 'Confirmar'}
+            {principal?.confirmado ? '✓ Confirmado' : 'Confirmar'}
           </button>
         )}
       </div>
@@ -161,12 +168,9 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     .filter(a => partes.some(p => p.id === a.parte_id))
     .map(a => a.clave)
 
-  const totalPartes  = partes.length
-  // Contar partes que tienen al menos una asignación confirmada de principal
-  const partesConAsigConfirmada = partes.filter(p =>
-    asignaciones.some(a => a.parte_id === p.id && a.rol === 'principal' && a.confirmado)
-  ).length
-  const pct = totalPartes > 0 ? Math.round((partesConAsigConfirmada / totalPartes) * 100) : 0
+  const totalPartes      = partes.length
+  const confirmadas      = asignaciones.filter(a => partes.some(p => p.id === a.parte_id) && a.confirmado).length
+  const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
 
   // Agrupar por sección
   const secciones = ['APERTURA','TB','SMT','VC','CIERRE']
@@ -194,7 +198,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
             <div className="w-20 h-1.5 bg-bg rounded-full overflow-hidden">
               <div className="h-1.5 bg-accent rounded-full" style={{width:`${pct}%`}} />
             </div>
-            <span className="text-xs font-mono text-text3">{partesConAsigConfirmada}/{totalPartes}</span>
+            <span className="text-xs font-mono text-text3">{confirmadas}/{totalPartes}</span>
           </div>
           <span className="text-text3 text-sm">{expandida ? '▲' : '▼'}</span>
         </div>
@@ -324,13 +328,6 @@ export default function Programa() {
         if (semError || !semData) continue
 
       // Reemplazar partes anteriores de la misma semana para evitar duplicados
-      // Primero eliminar asignaciones que dependan de esas partes
-      const { data: partesViejas } = await supabase
-        .from('programa_partes').select('id').eq('semana_id', semData.id)
-      if (partesViejas?.length) {
-        const idsViejos = partesViejas.map(p => p.id)
-        await supabase.from('programa_asignaciones').delete().in('parte_id', idsViejos)
-      }
       await supabase.from('programa_partes').delete().eq('semana_id', semData.id)
 
       // Insertar partes
@@ -351,69 +348,6 @@ export default function Programa() {
         console.error('Error insertando partes del EPUB:', partesError)
         showToast('Error al guardar partes del EPUB: ' + partesError.message)
         continue
-      }
-
-      // ── Auto-asignación semana por semana ──────────────────
-      // Obtener las partes recién insertadas con sus IDs de Supabase
-      const { data: partesInsertadas } = await supabase
-        .from('programa_partes')
-        .select('*')
-        .eq('semana_id', semData.id)
-        .order('numero_parte')
-
-      if (partesInsertadas?.length) {
-        const mesStr = semData.mes || ''
-        const asignacionesPayload = []
-        // Claves ya asignadas en esta semana (se actualiza al asignar cada parte)
-        const yaAsignadosSemana = []
-
-        for (const parte of partesInsertadas) {
-          // Sugerir mejor candidato para el rol principal
-          const candidatos = sugerirCandidatos(
-            parte.tipo_asignacion,
-            personas,
-            historial,
-            mesStr,
-            yaAsignadosSemana
-          )
-          const mejor = candidatos.find(c => c._score >= 50) || candidatos[0]
-          if (mejor) {
-            asignacionesPayload.push({
-              parte_id:        parte.id,
-              clave:           mejor.clave,
-              rol:             'principal',
-              sugerido_por_app: true,
-              confirmado:      false,
-            })
-            yaAsignadosSemana.push(mejor.clave)
-
-            // Si requiere ayudante, sugerir una segunda dama
-            if (parte.requiere_ayudante) {
-              const candidatosAyu = sugerirCandidatos(
-                parte.tipo_asignacion,
-                personas,
-                historial,
-                mesStr,
-                yaAsignadosSemana
-              )
-              const mejorAyu = candidatosAyu.find(c => c._score >= 50) || candidatosAyu[0]
-              if (mejorAyu) {
-                asignacionesPayload.push({
-                  parte_id:        parte.id,
-                  clave:           mejorAyu.clave,
-                  rol:             'ayudante',
-                  sugerido_por_app: true,
-                  confirmado:      false,
-                })
-                yaAsignadosSemana.push(mejorAyu.clave)
-              }
-            }
-          }
-        }
-
-        if (asignacionesPayload.length) {
-          await supabase.from('programa_asignaciones').insert(asignacionesPayload)
-        }
       }
 
       insertadas++
@@ -517,21 +451,46 @@ export default function Programa() {
 
   // ── Confirmar toda la semana ─────────────────────────────
   async function handleConfirmarTodo(semanaId, partesS, asignacionesS) {
-    // Solo procesar asignaciones de rol principal pendientes de confirmar
     const asigPendientes = asignacionesS.filter(a =>
-      partesS.some(p => p.id === a.parte_id) &&
-      a.rol === 'principal' &&
-      !a.confirmado &&
-      a.clave
+      partesS.some(p => p.id === a.parte_id) && !a.confirmado && a.clave
     )
     for (const asig of asigPendientes) {
       const parte = partesS.find(p => p.id === asig.parte_id)
-      if (!parte) continue
-      const ayudante = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'ayudante') || null
-      await handleConfirmar(parte.id, asig, ayudante)
+      if (parte) {
+        const ayudante = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+        await handleConfirmar(parte.id, asig, ayudante)
+      }
     }
-    showToast(`${asigPendientes.length} asignaciones confirmadas ✓`)
-    await fetchData()
+    showToast('Semana confirmada completa ✓')
+  }
+
+  // ── Generar S-140.docx ──────────────────────────────────
+  async function handleGenerarDocx() {
+    if (!semanas.length) { showToast('No hay semanas cargadas'); return }
+    showToast('Generando S-140...')
+
+    const semanasConAsig = semanas.map(s => {
+      const partesSemana = partes.filter(p => p.semana_id === s.id)
+      const asigSemana   = asignaciones.filter(a =>
+        partesSemana.some(p => p.id === a.parte_id)
+      )
+      return {
+        ...s,
+        partes: partesSemana,
+        asignaciones: buildAsignaciones(partesSemana, asigSemana, personas),
+      }
+    })
+
+    try {
+      await generarYDescargarS140({
+        congregacion: 'Congregacion del Recreo',
+        semanas: semanasConAsig,
+      })
+      showToast('S-140 descargado ✓')
+    } catch (err) {
+      console.error(err)
+      showToast('Error al generar el S-140: ' + err.message)
+    }
   }
 
   // ── Eliminar semana ──────────────────────────────────────
@@ -576,6 +535,13 @@ export default function Programa() {
             className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50"
           >
             {uploading ? 'Procesando...' : '↑ Subir EPUB mwb'}
+          </button>
+          <button
+            onClick={handleGenerarDocx}
+            disabled={!semanas.length}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50"
+          >
+            ↓ Generar S-140
           </button>
         </div>
       </div>
@@ -635,9 +601,7 @@ export default function Programa() {
             <tbody>
               {semanas.map(s => {
                 const partesSemana = partes.filter(p => p.semana_id === s.id)
-                const confirmadas  = partesSemana.filter(p =>
-                  asignaciones.some(a => a.parte_id === p.id && a.rol === 'principal' && a.confirmado)
-                ).length
+                const asigConf     = asignaciones.filter(a => partesSemana.some(p => p.id === a.parte_id) && a.confirmado)
                 return (
                   <tr key={s.id} className="border-b border-border last:border-0 hover:bg-bg/50">
                     <td className="px-3 py-2 text-sm text-text1 whitespace-nowrap">{s.fecha_inicio}<br/><span className="text-xs text-text3">{s.fecha_fin}</span></td>
@@ -647,8 +611,8 @@ export default function Programa() {
                     <td className="px-3 py-2 text-xs font-mono text-text3">{s.cancion_cierre || '—'}</td>
                     <td className="px-3 py-2 text-xs font-mono text-text2 text-center">{partesSemana.length}</td>
                     <td className="px-3 py-2 text-xs font-mono text-center">
-                      <span className={confirmadas === partesSemana.length && partesSemana.length > 0 ? 'text-accent font-medium' : 'text-text3'}>
-                        {confirmadas}/{partesSemana.length}
+                      <span className={asigConf.length === partesSemana.length && partesSemana.length > 0 ? 'text-accent font-medium' : 'text-text3'}>
+                        {asigConf.length}/{partesSemana.length}
                       </span>
                     </td>
                     <td className="px-3 py-2">

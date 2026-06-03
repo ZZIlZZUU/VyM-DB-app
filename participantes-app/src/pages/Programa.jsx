@@ -74,13 +74,9 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
   const ayudante  = asigAyu[0] || null
 
   return (
-    <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start
-      ${parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE'
-        ? 'grid-cols-[auto_1fr_120px]'
-        : 'grid-cols-[auto_1fr_180px_120px]'}`}
-    >
+    <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
       {/* Hora */}
-      <div className="text-xs font-mono text-text3 w-12 pt-1 shrink-0">
+      <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0 whitespace-nowrap">
         {parte.hora_inicio || ''}
       </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
-import { generarYDescargarS140, buildAsignaciones } from '../lib/generarS140'
+import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -304,7 +304,6 @@ export default function Programa() {
       let insertadas = 0
 
       for (const s of semanasParsed) {
-        // Insertar semana (ignorar si ya existe por UNIQUE constraint)
         const { data: semData, error: semError } = await supabase
           .from('programa_semanas')
           .upsert({
@@ -323,30 +322,28 @@ export default function Programa() {
 
         if (semError || !semData) continue
 
-      // Reemplazar partes anteriores de la misma semana para evitar duplicados
-      await supabase.from('programa_partes').delete().eq('semana_id', semData.id)
+        await supabase.from('programa_partes').delete().eq('semana_id', semData.id)
 
-      // Insertar partes
-      const partesPayload = s.partes.map((p, i) => ({
-        semana_id:         semData.id,
-        seccion:           p.seccion,
-        numero_parte:      Number.isInteger(p.numero_parte) ? p.numero_parte : i + 1,
-        titulo:            p.titulo,
-        duracion_min:      p.duracion_min || null,
-        tipo_asignacion:   p.tipo,
-        requiere_ayudante: p.requiere_ayudante || false,
-        hora_inicio:       p.hora_inicio || null,
-        hora_fin:          p.hora_fin    || null,
-      }))
+        const partesPayload = s.partes.map((p, i) => ({
+          semana_id:         semData.id,
+          seccion:           p.seccion,
+          numero_parte:      Number.isInteger(p.numero_parte) ? p.numero_parte : i + 1,
+          titulo:            p.titulo,
+          duracion_min:      p.duracion_min || null,
+          tipo_asignacion:   p.tipo,
+          requiere_ayudante: p.requiere_ayudante || false,
+          hora_inicio:       p.hora_inicio || null,
+          hora_fin:          p.hora_fin    || null,
+        }))
 
-      const { error: partesError } = await supabase.from('programa_partes').insert(partesPayload)
-      if (partesError) {
-        console.error('Error insertando partes del EPUB:', partesError)
-        showToast('Error al guardar partes del EPUB: ' + partesError.message)
-        continue
-      }
+        const { error: partesError } = await supabase.from('programa_partes').insert(partesPayload)
+        if (partesError) {
+          console.error('Error insertando partes del EPUB:', partesError)
+          showToast('Error al guardar partes del EPUB: ' + partesError.message)
+          continue
+        }
 
-      insertadas++
+        insertadas++
       }
 
       showToast(`${insertadas} semanas importadas del EPUB`)
@@ -363,7 +360,6 @@ export default function Programa() {
   // ── Asignar persona a una parte ──────────────────────────
   async function handleAsignar(parteId, clave, rol, existingId) {
     if (!clave) {
-      // Eliminar asignación si se borra la selección
       if (existingId) {
         await supabase.from('programa_asignaciones').delete().eq('id', existingId)
         await fetchData()
@@ -396,7 +392,6 @@ export default function Programa() {
 
     const tipoParticipacion = TIPO_PARTICIPACION[parte.tipo_asignacion] || 'X'
 
-    // Crear registro en participaciones si no existe
     let participacionId = principal.participacion_id
     if (!participacionId) {
       const { data: partData } = await supabase.from('participaciones').insert({
@@ -413,13 +408,11 @@ export default function Programa() {
       participacionId = partData?.id
     }
 
-    // Confirmar asignación principal
     await supabase.from('programa_asignaciones').update({
       confirmado: !principal.confirmado,
       participacion_id: participacionId,
     }).eq('id', principal.id)
 
-    // Confirmar ayudante si existe
     if (ayudante?.clave && ayudante?.id) {
       const personaAyu = personas.find(p => p.clave === ayudante.clave)
       if (personaAyu && !principal.confirmado) {
@@ -465,22 +458,11 @@ export default function Programa() {
     if (!semanas.length) { showToast('No hay semanas cargadas'); return }
     showToast('Generando S-140...')
 
-    const semanasConAsig = semanas.map(s => {
-      const partesSemana = partes.filter(p => p.semana_id === s.id)
-      const asigSemana   = asignaciones.filter(a =>
-        partesSemana.some(p => p.id === a.parte_id)
-      )
-      return {
-        ...s,
-        partes: partesSemana,
-        asignaciones: buildAsignaciones(partesSemana, asigSemana, personas),
-      }
-    })
-
     try {
+      const semanasConDatos = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       await generarYDescargarS140({
         congregacion: 'Congregacion del Recreo',
-        semanas: semanasConAsig,
+        semanas: semanasConDatos,
       })
       showToast('S-140 descargado ✓')
     } catch (err) {

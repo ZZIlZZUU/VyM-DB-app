@@ -1,7 +1,8 @@
 // ============================================================
 // generarS140.js — Generador S-140 con docxtemplater
 // Usa la plantilla S-140_plantilla.docx que ya tiene los
-// marcadores {{s1_presidente}}, {{s1_tb_titulo}}, etc.
+// marcadores {$s1_presidente$}, {$s1_tb_titulo$}, etc.
+// Delimitadores: {$ y $} (para evitar conflicto con Word XML)
 //
 // Instalar dependencias:
 //   pnpm add docxtemplater pizzip
@@ -167,7 +168,8 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
   const doc = new Docxtemplater(zip, {
     paragraphLoop:  true,
     linebreaks:     true,
-    nullGetter:     () => '',   // campos vacíos → cadena vacía
+    nullGetter:     () => '',
+    delimiters:     { start: '{$', end: '$}' },
   })
 
   doc.render(datos)

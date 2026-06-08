@@ -30,12 +30,14 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_gJjDUrAu1wb_oD2CcOPtMg_aM7GnB6W
 
 ```
 participantes-app/
+├── public/
+│   └── S-140_plantilla.docx         — plantilla Word con marcadores {$variable$}
 ├── src/
 │   ├── lib/
 │   │   ├── supabase.js              — cliente Supabase
 │   │   ├── epubParser.js            — parser EPUB mwb → semanas/partes
 │   │   ├── asignacionesSugeridas.js — motor de sugerencias por rotación
-│   │   └── generarS140.js           — generador S-140.docx para navegador
+│   │   └── generarS140.js           — generador S-140.docx con docxtemplater
 │   ├── pages/
 │   │   ├── Login.jsx                — login email/password
 │   │   ├── VistaEditable.jsx        — tabla cruzada persona × mes con modales
@@ -62,9 +64,12 @@ participantes-app/
 ## Dependencias importantes
 
 ```bash
-pnpm add jszip          # parser EPUB (importación dinámica en epubParser.js)
-pnpm add docx           # generación S-140.docx en el navegador
+pnpm add jszip           # parser EPUB (importación dinámica en epubParser.js)
+pnpm add docxtemplater   # generación S-140.docx con plantilla Word
+pnpm add pizzip          # requerido por docxtemplater para leer/escribir .docx
 ```
+
+> **Nota:** La librería `docx` (generación programática) fue **reemplazada** por `docxtemplater + pizzip` para respetar el diseño visual exacto del S-140 oficial. La plantilla vive en `public/S-140_plantilla.docx`.
 
 ---
 
@@ -215,7 +220,7 @@ programa_asignaciones:
       ↓
 6. Al confirmar → crea registro automático en tabla participaciones
       ↓
-7. Botón "Generar S-140" → generarS140.js produce el .docx y lo descarga
+7. Botón "Generar S-140" → generarS140.js llena la plantilla y descarga el .docx
 ```
 
 ### Horarios fijos de referencia
@@ -231,6 +236,48 @@ programa_asignaciones:
 | VC (primera parte) | 19:45 |
 | Palabras de conclusión | 20:37 |
 | Canción cierre + oración | 20:40 |
+
+### generarS140.js — arquitectura actual
+
+Usa `docxtemplater` + `pizzip` para llenar la plantilla `public/S-140_plantilla.docx`.
+
+**Funciones exportadas:**
+- `buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)` → array de semanas normalizadas
+- `buildDatosPlantilla(congregacion, semanas)` → objeto plano con todas las variables `{$s1_presidente$}`, etc.
+- `generarYDescargarS140({ congregacion, semanas })` → fetch plantilla → render → descarga
+
+**Estructura de datos por semana:**
+```js
+{
+  fecha, presidente, can_ap, oracion_ap,
+  tb_titulo, tb_cond, pe_cond, lb_est,
+  smt: [{ titulo, est, ayu }],   // hasta 4 elementos
+  can_vc,
+  vc:  [{ titulo, cond }],       // hasta 2 elementos
+  ebc_cond, ebc_lect,
+  can_ci, oracion_ci,
+}
+```
+
+**Variables de la plantilla** (formato `{$s1_variable$}`):
+- La plantilla tiene **5 slots** (s1..s5) — slots sin semana quedan en blanco
+- Delimitadores: `{$` y `$}` (NO `{{` y `}}` — Word fragmenta el XML y docxtemplater falla con "duplicate open tag")
+- Variables: `{$congregacion$}`, `{$s1_fecha$}`, `{$s1_presidente$}`, `{$s1_can_ap$}`, `{$s1_oracion_ap$}`, `{$s1_tb_titulo$}`, `{$s1_tb_cond$}`, `{$s1_pe_cond$}`, `{$s1_lb_est$}`, `{$s1_smt1_titulo$}`, `{$s1_smt1_est$}`, `{$s1_smt1_ayu$}` (smt1..4), `{$s1_can_vc$}`, `{$s1_vc1_titulo$}`, `{$s1_vc1_cond$}` (vc1..2), `{$s1_ebc_cond$}`, `{$s1_ebc_lect$}`, `{$s1_can_ci$}`, `{$s1_oracion_ci$}`
+
+**Uso en Programa.jsx:**
+```js
+import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+
+async function handleGenerarDocx() {
+  const semanasConDatos = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
+  await generarYDescargarS140({
+    congregacion: 'Congregacion del Recreo',
+    semanas: semanasConDatos,
+  })
+}
+```
+
+> **Nota:** No es necesario tener semanas completas para generar el docx — con 1 semana y campos parciales funciona; los slots vacíos quedan en blanco.
 
 ---
 
@@ -276,23 +323,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 // Usar T12:00:00 para evitar problemas de zona horaria
 ```
 
-### generarS140.js
-- Usa `Packer.toBlob()` para el navegador — **NUNCA** `Packer.toBuffer()` (es solo Node.js)
-- Layout: landscape carta (15840 × 12240 DXA), márgenes 720 DXA
-- 4 columnas: hora (650) | descripción (7500) | rol (1800) | nombre (4450)
-- 2 semanas por página
-
 ---
 
 ## Pendientes
 
 - [ ] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno
-- [ ] **Nombre de congregación configurable** — tabla `configuracion` en Supabase
+- [ ] **Nombre de congregación configurable** — tabla `configuracion` en Supabase (actualmente hardcodeado como `'Congregacion del Recreo'` en `Programa.jsx`)
 - [ ] **Gestión de usuarios** — pantalla para invitar desde la app sin entrar a Supabase
-- [ ] **Botón "Generar S-140"** en Programa.jsx — ya existe `generarS140.js`, falta integrarlo:
-  ```js
-  import { generarYDescargarS140, buildAsignaciones } from '../lib/generarS140'
-  ```
 - [ ] **Pulido de UI** — detalles visuales menores
 
 ---
@@ -304,3 +341,5 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - Contador de progreso en `TarjetaSemana` contaba asignaciones totales, ahora cuenta partes únicas con principal confirmado
 - `handleConfirmarTodo` filtra explícitamente `rol === 'principal'` para evitar procesar ayudantes por separado
 - Fechas en modal Matriculados: usar `useRef` para el campo nombre para evitar pérdida de tildes
+- `generarS140.js`: migrado de `docx` (generación programática) a `docxtemplater + pizzip` (plantilla Word)
+- `docxtemplater` "duplicate open tag": resuelto usando delimitadores `{$` y `$}` en lugar de `{{` y `}}` — Word fragmenta el XML en múltiples `<w:r>` y docxtemplater no puede parsear `{{` dividido entre runs

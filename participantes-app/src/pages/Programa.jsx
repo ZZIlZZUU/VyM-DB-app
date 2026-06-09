@@ -19,7 +19,7 @@ const TIPO_LABEL = {
   TB:'Tesoros de la Biblia', PE:'Perlas escondidas', LB:'Lectura de la Biblia',
   SMT_EST:'Estudiante', SMT_DSC:'Discurso', SMT_AYU:'Ayudante',
   VC:'Vida Cristiana', NC:'Nec. de la congregación',
-  EBC_CON:'Conductor EBC', EBC_LEC:'Lector EBC',
+  EBC_CON:'Conductor EBC', EBC_LEC:'Lector EBC', SMT_VACIO:'—',
 }
 
 const TIPO_COLOR = {
@@ -29,6 +29,7 @@ const TIPO_COLOR = {
   SMT_EST:'bg-accent-bg text-accent', SMT_DSC:'bg-amber-bg text-amber', SMT_AYU:'bg-blue-bg text-blue',
   VC:'bg-green-100 text-green-800', NC:'bg-red-100 text-red-800',
   EBC_CON:'bg-orange-100 text-orange-700', EBC_LEC:'bg-bg text-text2',
+  SMT_VACIO:'bg-bg text-text3',
 }
 
 const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1, VC:1, NC:1, EBC_CON:1, EBC_LEC:1, P:1, ORACION:1, ORACION_C:1 }
@@ -72,6 +73,21 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
   const principal = asig[0] || null
   const ayudante  = asigAyu[0] || null
+
+    // Slot vacío — no renderizar nada asignable
+  if (parte.tipo_asignacion === 'SMT_VACIO') {
+    return (
+      <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
+        <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0" />
+        <div>
+          <div className="text-sm text-text3 italic">Sin cuarta asignación</div>
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-bg text-text3">SMT</span>
+        </div>
+        <div />
+        <div />
+      </div>
+    )
+  }
 
   return (
     <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
@@ -164,7 +180,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     .filter(a => partes.some(p => p.id === a.parte_id))
     .map(a => a.clave)
 
-  const totalPartes      = partes.length
+  const totalPartes      = partes.filter(p => p.tipo_asignacion !== 'SMT_VACIO').length
   const confirmadas      = asignaciones.filter(a => partes.some(p => p.id === a.parte_id) && a.confirmado).length
   const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
 

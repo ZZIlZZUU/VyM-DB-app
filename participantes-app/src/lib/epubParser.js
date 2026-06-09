@@ -49,11 +49,9 @@ const VC_START_MINUTES = 19 * 60 + 45
   }
   
   // Identificar tipo de asignación SMT por título
-  function inferirTipoSMT(titulo) {
-    const t = titulo.toLowerCase()
-    if (t.includes('discurso')) return 'SMT_DSC'
-    return 'SMT_EST' // Empiece conversaciones, Haga revisitas, Haga discípulos, Explique sus creencias
-  }
+  function inferirTipoSMT() {
+  return 'SMT_EST' // tipo provisional, se corrige al hacer push
+}
   
   // Identificar tipo VC por título
   function inferirTipoVC(titulo) {
@@ -110,9 +108,18 @@ const VC_START_MINUTES = 19 * 60 + 45
         return { seccion: 'TB', tipo, requiere_ayudante: false }
       }
 
-      if (useGold || lower.includes('seamos') || lower.includes('mejores maestros') || lower.includes('discurso') || lower.includes('estudiante') || lower.includes('ayudante')) {
-        const tipo = inferirTipoSMT(titulo)
-        return { seccion: 'SMT', tipo, requiere_ayudante: tipo === 'SMT_EST' }
+      if (useGold || 
+          lower.includes('seamos') || 
+          lower.includes('mejores maestros') || 
+          lower.includes('discurso') || 
+          lower.includes('empiece') ||       // ← agregar
+          lower.includes('haga revisitas') || // ← agregar
+          lower.includes('haga disc') ||      // ← agregar (discípulos/discurso)
+          lower.includes('explique') ||       // ← agregar
+          lower.includes('estudiante') || 
+          lower.includes('ayudante')) {
+        const tipo = inferirTipoSMT()  // siempre 'SMT_EST' provisional
+        return { seccion: 'SMT', tipo, requiere_ayudante: false } // requiere_ayudante también se corrige en push
       }
 
       if (useMaroon || lower.includes('vida cristiana') || lower.includes('necesidades') || lower.includes('ebc') || lower.includes('estudio b')) {
@@ -171,7 +178,22 @@ const VC_START_MINUTES = 19 * 60 + 45
           partesVC.push({ ...parte, tipo: 'EBC_CON' })
           partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'EBC_LEC', requiere_ayudante: false })
         } else {
-          partesSMT.push(parte)
+          if (partesSMT.length < 4) {
+            const t = parte.titulo.toLowerCase()
+            const esSMT_EST =
+              t.includes('empiece conversaciones') ||
+              t.includes('haga revisitas') ||
+              t.includes('explique sus creencias') ||
+              t.includes('haga discípulos') ||    // por si aparece
+              t.includes('haga discipulos')       // sin tilde por si acaso
+
+            const tipoCorregido = esSMT_EST ? 'SMT_EST' : 'SMT_DSC'
+            partesSMT.push({
+              ...parte,
+              tipo: tipoCorregido,
+              requiere_ayudante: tipoCorregido === 'SMT_EST',
+            })
+          }
         }
       } else if (info.seccion === 'VC') {
         if (parte.tipo === 'EBC_CON') {
@@ -201,6 +223,20 @@ const VC_START_MINUTES = 19 * 60 + 45
 
     // Calcular horarios SMT y VC
     const partesSMTConHorario = calcularHorariosSMT(partesSMT)
+
+    // Rellenar SMT hasta 4 slots con partes vacías
+    while (partesSMTConHorario.length < 4) {
+      partesSMTConHorario.push({
+        titulo: '',
+        duracion_min: null,
+        seccion: 'SMT',
+        tipo: 'SMT_VACIO',
+        requiere_ayudante: false,
+        hora_inicio: null,
+        hora_fin: null,
+      })
+    }
+
     const partesVCConHorario  = calcularHorariosVC(partesVC)
 
     // Armar partes de apertura y cierre

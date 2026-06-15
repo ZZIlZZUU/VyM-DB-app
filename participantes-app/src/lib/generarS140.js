@@ -122,7 +122,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
 
     // VC partes (excluyendo EBC)
     const vcPartes = partesSemana
-      .filter(p => p.seccion === 'VC' && p.tipo_asignacion !== 'EBC_CON' && p.tipo_asignacion !== 'EBC_LEC')
+      .filter(p => p.seccion === 'VC' && p.tipo_asignacion !== 'EBC_CON' && p.tipo_asignacion !== 'LEBC')
       .sort((a, b) => a.numero_parte - b.numero_parte)
 
     const vc = vcPartes.map(parte => {
@@ -146,7 +146,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       can_vc:      String(s.cancion_vc || ''),
       vc,
       ebc_cond:    asigDe('EBC_CON'),
-      ebc_lect:    asigDe('EBC_LEC'),
+      ebc_lect:    asigDe('LEBC'),
       can_ci:      String(s.cancion_cierre || ''),
       oracion_ci:  asigDe('ORACION_C'),
     }

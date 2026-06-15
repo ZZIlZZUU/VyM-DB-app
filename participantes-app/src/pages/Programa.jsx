@@ -68,7 +68,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 }
 
 // ── Fila de parte ─────────────────────────────────────────────
-function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar }) {
+function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar, clavePresidente }) {
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
   const principal = asig[0] || null
@@ -84,6 +84,30 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
           <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-bg text-text3">SMT</span>
         </div>
         <div />
+        <div />
+      </div>
+    )
+  }
+
+    // CONCLU e INTRO — read-only, siempre refleja al Presidente
+  if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'INTRO' || parte.tipo_asignacion === 'ORACION') {
+    const nombrePresidente = personas.find(p => p.clave === clavePresidente)?.nombre || '—'
+    return (
+      <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
+        <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0 whitespace-nowrap">
+          {parte.hora_inicio || ''}
+        </div>
+        <div>
+          <div className="text-sm text-text1 leading-tight">{parte.titulo}</div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${TIPO_COLOR[parte.tipo_asignacion] || 'bg-bg text-text2'}`}>
+              {parte.tipo_asignacion}
+            </span>
+          </div>
+        </div>
+        <div className="px-2 py-1 text-xs text-text2 italic bg-bg border border-border2 rounded-lg">
+          {clavePresidente ? nombrePresidente : '— Asignar presidente primero —'}
+        </div>
         <div />
       </div>
     )
@@ -180,6 +204,13 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     .filter(a => partes.some(p => p.id === a.parte_id))
     .map(a => a.clave)
 
+      // Clave del presidente de esta semana
+  const partePresidente = partes.find(p => p.tipo_asignacion === 'P')
+  const asigPresidente  = partePresidente
+    ? asignaciones.find(a => a.parte_id === partePresidente.id && a.rol === 'principal')
+    : null
+  const clavePresidente = asigPresidente?.clave || null
+
   const totalPartes      = partes.filter(p => p.tipo_asignacion !== 'SMT_VACIO').length
   const confirmadas      = asignaciones.filter(a => partes.some(p => p.id === a.parte_id) && a.confirmado).length
   const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
@@ -238,6 +269,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
                     semanaAsignados={semanaAsignados}
                     onAsignar={onAsignar}
                     onConfirmar={onConfirmar}
+                    clavePresidente={clavePresidente} 
                   />
                 ))}
               </div>
@@ -373,7 +405,6 @@ export default function Programa() {
     setUploading(false)
   }
 
-  // ── Asignar persona a una parte ──────────────────────────
   async function handleAsignar(parteId, clave, rol, existingId) {
     if (!clave) {
       if (existingId) {
@@ -390,6 +421,33 @@ export default function Programa() {
     } else {
       await supabase.from('programa_asignaciones').insert(payload)
     }
+
+    // Si se asignó el Presidente, propagar a CONCLU e INTRO automáticamente
+    if (rol === 'principal') {
+      const parte = partes.find(p => p.id === parteId)
+      if (parte?.tipo_asignacion === 'P') {
+        const semanaId = parte.semana_id
+        const partesSemana = partes.filter(p => p.semana_id === semanaId)
+        const tiposAutoPropagar = ['CONCLU', 'INTRO', 'ORACION']
+
+        for (const tipo of tiposAutoPropagar) {
+          const parteTipo = partesSemana.find(p => p.tipo_asignacion === tipo)
+          if (!parteTipo) continue
+
+          const asigExistente = asignaciones.find(
+            a => a.parte_id === parteTipo.id && a.rol === 'principal'
+          )
+          const payloadProp = { parte_id: parteTipo.id, clave, rol: 'principal', sugerido_por_app: false, confirmado: false }
+
+          if (asigExistente) {
+            await supabase.from('programa_asignaciones').update(payloadProp).eq('id', asigExistente.id)
+          } else {
+            await supabase.from('programa_asignaciones').insert(payloadProp)
+          }
+        }
+      }
+    }
+
     await fetchData()
   }
 

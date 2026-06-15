@@ -4,15 +4,35 @@ import { supabase } from '../lib/supabase'
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 const TIPO_LABEL = {
-  T:'Titular', A:'Asistente', X:'Participación',
-  P:'Presidente', TB:'Tesoros', PE:'Perlas',
-  EBC:'Est. Bíblico', VC:'Vida Cristiana', NC:'Nec. Congr.'
+  T:'Titular', 
+  A:'Asistente', 
+  X:'Participación', 
+  LB:'Lectura Biblica', 
+  P:'Presidente', 
+  TB:'Tesoros', 
+  PE:'Perlas', 
+  SMT_DSC: 'Discurso', 
+  EBC:'Est. Bíblico', 
+  LEBC: 'Lector EBC', 
+  VC:'Vida Cristiana', 
+  NC:'Nec. Congr.', 
+  ORACION_C: 'Oración conclusión',
 }
 
 const BADGE_CLASS = {
-  T:'bg-accent-bg text-accent', A:'bg-blue-bg text-blue', X:'bg-amber-bg text-amber',
-  P:'bg-purple-bg text-purple', TB:'bg-teal-bg text-teal', PE:'bg-rose-bg text-rose',
-  EBC:'bg-orange-100 text-orange-700', VC:'bg-green-100 text-green-800', NC:'bg-red-100 text-red-800',
+  T:'bg-accent-bg           text-accent', 
+  A:'bg-blue-bg             text-blue', 
+  X:'bg-amber-bg            text-amber', 
+  LB:'bg-cyan-bg            text-cyan', 
+  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
+  P:'bg-purple-bg           text-purple', 
+  TB:'bg-teal-bg            text-teal', 
+  PE:'bg-rose-bg            text-rose',
+  EBC:'bg-orange-100        text-orange-700', 
+  LEBC: 'bg-maroon/20       text-maroon', 
+  VC:'bg-green-100          text-green-800', 
+  NC:'bg-red-100            text-red-800',
+  ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
 function StatCard({ title, children }) {

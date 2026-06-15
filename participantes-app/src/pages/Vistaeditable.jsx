@@ -10,39 +10,57 @@ const MES_ABBR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','N
 const MES_CODE = ['01','02','03','04','05','06','07','08','09','10','11','12']
 
 const TIPOS_MAT_F  = ['T','A']
-const TIPOS_MAT_M  = ['X']
-const TIPOS_SM     = ['X','P','TB','PE','EBC']
-const TIPOS_ANC    = ['X','P','TB','PE','EBC','VC','NC']
+const TIPOS_MAT_M  = ['T','A','X','LB','SMT_DSC','LEBC', 'ORACION_C']
+const TIPOS_SM     = ['T','A','X','LB','SMT_DSC','P','TB','PE','EBC', 'LEBC', 'ORACION_C']
+const TIPOS_ANC    = ['T','A','X','LB','SMT_DSC','P','TB','PE','EBC','VC','NC', 'LEBC', 'ORACION_C']
 
 const TIPO_LABEL = {
-  T:'Titular', A:'Asistente', X:'Participación',
-  P:'Presidente', TB:'Tesoros', PE:'Perlas',
-  EBC:'Est. Bíblico', VC:'Vida Cristiana', NC:'Nec. Congr.'
+  T:'Titular', 
+  A:'Asistente', 
+  X:'Participación', 
+  LB:'Lectura Biblica', 
+  P:'Presidente', 
+  TB:'Tesoros', 
+  PE:'Perlas', 
+  SMT_DSC: 'Discurso', 
+  EBC:'Est. Bíblico', 
+  LEBC: 'Lector EBC', 
+  VC:'Vida Cristiana', 
+  NC:'Nec. Congr.', 
+  ORACION_C: 'Oración conclusión',
 }
-const PESO_MAP = { T:2, A:1, X:1, P:1, TB:1, PE:1, EBC:1, VC:1, NC:1 }
+const PESO_MAP = { T:2, A:1, X:1, LB:1, SMT_DSC:1, P:1, TB:1, PE:1, EBC:1, LEBC:1, VC:1, NC:1, ORACION_C:0 }
 
 const BADGE_CLASS = {
-  T:   'bg-accent-bg   text-accent',
-  A:   'bg-blue-bg     text-blue',
-  X:   'bg-amber-bg    text-amber',
-  P:   'bg-purple-bg   text-purple',
-  TB:  'bg-teal-bg     text-teal',
-  PE:  'bg-rose-bg     text-rose',
-  EBC: 'bg-orange-100  text-orange-700',
-  VC:  'bg-green-100   text-green-800',
-  NC:  'bg-red-100     text-red-800',
+  T:'bg-accent-bg           text-accent', 
+  A:'bg-blue-bg             text-blue', 
+  X:'bg-amber-bg            text-amber', 
+  LB:'bg-cyan-bg            text-cyan', 
+  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
+  P:'bg-purple-bg           text-purple', 
+  TB:'bg-teal-bg            text-teal', 
+  PE:'bg-rose-bg            text-rose',
+  EBC:'bg-orange-100        text-orange-700', 
+  LEBC: 'bg-maroon/20       text-maroon', 
+  VC:'bg-green-100          text-green-800', 
+  NC:'bg-red-100            text-red-800',
+  ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
 const CHIP_CLASS = {
-  T:   'bg-accent-bg   text-accent',
-  A:   'bg-blue-bg     text-blue',
-  X:   'bg-amber-bg    text-amber',
-  P:   'bg-purple-bg   text-purple',
-  TB:  'bg-teal-bg     text-teal',
-  PE:  'bg-rose-bg     text-rose',
-  EBC: 'bg-orange-100  text-orange-700',
-  VC:  'bg-green-100   text-green-800',
-  NC:  'bg-red-100     text-red-800',
+  T:'bg-accent-bg           text-accent', 
+  A:'bg-blue-bg             text-blue', 
+  X:'bg-amber-bg            text-amber', 
+  LB:'bg-cyan-bg            text-cyan', 
+  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
+  P:'bg-purple-bg           text-purple', 
+  TB:'bg-teal-bg            text-teal', 
+  PE:'bg-rose-bg            text-rose',
+  EBC:'bg-orange-100        text-orange-700', 
+  LEBC: 'bg-maroon/20       text-maroon', 
+  VC:'bg-green-100          text-green-800', 
+  NC:'bg-red-100            text-red-800',
+  ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
 // Intensidad del mapa de calor por cantidad de registros

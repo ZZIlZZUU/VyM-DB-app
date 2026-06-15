@@ -2,9 +2,19 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 const BADGE_CLASS = {
-  T:'bg-accent-bg text-accent', A:'bg-blue-bg text-blue', X:'bg-amber-bg text-amber',
-  P:'bg-purple-bg text-purple', TB:'bg-teal-bg text-teal', PE:'bg-rose-bg text-rose',
-  EBC:'bg-orange-100 text-orange-700', VC:'bg-green-100 text-green-800', NC:'bg-red-100 text-red-800',
+  T:'bg-accent-bg           text-accent', 
+  A:'bg-blue-bg             text-blue', 
+  X:'bg-amber-bg            text-amber', 
+  LB:'bg-cyan-bg            text-cyan', 
+  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
+  P:'bg-purple-bg           text-purple', 
+  TB:'bg-teal-bg            text-teal', 
+  PE:'bg-rose-bg            text-rose',
+  EBC:'bg-orange-100        text-orange-700', 
+  LEBC: 'bg-maroon/20       text-maroon', 
+  VC:'bg-green-100          text-green-800', 
+  NC:'bg-red-100            text-red-800',
+  ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -212,7 +222,7 @@ export default function VistaSql() {
             <select value={rTipo} onChange={e => setRTipo(e.target.value)}
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
               <option value="">Todos los tipos</option>
-              {['T','A','X','P','TB','PE','EBC','VC','NC'].map(t => <option key={t}>{t}</option>)}
+              {['T','A','X','LB','SMT_DSC','P','TB','PE','EBC','VC','NC', 'LEBC', 'ORACION_C'].map(t => <option key={t}>{t}</option>)}
             </select>
             <span className="ml-auto font-mono text-xs text-text3">{filteredPartic.length} registro{filteredPartic.length !== 1 ? 's' : ''}</span>
           </div>

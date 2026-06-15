@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-const PESO_MAP = { T:2, A:1, X:1, P:1, TB:1, PE:1, EBC:1, VC:1, NC:1 }
+const PESO_MAP = { T:2, A:1, X:1, LB:1, SMT_DSC:1, P:1, TB:1, PE:1, EBC:1, LEBC:1, VC:1, NC:1, ORACION_C:0 }
 
 // CSV con BOM UTF-8 para compatibilidad con Excel en español
 function downloadCSV(content, filename) {

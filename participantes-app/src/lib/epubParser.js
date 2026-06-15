@@ -192,7 +192,7 @@ const VC_START_MINUTES = 19 * 60 + 45
       } else if (info.seccion === 'SMT') {
         if (parte.tipo === 'EBC_CON') {
           partesVC.push({ ...parte, tipo: 'EBC_CON' })
-          partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'EBC_LEC', requiere_ayudante: false })
+          partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'LEBC', requiere_ayudante: false })
         } else {
           if (partesSMT.length < 4) {
             const t = parte.titulo.toLowerCase()
@@ -214,7 +214,7 @@ const VC_START_MINUTES = 19 * 60 + 45
       } else if (info.seccion === 'VC') {
         if (parte.tipo === 'EBC_CON') {
           partesVC.push({ ...parte, tipo: 'EBC_CON' })
-          partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'EBC_LEC', requiere_ayudante: false })
+          partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'LEBC', requiere_ayudante: false })
         } else {
           partesVC.push(parte)
         }

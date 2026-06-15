@@ -116,7 +116,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
     }
 
     // ── Lector EBC ───────────────────────────────────────────
-    case 'EBC_LEC': {
+    case 'LEBC': {
       // Varones matriculados bautizados
       pool = personas.filter(p =>
         p.lista === 'Mat' && p.sexo === 'M' &&

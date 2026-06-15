@@ -95,40 +95,56 @@ const VC_START_MINUTES = 19 * 60 + 45
     const partesSMT = []
     const partesVC  = []
 
-    function inferirPartePorTexto(titulo, classes) {
+        function inferirPartePorTexto(titulo, classes) {
       const lower = titulo.toLowerCase()
-      const useTeal  = classes.includes('teal')
-      const useGold  = classes.includes('gold')
+      const useTeal   = classes.includes('teal')
+      const useGold   = classes.includes('gold')
       const useMaroon = classes.includes('maroon')
 
-      if (useTeal || lower.includes('tesoros') || lower.includes('perlas') || lower.includes('lectura')) {
+      // ── PRIORIDAD 1: color explícito siempre gana sobre texto ──
+      if (useTeal) {
         let tipo = 'TB'
         if (lower.includes('perlas') || lower.includes('busquemos')) tipo = 'PE'
         else if (lower.includes('lectura')) tipo = 'LB'
         return { seccion: 'TB', tipo, requiere_ayudante: false }
       }
 
-      if (useGold || 
-          lower.includes('seamos') || 
-          lower.includes('mejores maestros') || 
-          lower.includes('discurso') || 
-          lower.includes('empiece') ||       // ← agregar
-          lower.includes('haga revisitas') || // ← agregar
-          lower.includes('haga disc') ||      // ← agregar (discípulos/discurso)
-          lower.includes('explique') ||       // ← agregar
-          lower.includes('estudiante') || 
-          lower.includes('ayudante')) {
-        const tipo = inferirTipoSMT()  // siempre 'SMT_EST' provisional
-        return { seccion: 'SMT', tipo, requiere_ayudante: false } // requiere_ayudante también se corrige en push
+      if (useMaroon) {
+        const tipo = inferirTipoVC(titulo)
+        return { seccion: 'VC', tipo, requiere_ayudante: false }
       }
 
-      if (useMaroon || lower.includes('vida cristiana') || lower.includes('necesidades') || lower.includes('ebc') || lower.includes('estudio b')) {
+      if (useGold) {
+        return { seccion: 'SMT', tipo: inferirTipoSMT(), requiere_ayudante: false }
+      }
+
+      // ── PRIORIDAD 2: fallback por texto solo si no hay color ──
+      if (lower.includes('tesoros') || lower.includes('perlas') || lower.includes('lectura')) {
+        let tipo = 'TB'
+        if (lower.includes('perlas') || lower.includes('busquemos')) tipo = 'PE'
+        else if (lower.includes('lectura')) tipo = 'LB'
+        return { seccion: 'TB', tipo, requiere_ayudante: false }
+      }
+
+      if (
+        lower.includes('discurso') ||
+        lower.includes('empiece') ||
+        lower.includes('haga revisitas') ||
+        lower.includes('haga disc') ||
+        lower.includes('explique') ||
+        lower.includes('estudiante') ||
+        lower.includes('ayudante')
+      ) {
+        return { seccion: 'SMT', tipo: inferirTipoSMT(), requiere_ayudante: false }
+      }
+
+      if (lower.includes('vida cristiana') || lower.includes('necesidades') || lower.includes('estudio b')) {
         const tipo = inferirTipoVC(titulo)
-        return { seccion: 'VC', tipo, requiere_ayudante: tipo === 'SMT_EST' }
+        return { seccion: 'VC', tipo, requiere_ayudante: false }
       }
 
       if (/presidente|oraci[oó]n|introducci[oó]n|conclusi[oó]n/.test(lower)) {
-        if (lower.includes('apertura')) return { seccion: 'APERTURA', tipo: lower.includes('oraci') ? 'ORACION' : lower.includes('presidente') ? 'P' : lower.includes('introduc') ? 'INTRO' : 'P', requiere_ayudante: false }
+        if (lower.includes('apertura')) return { seccion: 'APERTURA', tipo: lower.includes('oraci') ? 'ORACION' : lower.includes('introduc') ? 'INTRO' : 'P', requiere_ayudante: false }
         if (lower.includes('cierre')) return { seccion: 'CIERRE', tipo: lower.includes('oraci') ? 'ORACION_C' : 'CONCLU', requiere_ayudante: false }
       }
 

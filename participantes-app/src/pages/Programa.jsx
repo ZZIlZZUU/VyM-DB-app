@@ -14,21 +14,40 @@ const SECCION_LABEL = {
 }
 
 const TIPO_LABEL = {
-  P:'Presidente', ORACION:'Oración apertura', ORACION_C:'Oración cierre',
-  INTRO:'Palabras de introducción', CONCLU:'Palabras de conclusión',
-  TB:'Tesoros de la Biblia', PE:'Perlas escondidas', LB:'Lectura de la Biblia',
-  SMT_EST:'Estudiante', SMT_DSC:'Discurso', SMT_AYU:'Ayudante',
-  VC:'Vida Cristiana', NC:'Nec. de la congregación',
-  EBC_CON:'Conductor EBC', LEBC: 'Lector EBC', SMT_VACIO:'—',
+  P:'Presidente', 
+  ORACION:'Oración apertura', 
+  ORACION_C:'Oración cierre',
+  INTRO:'Palabras de introducción', 
+  CONCLU:'Palabras de conclusión',
+  TB:'Tesoros de la Biblia', 
+  PE:'Perlas escondidas', 
+  LB:'Lectura de la Biblia',
+  SMT_EST:'Estudiante', 
+  SMT_DSC:'Discurso', 
+  SMT_AYU:'Ayudante',
+  VC:'Vida Cristiana', 
+  NC:'Nec. de la congregación',
+  EBC_CON:'Conductor EBC', 
+  LEBC: 'Lector EBC', 
+  SMT_VACIO:'—',
 }
 
 const TIPO_COLOR = {
-  P:'bg-purple-bg text-purple', ORACION:'bg-blue-bg text-blue', ORACION_C:'bg-blue-bg text-blue',
-  INTRO:'bg-bg text-text2', CONCLU:'bg-bg text-text2',
-  TB:'bg-teal-bg text-teal', PE:'bg-rose-bg text-rose', LB:'bg-amber-bg text-amber',
-  SMT_EST:'bg-accent-bg text-accent', SMT_DSC:'bg-amber-bg text-amber', SMT_AYU:'bg-blue-bg text-blue',
-  VC:'bg-green-100 text-green-800', NC:'bg-red-100 text-red-800',
-  EBC_CON:'bg-orange-100 text-orange-700', LEBC: 'bg-maroon/15 text-maroon',
+  P:'bg-purple-bg text-purple', 
+  ORACION:'bg-blue-bg text-blue', 
+  ORACION_C:'bg-blue-bg text-blue',
+  INTRO:'bg-bg text-text2', 
+  CONCLU:'bg-bg text-text2',
+  TB:'bg-teal-bg text-teal', 
+  PE:'bg-rose-bg text-rose', 
+  LB:'bg-amber-bg text-amber',
+  SMT_EST:'bg-accent-bg text-accent', 
+  SMT_DSC:'bg-amber-bg text-amber', 
+  SMT_AYU:'bg-blue-bg text-blue',
+  VC:'bg-green-100 text-green-800', 
+  NC:'bg-red-100 text-red-800',
+  EBC_CON:'bg-orange-100 text-orange-700', 
+  LEBC: 'bg-maroon/15 text-maroon',
   SMT_VACIO:'bg-bg text-text3',
 }
 
@@ -36,9 +55,21 @@ const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1,
 
 // Mapa tipo_asignacion → campo 'tipo' en tabla participaciones
 const TIPO_PARTICIPACION = {
-  P:'P', ORACION:'P', ORACION_C:'P', INTRO:'P', CONCLU:'P',
-  TB:'TB', PE:'PE', LB:'X', SMT_EST:'A', SMT_DSC:'X', SMT_AYU:'A',
-  VC:'VC', NC:'NC', EBC_CON:'EBC', LEBC: 'LEC',
+  P:'P', 
+  ORACION:'P',
+  ORACION_C:'OC', 
+  INTRO:'P', 
+  CONCLU:'P',
+  TB:'TB', 
+  PE:'PE', 
+  LB:'LB', 
+  SMT_EST:'T', 
+  SMT_DSC:'DSC', 
+  SMT_AYU:'A',
+  VC:'VC', 
+  NC:'NC', 
+  EBC_CON:'EBC', 
+  LEBC: 'LEC',
 }
 
 // ── Componente selector de persona ───────────────────────────

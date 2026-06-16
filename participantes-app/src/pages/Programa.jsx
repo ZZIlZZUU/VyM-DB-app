@@ -51,7 +51,7 @@ const TIPO_COLOR = {
   SMT_VACIO:'bg-bg text-text3',
 }
 
-const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1, VC:1, NC:1, EBC_CON:1, LEBC:1, P:1, ORACION:1, ORACION_C:0 }
+const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1, VC:1, NC:1, EBC_CON:1, LEBC:1, P:1, ORACION:0, ORACION_C:0 }
 
 // Mapa tipo_asignacion → campo 'tipo' en tabla participaciones
 const TIPO_PARTICIPACION = {
@@ -69,7 +69,7 @@ const TIPO_PARTICIPACION = {
   VC:'VC', 
   NC:'NC', 
   EBC_CON:'EBC', 
-  LEBC: 'LEC',
+  LEBC: 'LBEC',
 }
 
 // ── Componente selector de persona ───────────────────────────

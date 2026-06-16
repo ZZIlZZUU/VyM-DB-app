@@ -119,8 +119,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
     case 'LEBC': {
       // Varones matriculados bautizados
       pool = personas.filter(p =>
-        p.lista === 'Mat' && p.sexo === 'M' &&
-        (p.estatus === 'Matriculado bautizado')
+        p.sexo === 'M'
       )
       break
     }

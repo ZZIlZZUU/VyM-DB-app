@@ -115,24 +115,29 @@ nombre        VARCHAR(120)
 lista         VARCHAR(10)
 fecha         DATE
 mes           VARCHAR(20)   -- 'Enero', 'Febrero', etc.
-tipo          VARCHAR(5)    -- ver tabla de tipos abajo
-peso          SMALLINT      -- T=2, todos los demás=1
+tipo          VARCHAR(10)   -- ver tabla de tipos abajo (ampliado a VARCHAR(10))
+peso          SMALLINT      -- T=2, todos los demás=1, ORACION_C=0
 observaciones TEXT
 ```
 
-### Tipos de participación (`tipo`)
+### Tipos de participación (`tipo`) — catálogo actualizado
 
 | Tipo | Descripción | Lista | Quién |
 |---|---|---|---|
 | T | Titular (estudiante SMT) | Mat | Damas Mat |
 | A | Asistente (ayudante SMT) | Mat | Damas Mat |
-| X | Participación general | Mat/Anc | Varones Mat, SM |
+| LB | Lectura bíblica (TB) | Mat | Varones Mat |
+| SMT_DSC | Discurso SMT | Mat | Varones Mat |
+| LEBC | Lector EBC | Mat | Varones Mat bautizados |
+| ORACION_C | Oración de conclusión | Mat/Anc | Varones Mat bautizados u Anc/SM distinto al Presidente — peso=0, no entra al motor automático |
 | P | Presidente | Anc/SM | Ancianos y SM |
 | TB | Tesoros de la Biblia | Anc/SM | Ancianos y SM |
 | PE | Perlas escondidas | Anc/SM | Ancianos y SM |
-| EBC | Estudio Bíblico Congregación | Anc/SM | Ancianos pref., SM |
+| EBC | Conductor EBC | Anc/SM | Ancianos pref., SM |
 | VC | Vida Cristiana | Anc/SM | Ancianos y SM |
 | NC | Necesidades de la congregación | Anc/SM | Solo Ancianos |
+
+> **Nota:** El tipo genérico `'X'` (Participación general para varones Mat) está **deprecado**. Se reemplaza por `LB`, `SMT_DSC` según corresponda. Los registros históricos con `tipo='X'` se conservan pero no se crean nuevos.
 
 ### Tablas del módulo Programa
 
@@ -164,19 +169,27 @@ programa_asignaciones:
 
 | Tipo | Sección | Quién puede hacerlo |
 |---|---|---|
-| P | APERTURA | Anc/SM — también cubre oración apertura, introducción y conclusión |
-| ORACION_C | CIERRE | Anc/SM distinto al Presidente — también ocasionalmente varón Mat bautizado |
+| P | APERTURA | Anc/SM — cubre automáticamente ORACION (apertura), INTRO y CONCLU |
+| ORACION | APERTURA | Read-only — se propaga automáticamente del Presidente |
+| INTRO | APERTURA | Read-only — se propaga automáticamente del Presidente |
+| CONCLU | CIERRE | Read-only — se propaga automáticamente del Presidente |
+| ORACION_C | CIERRE | Anc/SM distinto al Presidente u ocasionalmente varón Mat bautizado |
 | TB | TB | Anc/SM |
 | PE | TB | Anc/SM |
 | LB | TB | Varones Mat (bautizados o no) |
 | SMT_EST | SMT | Damas Mat (requiere_ayudante=true) |
 | SMT_DSC | SMT | Varones Mat (bautizados o no) |
+| SMT_VACIO | SMT | Slot vacío — semanas con solo 3 partes SMT muestran "Sin cuarta asignación" |
 | VC | VC | Anc/SM |
 | NC | VC | Solo Ancianos |
 | EBC_CON | VC | Ancianos preferente, SM si no hay Anciano disponible |
-| EBC_LEC | VC | Varones Mat bautizados |
+| LEBC | VC | Varones Mat bautizados únicamente |
 
-> **Regla importante:** El Presidente (`P`) es UNA sola persona que cubre: oración de apertura + palabras de introducción + palabras de conclusión. La oración de cierre es OTRA persona distinta (`ORACION_C`).
+> **Regla importante — Presidente:** Al asignar Presidente (`P`), se propaga automáticamente la misma persona a `ORACION`, `INTRO` y `CONCLU`. Estos tres campos son **read-only** en la UI — no se pueden cambiar independientemente.
+
+> **Regla importante — SMT:** Las semanas con solo 3 partes SMT muestran el 4to slot como `SMT_VACIO` (texto "Sin cuarta asignación", no asignable). Clasificación por lista blanca de títulos canónicos:
+> - `SMT_EST` (con ayudante, damas): "Empiece conversaciones", "Haga revisitas", "Haga discípulos", "Explique sus creencias"
+> - `SMT_DSC` (sin ayudante, varones): todo lo demás, incluyendo "Seamos adaptables...", discursos especiales, etc.
 
 ---
 
@@ -205,8 +218,14 @@ programa_asignaciones:
       ↓
 2. epubParser.js descomprime (JSZip), recorre archivos .xhtml del spine
    Detecta semanas por h1 con patrón de fechas (e.g. "6-12 DE JULIO")
-   Clasifica partes por clases CSS: teal=TB, gold=SMT, maroon=VC
-   Extrae: fechas, capítulo bíblico, 3 canciones, partes con títulos y duraciones
+   Clasifica partes por COLOR CSS primero (prioridad sobre texto):
+     teal  → TB (PE si "perlas", LB si "lectura")
+     maroon → VC (NC si "necesidades", EBC_CON si "estudio bíblico")
+     gold  → SMT (provisional SMT_EST, se corrige en push)
+   Fallback por texto si no hay color.
+   Lista blanca SMT_EST: "empiece conversaciones", "haga revisitas",
+     "haga discípulos", "explique sus creencias" → todo lo demás = SMT_DSC
+   Cap de 4 partes SMT; si < 4 se rellena con SMT_VACIO
    Calcula horarios: TB fijos (19:00-19:24), SMT acumulado desde 19:25, VC desde 19:45
       ↓
 3. Se insertan semanas y partes en Supabase
@@ -217,6 +236,7 @@ programa_asignaciones:
       ↓
 5. Usuario revisa en Programa.jsx, puede cambiar selectores
    Los selectores muestran candidatos ordenados: ✓ libre | ↻ advertencia | ⚠ penalizado
+   ORACION, INTRO y CONCLU son read-only — reflejan al Presidente automáticamente
       ↓
 6. Al confirmar → crea registro automático en tabla participaciones
       ↓
@@ -249,12 +269,12 @@ Usa `docxtemplater` + `pizzip` para llenar la plantilla `public/S-140_plantilla.
 **Estructura de datos por semana:**
 ```js
 {
-  fecha, presidente, can_ap, oracion_ap,
+  fecha, presidente, can_ap, oracion_ap,  // oracion_ap = mismo que presidente
   tb_titulo, tb_cond, pe_cond, lb_est,
-  smt: [{ titulo, est, ayu }],   // hasta 4 elementos
+  smt: [{ titulo, est, ayu }],            // hasta 4 elementos (SMT_VACIO → título vacío)
   can_vc,
-  vc:  [{ titulo, cond }],       // hasta 2 elementos
-  ebc_cond, ebc_lect,
+  vc:  [{ titulo, cond }],               // hasta 2 elementos
+  ebc_cond, ebc_lect,                    // ebc_lect usa tipo LEBC
   can_ci, oracion_ci,
 }
 ```
@@ -263,6 +283,15 @@ Usa `docxtemplater` + `pizzip` para llenar la plantilla `public/S-140_plantilla.
 - La plantilla tiene **5 slots** (s1..s5) — slots sin semana quedan en blanco
 - Delimitadores: `{$` y `$}` (NO `{{` y `}}` — Word fragmenta el XML y docxtemplater falla con "duplicate open tag")
 - Variables: `{$congregacion$}`, `{$s1_fecha$}`, `{$s1_presidente$}`, `{$s1_can_ap$}`, `{$s1_oracion_ap$}`, `{$s1_tb_titulo$}`, `{$s1_tb_cond$}`, `{$s1_pe_cond$}`, `{$s1_lb_est$}`, `{$s1_smt1_titulo$}`, `{$s1_smt1_est$}`, `{$s1_smt1_ayu$}` (smt1..4), `{$s1_can_vc$}`, `{$s1_vc1_titulo$}`, `{$s1_vc1_cond$}` (vc1..2), `{$s1_ebc_cond$}`, `{$s1_ebc_lect$}`, `{$s1_can_ci$}`, `{$s1_oracion_ci$}`
+
+> **Pendiente:** Ampliar plantilla de 5 a 9 slots (s1..s9) para cubrir un mes completo sin sobreescribir secciones.
+
+**Mapa tipo_asignacion → tipo en tabla participaciones (TIPO_PARTICIPACION en Programa.jsx):**
+```js
+P:'P', ORACION:'P', ORACION_C:'OC', INTRO:'P', CONCLU:'P',
+TB:'TB', PE:'PE', LB:'LB', SMT_EST:'T', SMT_DSC:'DSC', SMT_AYU:'A',
+VC:'VC', NC:'NC', EBC_CON:'EBC', LEBC:'LEC',
+```
 
 **Uso en Programa.jsx:**
 ```js
@@ -276,8 +305,6 @@ async function handleGenerarDocx() {
   })
 }
 ```
-
-> **Nota:** No es necesario tener semanas completas para generar el docx — con 1 semana y campos parciales funciona; los slots vacíos quedan en blanco.
 
 ---
 
@@ -327,19 +354,34 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ## Pendientes
 
+- [ ] **Ampliar plantilla S-140 de 5 a 9 slots** — para cubrir un mes completo (hasta 9 semanas) y evitar sobreescritura de secciones. Requiere: (1) editar `S-140_plantilla.docx` duplicando filas con prefijos s6..s9, (2) actualizar `buildDatosPlantilla` en `generarS140.js` para iterar hasta i=9
 - [ ] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno
 - [ ] **Nombre de congregación configurable** — tabla `configuracion` en Supabase (actualmente hardcodeado como `'Congregacion del Recreo'` en `Programa.jsx`)
 - [ ] **Gestión de usuarios** — pantalla para invitar desde la app sin entrar a Supabase
 - [ ] **Pulido de UI** — detalles visuales menores
 
+
+---
+
+## Ideas guardadas para implementación futura
+
+- `LB` — Lectura bíblica (sección Tesoros) — ya implementado en tipos de participación, pendiente revisar motor de sugerencias
+- `DISC` / `SMT_DSC` — Discurso SMT — ya implementado
+- `LEBC` — Lector EBC — ya implementado (reemplazó a `EBC_LEC`)
+- Todos los anteriores con mismo patrón: visibles en Registros, VistaEditable, exportables en CSV, con peso en motor automático
+
 ---
 
 ## Bugs conocidos / ya corregidos
 
-- `App.jsx` línea del sidebar: `overflow-y-autoflex-shrink-0` → `overflow-y-auto flex-shrink-0`
-- `FilaParte` en Programa.jsx: grid duplicado para APERTURA/CIERRE — corregido a grid único de 4 columnas
-- Contador de progreso en `TarjetaSemana` contaba asignaciones totales, ahora cuenta partes únicas con principal confirmado
-- `handleConfirmarTodo` filtra explícitamente `rol === 'principal'` para evitar procesar ayudantes por separado
+- `App.jsx` sidebar: `overflow-y-autoflex-shrink-0` → `overflow-y-auto flex-shrink-0`
+- `FilaParte`: grid duplicado para APERTURA/CIERRE — corregido a grid único de 4 columnas
+- Contador de progreso en `TarjetaSemana`: ahora excluye `SMT_VACIO` del total
+- `handleConfirmarTodo`: filtra `rol === 'principal'` para no procesar ayudantes por separado
 - Fechas en modal Matriculados: usar `useRef` para el campo nombre para evitar pérdida de tildes
-- `generarS140.js`: migrado de `docx` (generación programática) a `docxtemplater + pizzip` (plantilla Word)
-- `docxtemplater` "duplicate open tag": resuelto usando delimitadores `{$` y `$}` en lugar de `{{` y `}}` — Word fragmenta el XML en múltiples `<w:r>` y docxtemplater no puede parsear `{{` dividido entre runs
+- `generarS140.js`: migrado de `docx` a `docxtemplater + pizzip`
+- `docxtemplater` "duplicate open tag": resuelto con delimitadores `{$` y `$}` en lugar de `{{` y `}}`
+- **epubParser — "Seamos adaptables" en SMT:** Resuelto con prioridad de color CSS sobre texto en `inferirPartePorTexto` (maroon siempre gana sobre gold). Partes con clase `maroon` van a VC aunque el texto contenga palabras clave de SMT.
+- **epubParser — SMT cap y lista blanca:** Máximo 4 partes SMT; clasificación por lista blanca de títulos canónicos en lugar de inferencia por texto. Slots vacíos se rellenan con `SMT_VACIO`.
+- **Programa — Presidente propaga ORACION/INTRO/CONCLU:** Al asignar Presidente, `handleAsignar` propaga la misma clave a las partes `ORACION`, `INTRO` y `CONCLU` de la misma semana. `FilaParte` las renderiza como read-only.
+- **`EBC_LEC` → `LEBC`:** Renombrado en epubParser, asignacionesSugeridas, generarS140, Programa, Registros, VistaEditable, VistaSql, Estadisticas, Exportar. Migración Supabase: `UPDATE programa_partes SET tipo_asignacion = 'LEBC' WHERE tipo_asignacion = 'EBC_LEC'`

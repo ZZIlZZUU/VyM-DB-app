@@ -47,9 +47,9 @@ import Docxtemplater from 'docxtemplater'
 export function buildDatosPlantilla(congregacion, semanas) {
   const datos = { congregacion }
 
-  // La plantilla tiene 5 slots (s1..s5). Rellenar con semanas reales
+  // La plantilla tiene 9 slots (s1..s9). Rellenar con semanas reales
   // y dejar en blanco los slots sobrantes.
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 9; i++) {
     const s = semanas[i - 1] || null
     const pfx = `s${i}`
 

@@ -359,7 +359,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Nombre de congregación configurable** — tabla `configuracion` en Supabase (actualmente hardcodeado como `'Congregacion del Recreo'` en `Programa.jsx`)
 - [ ] **Gestión de usuarios** — pantalla para invitar desde la app sin entrar a Supabase
 - [ ] **Pulido de UI** — detalles visuales menores
-
+- [ ] **Sistema de guardado de S-140** El usario tiene problemas cuando quiere cambiar participantes ya confirmados en la vista Generar S-140. Menciona que los cambios no se actualizan sino que         se acumulan, ocupando slots no correspondientes de siguientes semanas. El usuario propone algun botón para actualizar la confirmación de los participantes de una semana una vez que se             realiza una primera confirmación.
+- [ ] **Toast Multi error** El usario intento cambiar la plantilla S-140, agregando slots de las semanas 5-9. Y modifico ligeramente generarS140.js, es necesaria una revision de ambos archivos.
 
 ---
 

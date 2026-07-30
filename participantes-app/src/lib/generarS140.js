@@ -10,8 +10,14 @@
 // La plantilla debe estar en: /public/S-140_plantilla.docx
 // ============================================================
 
-import PizZip from 'pizzip'
-import Docxtemplater from 'docxtemplater'
+async function cargarDocxtemplater() {
+  const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([
+    import('pizzip'),
+    import('docxtemplater'),
+  ])
+
+  return { PizZip, Docxtemplater }
+}
 
 // ── Construir el objeto de datos para docxtemplater ──────────
 // Recibe un array de hasta 5 semanas, cada una con sus partes
@@ -164,6 +170,7 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
   const datos = buildDatosPlantilla(congregacion, semanas)
 
   // 3. Procesar con docxtemplater
+  const { PizZip, Docxtemplater } = await cargarDocxtemplater()
   const zip = new PizZip(arrayBuffer)
   const doc = new Docxtemplater(zip, {
     paragraphLoop:  true,

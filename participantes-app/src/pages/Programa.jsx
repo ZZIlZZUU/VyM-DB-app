@@ -17,7 +17,6 @@ const TIPO_LABEL = {
   P:'Presidente', 
   ORACION:'Oración apertura', 
   ORACION_C:'Oración cierre',
-  INTRO:'Palabras de introducción', 
   CONCLU:'Palabras de conclusión',
   TB:'Tesoros de la Biblia', 
   PE:'Perlas escondidas', 
@@ -36,7 +35,6 @@ const TIPO_COLOR = {
   P:'bg-purple-bg text-purple', 
   ORACION:'bg-blue-bg text-blue', 
   ORACION_C:'bg-blue-bg text-blue',
-  INTRO:'bg-bg text-text2', 
   CONCLU:'bg-bg text-text2',
   TB:'bg-teal-bg text-teal', 
   PE:'bg-rose-bg text-rose', 
@@ -58,7 +56,6 @@ const TIPO_PARTICIPACION = {
   P:'P', 
   ORACION:'P',
   ORACION_C:'OC', 
-  INTRO:'P', 
   CONCLU:'P',
   TB:'TB', 
   PE:'PE', 
@@ -69,7 +66,7 @@ const TIPO_PARTICIPACION = {
   VC:'VC', 
   NC:'NC', 
   EBC_CON:'EBC', 
-  LEBC: 'LBEC',
+  LEBC: 'LEBC',
 }
 
 // ── Componente selector de persona ───────────────────────────
@@ -120,8 +117,8 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
     )
   }
 
-    // CONCLU e INTRO — read-only, siempre refleja al Presidente
-  if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'INTRO' || parte.tipo_asignacion === 'ORACION') {
+    // CONCLU y ORACION — read-only, siempre refleja al Presidente (visual only, no se guarda en BD)
+  if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'ORACION') {
     const nombrePresidente = personas.find(p => p.clave === clavePresidente)?.nombre || '—'
     return (
       <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
@@ -242,8 +239,12 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     : null
   const clavePresidente = asigPresidente?.clave || null
 
-  const totalPartes      = partes.filter(p => p.tipo_asignacion !== 'SMT_VACIO').length
-  const confirmadas      = asignaciones.filter(a => partes.some(p => p.id === a.parte_id) && a.confirmado).length
+  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const totalPartes      = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)).length
+  const confirmadas      = asignaciones.filter(a => {
+    const p = partes.find(pt => pt.id === a.parte_id)
+    return p && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion) && a.confirmado
+  }).length
   const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
 
   // Agrupar por sección
@@ -453,31 +454,8 @@ export default function Programa() {
       await supabase.from('programa_asignaciones').insert(payload)
     }
 
-    // Si se asignó el Presidente, propagar a CONCLU e INTRO automáticamente
-    if (rol === 'principal') {
-      const parte = partes.find(p => p.id === parteId)
-      if (parte?.tipo_asignacion === 'P') {
-        const semanaId = parte.semana_id
-        const partesSemana = partes.filter(p => p.semana_id === semanaId)
-        const tiposAutoPropagar = ['CONCLU', 'INTRO', 'ORACION']
-
-        for (const tipo of tiposAutoPropagar) {
-          const parteTipo = partesSemana.find(p => p.tipo_asignacion === tipo)
-          if (!parteTipo) continue
-
-          const asigExistente = asignaciones.find(
-            a => a.parte_id === parteTipo.id && a.rol === 'principal'
-          )
-          const payloadProp = { parte_id: parteTipo.id, clave, rol: 'principal', sugerido_por_app: false, confirmado: false }
-
-          if (asigExistente) {
-            await supabase.from('programa_asignaciones').update(payloadProp).eq('id', asigExistente.id)
-          } else {
-            await supabase.from('programa_asignaciones').insert(payloadProp)
-          }
-        }
-      }
-    }
+    // ORACION y CONCLU son puramente visuales (se propagan desde clavePresidente en FilaParte)
+    // No se guardan en BD — no hay lógica de propagación aquí
 
     await fetchData()
   }
@@ -488,6 +466,10 @@ export default function Programa() {
 
     const parte = partes.find(p => p.id === parteId)
     if (!parte) return
+
+    // ORACION y CONCLU son puramente visuales (propagadas del Presidente)
+    // No generan registro en participaciones ni en programa_asignaciones
+    if (parte.tipo_asignacion === 'ORACION' || parte.tipo_asignacion === 'CONCLU') return
 
     const semana = semanas.find(s => s.id === parte.semana_id)
     if (!semana) return

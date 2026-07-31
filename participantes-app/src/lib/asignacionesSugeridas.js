@@ -49,11 +49,10 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
   switch (tipo) {
 
-    // ── Presidente, Oración, Intro, Conclusión ──────────────
+    // ── Presidente, Oración apertura/cierre, Conclusión ──────
     case 'P':
     case 'ORACION':
     case 'ORACION_C':
-    case 'INTRO':
     case 'CONCLU': {
       // Ancianos y SM (y ocasionalmente Mat M para oraciones)
       pool = personas.filter(p =>

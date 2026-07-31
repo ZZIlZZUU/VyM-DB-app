@@ -144,7 +144,7 @@ const VC_START_MINUTES = 19 * 60 + 45
       }
 
       if (/presidente|oraci[oó]n|introducci[oó]n|conclusi[oó]n/.test(lower)) {
-        if (lower.includes('apertura')) return { seccion: 'APERTURA', tipo: lower.includes('oraci') ? 'ORACION' : lower.includes('introduc') ? 'INTRO' : 'P', requiere_ayudante: false }
+        if (lower.includes('apertura')) return { seccion: 'APERTURA', tipo: lower.includes('oraci') ? 'ORACION' : 'P', requiere_ayudante: false }
         if (lower.includes('cierre')) return { seccion: 'CIERRE', tipo: lower.includes('oraci') ? 'ORACION_C' : 'CONCLU', requiere_ayudante: false }
       }
 

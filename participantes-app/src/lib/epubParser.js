@@ -196,18 +196,22 @@ const VC_START_MINUTES = 19 * 60 + 45
         } else {
           if (partesSMT.length < 4) {
             const t = parte.titulo.toLowerCase()
+
+            // "Explique sus creencias" — varones y damas Mat (con ayudante)
+            const esSMT_EXP = t.includes('explique sus creencias')
+
+            // Resto de asignaciones con ayudante — solo damas Mat
             const esSMT_EST =
               t.includes('empiece conversaciones') ||
               t.includes('haga revisitas') ||
-              t.includes('explique sus creencias') ||
               t.includes('haga discípulos') ||    // por si aparece
               t.includes('haga discipulos')       // sin tilde por si acaso
 
-            const tipoCorregido = esSMT_EST ? 'SMT_EST' : 'SMT_DSC'
+            const tipoCorregido = esSMT_EXP ? 'SMT_EXP' : esSMT_EST ? 'SMT_EST' : 'SMT_DSC'
             partesSMT.push({
               ...parte,
               tipo: tipoCorregido,
-              requiere_ayudante: tipoCorregido === 'SMT_EST',
+              requiere_ayudante: tipoCorregido === 'SMT_EXP' || tipoCorregido === 'SMT_EST',
             })
           }
         }

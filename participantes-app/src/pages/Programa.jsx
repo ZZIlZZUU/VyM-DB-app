@@ -22,6 +22,7 @@ const TIPO_LABEL = {
   PE:'Perlas escondidas', 
   LB:'Lectura de la Biblia',
   SMT_EST:'Estudiante', 
+  SMT_EXP:'Explique sus creencias',
   SMT_DSC:'Discurso', 
   SMT_AYU:'Ayudante',
   VC:'Vida Cristiana', 
@@ -40,6 +41,7 @@ const TIPO_COLOR = {
   PE:'bg-rose-bg text-rose', 
   LB:'bg-amber-bg text-amber',
   SMT_EST:'bg-accent-bg text-accent', 
+  SMT_EXP:'bg-accent-bg text-accent',
   SMT_DSC:'bg-amber-bg text-amber', 
   SMT_AYU:'bg-blue-bg text-blue',
   VC:'bg-green-100 text-green-800', 
@@ -49,7 +51,7 @@ const TIPO_COLOR = {
   SMT_VACIO:'bg-bg text-text3',
 }
 
-const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1, VC:1, NC:1, EBC_CON:1, LEBC:1, P:1, ORACION:0, ORACION_C:0 }
+const PESO_TIPO = { T:2, A:1, LB:1, SMT_EST:1, SMT_EXP:1, SMT_DSC:1, SMT_AYU:1, TB:1, PE:1, VC:1, NC:1, EBC_CON:1, LEBC:1, P:1, ORACION:0, ORACION_C:0 }
 
 // Mapa tipo_asignacion → campo 'tipo' en tabla participaciones
 const TIPO_PARTICIPACION = {
@@ -61,6 +63,7 @@ const TIPO_PARTICIPACION = {
   PE:'PE', 
   LB:'LB', 
   SMT_EST:'T', 
+  SMT_EXP:'T',
   SMT_DSC:'DSC', 
   SMT_AYU:'A',
   VC:'VC', 
@@ -174,21 +177,27 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
             yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
             disabled={false}
           />
-          {parte.requiere_ayudante && (
-            <PersonaSelector
-              tipo={parte.tipo_asignacion}
-              value={ayudante?.clave}
-              onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
-              personas={personas}
-              historial={historial}
-              mes={mes}
-              yaAsignados={[
-                ...semanaAsignados.filter(c => c !== ayudante?.clave),
-                principal?.clave,
-              ].filter(Boolean)}
-              disabled={!principal?.clave}
-            />
-          )}
+          {parte.requiere_ayudante && (() => {
+            // Para SMT_EXP: el ayudante debe ser del mismo sexo que el principal
+            const tipoAyu = parte.tipo_asignacion === 'SMT_EXP'
+              ? (personas.find(p => p.clave === principal?.clave)?.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F')
+              : parte.tipo_asignacion
+            return (
+              <PersonaSelector
+                tipo={tipoAyu}
+                value={ayudante?.clave}
+                onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+                personas={personas}
+                historial={historial}
+                mes={mes}
+                yaAsignados={[
+                  ...semanaAsignados.filter(c => c !== ayudante?.clave),
+                  principal?.clave,
+                ].filter(Boolean)}
+                disabled={!principal?.clave}
+              />
+            )
+          })()}
         </div>
       )}
 
@@ -471,6 +480,10 @@ export default function Programa() {
     // No generan registro en participaciones ni en programa_asignaciones
     if (parte.tipo_asignacion === 'ORACION' || parte.tipo_asignacion === 'CONCLU') return
 
+    // Evitar que una asignación de ayudante sea procesada como principal
+    // (puede ocurrir si se llama directamente con el objeto ayudante)
+    if (principal.rol === 'ayudante') return
+
     const semana = semanas.find(s => s.id === parte.semana_id)
     if (!semana) return
 
@@ -527,8 +540,10 @@ export default function Programa() {
 
   // ── Confirmar toda la semana ─────────────────────────────
   async function handleConfirmarTodo(semanaId, partesS, asignacionesS) {
+    // Solo iteramos sobre rol === 'principal' para evitar procesar el ayudante dos veces:
+    // una como ayudante dentro de handleConfirmar, y otra como "principal" en el loop.
     const asigPendientes = asignacionesS.filter(a =>
-      partesS.some(p => p.id === a.parte_id) && !a.confirmado && a.clave
+      partesS.some(p => p.id === a.parte_id) && !a.confirmado && a.clave && a.rol === 'principal'
     )
     for (const asig of asigPendientes) {
       const parte = partesS.find(p => p.id === asig.parte_id)

@@ -87,6 +87,22 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
       break
     }
 
+    // ── SMT — "Explique sus creencias" (varones y damas Mat, con ayudante) ──
+    case 'SMT_EXP': {
+      pool = personas.filter(p => p.lista === 'Mat')
+      break
+    }
+
+    // Ayudante SMT_EXP — mismo sexo que el principal
+    case 'SMT_EXP_M': {
+      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
+      break
+    }
+    case 'SMT_EXP_F': {
+      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'F')
+      break
+    }
+
     // ── SMT — Discurso varón ─────────────────────────────────
     case 'SMT_DSC': {
       pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
@@ -143,7 +159,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
       // REGLA: Damas rotan T → A → T → A
       if (sexo === 'F') {
         const ultTipo = ultimoTipoMesAnt(p.clave)
-        if (tipo === 'SMT_EST') {
+        if (tipo === 'SMT_EST' || tipo === 'SMT_EXP') {
           // Sugerir la que no participó recientemente
           if (!participoMesAnt(p.clave)) score += 20
         }

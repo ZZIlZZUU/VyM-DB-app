@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+import { useToast } from '../hooks/useToast'
+import Toast from '../components/Toast'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -340,8 +342,9 @@ export default function Programa() {
   const [historial, setHistorial]       = useState([])
   const [loading, setLoading]           = useState(true)
   const [uploading, setUploading]       = useState(false)
-  const [toast, setToast]               = useState('')
   const [vistaTab, setVistaTab]         = useState('semanas')
+  const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
+  const { toast, showToast, success, error: toastError } = useToast()
 
   const fetchData = useCallback(async () => {
     const [
@@ -350,18 +353,22 @@ export default function Programa() {
       { data: asi },
       { data: per },
       { data: his },
+      { data: cfg },
     ] = await Promise.all([
       supabase.from('programa_semanas').select('*').order('fecha_inicio'),
       supabase.from('programa_partes').select('*').order('numero_parte'),
       supabase.from('programa_asignaciones').select('*'),
       supabase.from('personas').select('*').eq('activo', true).order('nombre'),
       supabase.from('participaciones').select('*').order('fecha'),
+      supabase.from('configuracion').select('*'),
     ])
     setSemanas(sem || [])
     setPartes(par || [])
     setAsignaciones(asi || [])
     setPersonas(per || [])
     setHistorial(his || [])
+    const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
+    if (nombreCfg) setCongregacion(nombreCfg)
     setLoading(false)
   }, [])
 
@@ -375,11 +382,6 @@ export default function Programa() {
       .subscribe()
     return () => supabase.removeChannel(canal)
   }, [fetchData])
-
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
 
   // ── Subir y parsear EPUB ──────────────────────────────────
   async function handleEPUB(e) {
@@ -428,19 +430,19 @@ export default function Programa() {
         const { error: partesError } = await supabase.from('programa_partes').insert(partesPayload)
         if (partesError) {
           console.error('Error insertando partes del EPUB:', partesError)
-          showToast('Error al guardar partes del EPUB: ' + partesError.message)
+          toastError('Error al guardar partes del EPUB: ' + partesError.message)
           continue
         }
 
         insertadas++
       }
 
-      showToast(`${insertadas} semanas importadas del EPUB`)
+      success(`${insertadas} semanas importadas del EPUB`)
       e.target.value = ''
       await fetchData()
     } catch (err) {
       console.error(err)
-      showToast('Error al procesar el EPUB: ' + err.message)
+      toastError('Error al procesar el EPUB: ' + err.message)
     }
 
     setUploading(false)
@@ -552,7 +554,7 @@ export default function Programa() {
         await handleConfirmar(parte.id, asig, ayudante)
       }
     }
-    showToast('Semana confirmada completa ✓')
+    success('Semana confirmada completa ✓')
   }
 
   // ── Generar S-140.docx ──────────────────────────────────
@@ -563,13 +565,13 @@ export default function Programa() {
     try {
       const semanasConDatos = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       await generarYDescargarS140({
-        congregacion: 'Congregacion del Recreo',
+        congregacion,
         semanas: semanasConDatos,
       })
-      showToast('S-140 descargado ✓')
+      success('S-140 descargado ✓')
     } catch (err) {
       console.error(err)
-      showToast('Error al generar el S-140: ' + err.message)
+      toastError('Error al generar el S-140: ' + err.message)
     }
   }
 
@@ -707,11 +709,7 @@ export default function Programa() {
         </div>
       )}
 
-      {toast && (
-        <div className="fixed bottom-5 right-5 bg-text1 text-white text-xs font-mono px-4 py-2 rounded-lg shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   )
 }

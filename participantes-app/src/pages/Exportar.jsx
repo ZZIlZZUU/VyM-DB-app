@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../hooks/useToast'
+import Toast from '../components/Toast'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const PESO_MAP = { T:2, A:1, X:1, LB:1, SMT_DSC:1, P:1, TB:1, PE:1, EBC:1, LEBC:1, VC:1, NC:1, ORACION_C:0 }
@@ -32,12 +34,7 @@ function parseCSVLine(line) {
 
 export default function Exportar() {
   const [loading, setLoading] = useState('')
-  const [toast, setToast]     = useState('')
-
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+  const { toast, success } = useToast()
 
   // ── Fetch helpers ──
   async function fetchPersonas(lista = '') {
@@ -64,7 +61,7 @@ export default function Exportar() {
     ).join('\n')
     downloadCSV(header + '\n' + body, lista ? `participantes_${lista}.csv` : 'participantes.csv')
     setLoading('')
-    showToast('CSV descargado')
+    success('CSV descargado')
   }
 
   // ── Exportar participaciones.csv ──
@@ -77,7 +74,7 @@ export default function Exportar() {
     ).join('\n')
     downloadCSV(header + '\n' + body, lista ? `participaciones_${lista}.csv` : 'participaciones.csv')
     setLoading('')
-    showToast('CSV descargado')
+    success('CSV descargado')
   }
 
   // ── Exportar SQL ──
@@ -87,7 +84,7 @@ export default function Exportar() {
     const sql = rows.map(r =>
       `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${r.clave}', '${r.nombre}', '${r.lista}', '${r.fecha}', '${r.mes}', '${r.tipo}', ${r.peso}, ${r.observaciones ? `'${r.observaciones}'` : 'NULL'});`
     ).join('\n')
-    copyToClipboard(sql, () => { setLoading(''); showToast('SQL copiado al portapapeles') })
+    copyToClipboard(sql, () => { setLoading(''); success('SQL copiado al portapapeles') })
   }
 
   // ── Exportar JSON ──
@@ -95,7 +92,7 @@ export default function Exportar() {
     setLoading('json')
     const [personas, participaciones] = await Promise.all([fetchPersonas(), fetchParticipaciones()])
     const json = JSON.stringify({ personas, participaciones }, null, 2)
-    copyToClipboard(json, () => { setLoading(''); showToast('JSON copiado al portapapeles') })
+    copyToClipboard(json, () => { setLoading(''); success('JSON copiado al portapapeles') })
   }
 
   // ── Importar participantes.csv ──
@@ -127,7 +124,7 @@ export default function Exportar() {
     }
 
     setLoading('')
-    showToast(`${inserted} personas importadas / actualizadas`)
+    success(`${inserted} personas importadas / actualizadas`)
     e.target.value = ''
   }
 
@@ -162,7 +159,7 @@ export default function Exportar() {
     }
 
     setLoading('')
-    showToast(`${inserted} registros importados`)
+    success(`${inserted} registros importados`)
     e.target.value = ''
   }
 
@@ -320,11 +317,7 @@ CREATE TABLE participaciones (
 );`}</pre>
       </div>
 
-      {toast && (
-        <div className="fixed bottom-5 right-5 bg-text1 text-white text-xs font-mono px-4 py-2 rounded-lg shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   )
 }

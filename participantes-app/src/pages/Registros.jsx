@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../hooks/useToast'
+import Toast from '../components/Toast'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -77,7 +79,7 @@ export default function Registros() {
   const [form, setForm]                   = useState(FORM_EMPTY)
   const [editId, setEditId]               = useState(null)
   const [saving, setSaving]               = useState(false)
-  const [toast, setToast]                 = useState('')
+  const { toast, showToast, success, error: toastError } = useToast()
   const [search, setSearch]               = useState('')
   const [filterMes, setFilterMes]         = useState('')
   const [filterLista, setFilterLista]     = useState('')
@@ -122,10 +124,7 @@ export default function Registros() {
     return MESES[mi] || ''
   }
 
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+
 
   function startEdit(r) {
     setEditId(r.id)
@@ -140,7 +139,7 @@ export default function Registros() {
 
   async function handleSave() {
     if (!form.clave || !form.fecha || !form.tipo) {
-      showToast('Completa persona, fecha y tipo')
+      toastError('Completa persona, fecha y tipo')
       return
     }
     setSaving(true)
@@ -159,10 +158,10 @@ export default function Registros() {
 
     if (editId) {
       await supabase.from('participaciones').update(payload).eq('id', editId)
-      showToast('Registro actualizado')
+      success('Registro actualizado')
     } else {
       await supabase.from('participaciones').insert(payload)
-      showToast('Registro guardado')
+      success('Registro guardado')
     }
 
     clearForm()
@@ -172,7 +171,7 @@ export default function Registros() {
   async function handleDelete(id) {
     if (!confirm('¿Eliminar este registro?')) return
     await supabase.from('participaciones').delete().eq('id', id)
-    showToast('Registro eliminado')
+    success('Registro eliminado')
     if (editId === id) clearForm()
   }
 
@@ -359,12 +358,7 @@ export default function Registros() {
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-5 right-5 bg-text1 text-white text-xs font-mono px-4 py-2 rounded-lg shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   )
 }

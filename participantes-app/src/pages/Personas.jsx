@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../hooks/useToast'
+import Toast from '../components/Toast'
 
 const ESTATUS_POR_SEXO_LISTA = {
   'Mat-F': ['Matriculada', 'Matriculada bautizada'],
@@ -35,7 +37,7 @@ export default function Personas() {
   const [form, setForm]               = useState(FORM_EMPTY)
   const [editClave, setEditClave]     = useState(null)
   const [saving, setSaving]           = useState(false)
-  const [toast, setToast]             = useState('')
+  const { toast, showToast, success, error: toastError } = useToast()
   const nombreRef = useRef(null)
 
   const fetchPersonas = useCallback(async () => {
@@ -78,10 +80,7 @@ export default function Personas() {
     return true
   })
 
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+
 
   function startEdit(p) {
     setEditClave(p.clave)
@@ -96,8 +95,8 @@ export default function Personas() {
 
   async function handleSave() {
     const nombreDOM = nombreRef.current?.value?.trim() || form.nombre.trim()
-    if (!nombreDOM)    { showToast('Ingresa el nombre'); return }
-    if (!form.estatus) { showToast('Selecciona el estatus'); return }
+    if (!nombreDOM)    { toastError('Ingresa el nombre'); return }
+    if (!form.estatus) { toastError('Selecciona el estatus'); return }
     setSaving(true)
 
     if (editClave) {
@@ -105,14 +104,14 @@ export default function Personas() {
         lista: form.lista, nombre: nombreDOM,
         sexo: form.sexo, estatus: form.estatus,
       }).eq('clave', editClave)
-      showToast('Persona actualizada')
+      success('Persona actualizada')
     } else {
       const clave = getNextClave(personas, form.lista)
       await supabase.from('personas').insert({
         clave, lista: form.lista, nombre: nombreDOM,
         sexo: form.sexo, estatus: form.estatus, activo: true,
       })
-      showToast(`Persona agregada: ${clave}`)
+      success(`Persona agregada: ${clave}`)
     }
 
     clearForm()
@@ -125,7 +124,7 @@ export default function Personas() {
       : `¿Habilitar a ${p.nombre}?`
     if (!confirm(msg)) return
     await supabase.from('personas').update({ activo: !p.activo }).eq('clave', p.clave)
-    showToast(p.activo ? 'Persona deshabilitada' : 'Persona habilitada')
+    showToast(p.activo ? 'Persona deshabilitada' : 'Persona habilitada', p.activo ? 'warning' : 'success')
   }
 
   return (
@@ -285,12 +284,7 @@ export default function Personas() {
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-5 right-5 bg-text1 text-white text-xs font-mono px-4 py-2 rounded-lg shadow-lg z-50">
-          {toast}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   )
 }

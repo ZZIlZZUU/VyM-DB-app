@@ -48,10 +48,16 @@ participantes-app/
 │   │   ├── Exportar.jsx             — CSV / SQL / JSON + importar CSV
 │   │   └── Estadisticas.jsx         — resumen por tipo/mes/persona
 │   ├── components/
-│   │   └── ProtectedRoute.jsx       — verifica sesión + tabla usuarios_autorizados
-│   ├── App.jsx                      — sidebar nav + router de vistas
+│   │   ├── ProtectedRoute.jsx       — verifica sesión + tabla usuarios_autorizados
+│   │   ├── Toast.jsx                — notificaciones visuales (success/error/warning/info)
+│   │   ├── Skeleton.jsx             — placeholders animados para estados de carga
+│   │   └── ConfirmDialog.jsx        — diálogo de confirmación (reemplaza window.confirm)
+│   ├── hooks/
+│   │   ├── useToast.js              — hook para manejo de toasts con tipos
+│   │   └── useConfirm.js            — hook para diálogos de confirmación async
+│   ├── App.jsx                      — sidebar nav colapsable + router de vistas
 │   ├── main.jsx                     — BrowserRouter + rutas
-│   └── index.css                    — Tailwind + estilos base
+│   └── index.css                    — Tailwind + estilos base + animaciones
 ├── tailwind.config.js               — colores custom del design system
 ├── vite.config.js
 └── package.json
@@ -86,6 +92,22 @@ pnpm add pizzip          # requerido por docxtemplater para leer/escribir .docx
 | `programa_semanas` | Semanas extraídas del EPUB mwb |
 | `programa_partes` | Partes/asignaciones por semana |
 | `programa_asignaciones` | Quién hace cada parte (con confirmación) |
+| `configuracion` | Configuración general clave/valor (e.g. nombre_congregacion) |
+
+### Esquema `configuracion`
+
+```sql
+clave  VARCHAR(50) PRIMARY KEY
+valor  TEXT NOT NULL
+```
+
+**Registros actuales:**
+
+| clave | valor |
+|---|---|
+| `nombre_congregacion` | `Congregacion del Recreo` |
+
+> RLS habilitado con policy de lectura pública. Para editar el nombre de congregación, actualizar directamente en Supabase Table Editor o via SQL: `UPDATE configuracion SET valor = 'Nuevo Nombre' WHERE clave = 'nombre_congregacion'`.
 
 ### Esquema `personas`
 
@@ -187,7 +209,7 @@ programa_asignaciones:
 | `EBC_CON` | VC | Ancianos pref., SM | ✅ tipo `EBC` |
 | `LEBC` | VC | Varones Mat | ✅ tipo `LEBC` |
 
-> **`INTRO` fue eliminado.** El tipo existía para "Palabras de introducción" pero se removió — esa función cae dentro del rol del Presidente. Si el EPUB genera una parte con "introducción" en apertura, el parser la clasifica directamente como `P`.
+> **`INTRO` fue eliminado.** El tipo existía para "Palabras de introducción" pero se removió — esa función cae dentro del rol del Presidente.
 
 > **Regla `SMT_EXP` — ayudante mismo sexo:** Cuando el titular es varón, el selector de ayudante filtra solo varones Mat (`SMT_EXP_M`). Cuando es dama, solo damas Mat (`SMT_EXP_F`). Esto se resuelve en `FilaParte` leyendo el sexo del principal de `personas` antes de pasar `tipo` al `PersonaSelector` del ayudante.
 
@@ -249,6 +271,19 @@ programa_asignaciones:
 7. Botón "Generar S-140" → generarS140.js llena la plantilla y descarga el .docx
 ```
 
+### Progreso de confirmación en tarjetas
+
+El cálculo de `confirmadas/totalPartes` y el porcentaje se hace **por partes únicas**, no por registros de asignación. Una parte SMT con principal + ayudante cuenta como 1 parte, no 2. La lógica:
+
+```js
+const partesContables = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
+const confirmadas = partesContables.filter(p =>
+  asignaciones.some(a => a.parte_id === p.id && a.rol === 'principal' && a.confirmado)
+).length
+```
+
+La barra de progreso cambia de color: rojo (0–49%), amber (50–99%), verde (100%).
+
 ### Horarios fijos de referencia
 
 | Sección | Hora inicio |
@@ -272,32 +307,57 @@ Usa `docxtemplater` + `pizzip` para llenar la plantilla `public/S-140_plantilla.
 - `buildDatosPlantilla(congregacion, semanas)` → objeto plano con todas las variables `{$s1_presidente$}`, etc.
 - `generarYDescargarS140({ congregacion, semanas })` → fetch plantilla → render → descarga
 
-**Estructura de datos por semana:**
+El valor de `congregacion` se lee desde la tabla `configuracion` (clave `nombre_congregacion`) al montar `Programa.jsx`, con fallback al string `'Congregacion del Recreo'` si el fetch falla.
+
+---
+
+## Componentes y hooks de UI
+
+### Toast (`src/components/Toast.jsx` + `src/hooks/useToast.js`)
+
+Sistema de notificaciones con 4 tipos: `success` (verde), `error` (rojo), `warning` (amber), `info` (azul). Cada tipo muestra barra de color lateral + icono + mensaje. Auto-dismiss en 3s, animación slide-up.
+
 ```js
-{
-  fecha, presidente, can_ap, oracion_ap,  // oracion_ap = mismo que presidente
-  tb_titulo, tb_cond, pe_cond, lb_est,
-  smt: [{ titulo, est, ayu }],            // hasta 4 elementos (SMT_VACIO → título vacío)
-  can_vc,
-  vc:  [{ titulo, cond }],               // hasta 2 elementos
-  ebc_cond, ebc_lect,
-  can_ci, oracion_ci,
-}
+const { toast, showToast, success, error, warning, info } = useToast()
+// Uso:
+success('Asignación confirmada')
+error('Error al guardar: ' + err.message)
+showToast('Mensaje', 'info')
+// En render:
+<Toast toast={toast} />
 ```
 
-**Variables de la plantilla** (formato `{$s1_variable$}`):
-- La plantilla tiene **9 slots** (s1..s9) — slots sin semana quedan en blanco
-- Delimitadores: `{$` y `$}` (NO `{{` y `}}` — Word fragmenta el XML y docxtemplater falla con "duplicate open tag")
-- Variables: `{$congregacion$}`, `{$s1_fecha$}`, `{$s1_presidente$}`, `{$s1_can_ap$}`, `{$s1_oracion_ap$}`, `{$s1_tb_titulo$}`, `{$s1_tb_cond$}`, `{$s1_pe_cond$}`, `{$s1_lb_est$}`, `{$s1_smt1_titulo$}`, `{$s1_smt1_est$}`, `{$s1_smt1_ayu$}` (smt1..4), `{$s1_can_vc$}`, `{$s1_vc1_titulo$}`, `{$s1_vc1_cond$}` (vc1..2), `{$s1_ebc_cond$}`, `{$s1_ebc_lect$}`, `{$s1_can_ci$}`, `{$s1_oracion_ci$}`
+### ConfirmDialog (`src/components/ConfirmDialog.jsx` + `src/hooks/useConfirm.js`)
 
-**Mapa tipo_asignacion → tipo en tabla participaciones (`TIPO_PARTICIPACION` en Programa.jsx):**
+Reemplaza `window.confirm()` en todas las páginas. Soporta ESC (cancelar) y Enter (confirmar) desde teclado. Botón cancelar: blanco normal → rojo hover. Botón confirmar: negro normal → verde hover (o rojo si `danger: true`). Animación scale+fade de entrada.
+
 ```js
-P:'P', ORACION:'P', ORACION_C:'OC', CONCLU:'P',
-TB:'TB', PE:'PE', LB:'LB',
-SMT_EST:'T', SMT_EXP:'T', SMT_DSC:'DSC', SMT_AYU:'A',
-VC:'VC', NC:'NC', EBC_CON:'EBC', LEBC:'LEBC',
-// ORACION y CONCLU tienen entrada pero handleConfirmar retorna temprano — nunca se insertan
+const { confirm, confirmProps } = useConfirm()
+// Uso (async/await):
+const ok = await confirm({
+  title:   '¿Eliminar esta semana?',
+  message: 'Esta acción no se puede deshacer.',
+  danger:  true,
+})
+if (!ok) return
+// En render:
+<ConfirmDialog {...confirmProps} />
 ```
+
+> **Páginas que lo usan:** `Programa.jsx` (eliminar semana), `Personas.jsx` (deshabilitar persona), `Registros.jsx` (eliminar registro), `VistaSql.jsx` (deshabilitar persona, eliminar participación).
+
+### Skeleton (`src/components/Skeleton.jsx`)
+
+Placeholders animados para estados de carga. Componentes disponibles:
+- `<SkeletonBlock className="..." />` — bloque genérico con pulso
+- `<SkeletonRow cols={3} />` — fila tipo lista con avatar circular
+- `<SkeletonList rows={6} cols={3} />` — lista de N filas skeleton
+- `<SkeletonCard />` — tarjeta estilo Programa
+- `<SkeletonPrograma cards={4} />` — pantalla completa para Programa
+
+### Sidebar colapsable (`App.jsx`)
+
+Estado `open` persiste en `localStorage`. En modo colapsado (`w-14`): solo iconos con tooltip. En modo expandido (`w-56`): iconos + labels + sección de stats. Toggle con botón ← / →. Transición CSS `duration-300`.
 
 ---
 
@@ -315,6 +375,20 @@ purple, purple-bg
 teal, teal-bg
 rose, rose-bg
 danger (#A32020), danger-bg
+```
+
+### Animaciones definidas en `index.css`
+
+```css
+/* Toast */
+@keyframes slide-up { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+.animate-slide-up { animation: slide-up 200ms ease forwards }
+
+/* ConfirmDialog / modales */
+@keyframes fade-in  { from { opacity:0 } to { opacity:1 } }
+@keyframes scale-in { from { opacity:0; transform:scale(0.95) translateY(4px) } to { opacity:1; transform:scale(1) translateY(0) } }
+.animate-fade-in  { animation: fade-in  150ms ease forwards }
+.animate-scale-in { animation: scale-in 150ms ease forwards }
 ```
 
 ---
@@ -348,9 +422,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 ## Pendientes
 
 - [ ] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
-- [ ] **Nombre de congregación configurable** — actualmente hardcodeado como `'Congregacion del Recreo'` en `Programa.jsx` (línea ~566) y pasado como parámetro a `generarYDescargarS140`. Solución: crear tabla `configuracion` en Supabase con columna `clave/valor`, leerla al montar `Programa.jsx` y sustituir el literal.
 - [ ] **Gestión de usuarios** — pantalla para invitar desde la app sin entrar a Supabase. Actualmente se requiere acceso manual a la tabla `usuarios_autorizados`.
-- [ ] **Pulido de UI** — detalles visuales menores pendientes de definir.
+- [ ] **Confirmación de cierre de sesión** — el botón en el sidebar no tiene diálogo de confirmación; fácil de presionar por accidente. Implementar `useConfirm` ahí también.
+- [ ] **Pop-ups de confirmación personalizados en App.jsx** — el sidebar vive fuera del árbol de páginas, necesita su propio `ConfirmDialog` montado en `App.jsx`.
 
 ---
 
@@ -361,6 +435,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Confirmación por semana con "re-confirmar"** — al cambiar participantes ya confirmados, los cambios se acumulan en slots de semanas siguientes. Propuesta: botón "Actualizar confirmación" por semana que borre los registros actuales de esa semana en `participaciones` y los regenere desde las asignaciones vigentes.
 - [ ] **Tests del motor de sugerencias** — `asignacionesSugeridas.js` no tiene pruebas automatizadas. Con la acumulación de tipos (`SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, etc.) es fácil romper un case sin notarlo. Añadir tests unitarios con Vitest.
 - [ ] **SMT_AYU como tipo independiente** — actualmente el ayudante SMT no tiene `tipo_asignacion` propio en `programa_partes`; se infiere del `rol === 'ayudante'`. Considerar materializarlo explícitamente para simplificar queries y el generador S-140.
+- [ ] **Búsqueda instantánea en Personas** — input que filtre por nombre/clave con debounce 300ms (pendiente de implementar).
+- [ ] **Badges de lista en Personas** — mostrar "Mat" / "Anc" como etiqueta coloreada (`bg-blue-bg` para Mat, `bg-amber-bg` para Anc).
 
 ---
 
@@ -368,7 +444,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 - `App.jsx` sidebar: `overflow-y-autoflex-shrink-0` → `overflow-y-auto flex-shrink-0`
 - `FilaParte`: grid duplicado para APERTURA/CIERRE — corregido a grid único de 4 columnas
-- Contador de progreso en `TarjetaSemana`: excluye `SMT_VACIO`, `ORACION` y `CONCLU` del total
+- Contador de progreso en `TarjetaSemana`: excluye `SMT_VACIO`, `ORACION` y `CONCLU` del total; cuenta partes únicas (no registros de asignación) para evitar que el ayudante SMT infle el conteo por encima del 100%
 - `handleConfirmarTodo`: filtra `rol === 'principal'` para no procesar ayudantes por separado — eliminaba 3 registros duplicados del ayudante SMT
 - `handleConfirmar`: guard `if (principal.rol === 'ayudante') return` como segunda capa de protección
 - `handleConfirmar`: guard `if (tipo === 'ORACION' || tipo === 'CONCLU') return` — partes visuales no generan registro en BD

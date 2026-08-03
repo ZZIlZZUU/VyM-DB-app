@@ -8,24 +8,52 @@ import { useState, useCallback } from 'react'
 
 export function useConfirm() {
   const [state, setState] = useState({
-    open: false, title: '', message: '', danger: false, resolve: null,
+    open: false,
+    title: '',
+    message: '',
+    danger: false,
+    resolve: null,
+    handled: false,
   })
 
   const confirm = useCallback(({ title, message = '', danger = false }) => {
     return new Promise(resolve => {
-      setState({ open: true, title, message, danger, resolve })
+      setState({
+        open: true,
+        title,
+        message,
+        danger,
+        resolve,
+        handled: false,
+      })
     })
   }, [])
 
   const handleConfirm = useCallback(() => {
-    state.resolve?.(true)
-    setState(s => ({ ...s, open: false }))
-  }, [state])
+    setState(prev => {
+      if (!prev.open || prev.handled) return prev
+      prev.resolve?.(true)
+      return {
+        ...prev,
+        open: false,
+        handled: true,
+        resolve: null,
+      }
+    })
+  }, [])
 
   const handleCancel = useCallback(() => {
-    state.resolve?.(false)
-    setState(s => ({ ...s, open: false }))
-  }, [state])
+    setState(prev => {
+      if (!prev.open || prev.handled) return prev
+      prev.resolve?.(false)
+      return {
+        ...prev,
+        open: false,
+        handled: true,
+        resolve: null,
+      }
+    })
+  }, [])
 
   return {
     confirm,

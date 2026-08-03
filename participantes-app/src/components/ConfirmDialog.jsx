@@ -15,8 +15,14 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
   useEffect(() => {
     if (!open) return
     function handleKey(e) {
-      if (e.key === 'Escape') onCancel()
-      if (e.key === 'Enter')  onConfirm()
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+      if (e.key === 'Enter' && !e.target.closest?.('button')) {
+        e.preventDefault()
+        onConfirm()
+      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
@@ -51,12 +57,12 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
             Cancelar
           </button>
 
-          {/* Confirmar — negro normal, verde/rojo hover según `danger` */}
+          {/* Confirmar — negro normal, verde oscuro/verde hover según `danger` */}
           <button
             onClick={onConfirm}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150
               ${danger
-                ? 'hover:bg-danger hover:border-danger'
+                ? 'hover:bg-[#06402B] hover:border-[#06402B]'
                 : 'hover:bg-accent hover:border-accent'
               }`}
           >

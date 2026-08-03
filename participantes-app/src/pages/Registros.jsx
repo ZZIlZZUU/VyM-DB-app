@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
+import { SkeletonList } from '../components/Skeleton'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -331,7 +332,7 @@ export default function Registros() {
 
         <div className="max-h-[480px] overflow-y-auto flex flex-col gap-1">
           {loading ? (
-            <div className="text-center py-6 text-sm text-text3 font-mono">Cargando...</div>
+            <SkeletonList rows={8} cols={3} />
           ) : filtered.length === 0 ? (
             <div className="text-center py-6 text-sm text-text3">Sin resultados</div>
           ) : filtered.map(r => (

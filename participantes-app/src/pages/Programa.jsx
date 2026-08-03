@@ -5,6 +5,7 @@ import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
+import { SkeletonPrograma } from '../components/Skeleton'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -594,8 +595,8 @@ export default function Programa() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-text3 font-mono text-sm">
-      Cargando programa...
+    <div className="p-6">
+      <SkeletonPrograma cards={4} />
     </div>
   )
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
+import { SkeletonList } from '../components/Skeleton'
 
 const ESTATUS_POR_SEXO_LISTA = {
   'Mat-F': ['Matriculada', 'Matriculada bautizada'],
@@ -249,7 +250,7 @@ export default function Personas() {
 
         <div className="max-h-96 overflow-y-auto flex flex-col gap-1">
           {loading ? (
-            <div className="text-center py-6 text-sm text-text3 font-mono">Cargando...</div>
+            <SkeletonList rows={6} cols={2} />
           ) : filtered.length === 0 ? (
             <div className="text-center py-6 text-sm text-text3">Sin resultados</div>
           ) : filtered.map(p => (

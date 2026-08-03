@@ -32,6 +32,15 @@ export default function App() {
   const [view, setView]   = useState('editable')
   const [user, setUser]   = useState(null)
   const [stats, setStats] = useState({ personas: 0, registros: 0, mesActual: 0, mes: '' })
+  const [open, setOpen]   = useState(() => {
+    const saved = localStorage.getItem('sidebarOpen')
+    if (saved !== null) return saved === 'true'
+    return window.innerWidth >= 768
+  })
+
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', open)
+  }, [open])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
@@ -72,57 +81,92 @@ export default function App() {
     <div className="flex min-h-screen">
 
       {/* SIDEBAR */}
-      <aside className="w-56 bg-surface border-r border-border flex flex-col sticky top-0 h-screen overflow-y-autoflex-shrink-0">
-        <div className="px-5 py-4 border-b border-border">
-          <div className="font-mono text-xs text-text3 tracking-widest uppercase mb-1">Base de datos</div>
-          <div className="text-sm font-medium text-text1 leading-tight">Participantes<br />2026</div>
-          <div className="font-mono text-xs text-accent mt-1">AÑO EN CURSO</div>
+      <aside className={`${open ? 'w-56' : 'w-14'} bg-surface border-r border-border flex flex-col sticky top-0 h-screen flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden`}>
+
+        {/* Header */}
+        <div className={`border-b border-border flex items-center ${open ? 'px-5 py-4 gap-0 justify-between' : 'px-0 py-4 justify-center'}`}>
+          {open && (
+            <div>
+              <div className="font-mono text-xs text-text3 tracking-widest uppercase mb-1">Base de datos</div>
+              <div className="text-sm font-medium text-text1 leading-tight">Participantes<br />2026</div>
+              <div className="font-mono text-xs text-accent mt-1">AÑO EN CURSO</div>
+            </div>
+          )}
+          <button
+            onClick={() => setOpen(o => !o)}
+            title={open ? 'Colapsar sidebar' : 'Expandir sidebar'}
+            className="w-7 h-7 flex items-center justify-center rounded text-text3 hover:text-text1 hover:bg-bg flex-shrink-0"
+          >
+            {open ? '←' : '→'}
+          </button>
         </div>
 
-        <nav className="flex-1 py-2">
+        {/* Nav */}
+        <nav className="flex-1 py-2 overflow-y-auto">
           {sections.map(section => (
             <div key={section}>
-              <div className="font-mono text-xs text-text3 tracking-widest uppercase px-5 pt-3 pb-1">
-                {section}
-              </div>
+              {open && (
+                <div className="font-mono text-xs text-text3 tracking-widest uppercase px-5 pt-3 pb-1">
+                  {section}
+                </div>
+              )}
+              {!open && <div className="pt-3" />}
               {NAV.filter(n => n.section === section).map(item => (
                 <button
                   key={item.id}
                   onClick={() => setView(item.id)}
-                  className={`w-full flex items-center gap-2 px-5 py-2 text-left text-xs border-l-2
+                  title={!open ? item.label : undefined}
+                  className={`w-full flex items-center gap-2 py-2 text-left text-xs border-l-2
+                    ${open ? 'px-5' : 'px-0 justify-center'}
                     ${view === item.id
                       ? 'text-accent border-accent bg-accent-bg font-medium'
                       : 'text-text2 border-transparent hover:bg-bg hover:text-text1'}`}
                 >
-                  <span className="w-4 text-center">{item.icon}</span>
-                  {item.label}
+                  <span className="w-4 text-center flex-shrink-0">{item.icon}</span>
+                  {open && item.label}
                 </button>
               ))}
             </div>
           ))}
         </nav>
 
-        <div className="px-5 py-4 border-t border-border">
-          <div className="font-mono text-xs text-text3 tracking-widest uppercase mb-2">Resumen</div>
-          {[
-            { label: 'Personas activas', val: stats.personas },
-            { label: 'Registros total',  val: stats.registros },
-            { label: stats.mes || 'Este mes', val: stats.mesActual, accent: true },
-          ].map(s => (
-            <div key={s.label} className="flex justify-between items-center py-0.5">
-              <span className="text-xs text-text2">{s.label}</span>
-              <span className={`font-mono text-xs font-medium ${s.accent ? 'text-accent' : 'text-text1'}`}>
-                {s.val}
-              </span>
-            </div>
-          ))}
-        </div>
+        {/* Stats — solo visible expandido */}
+        {open && (
+          <div className="px-5 py-4 border-t border-border">
+            <div className="font-mono text-xs text-text3 tracking-widest uppercase mb-2">Resumen</div>
+            {[
+              { label: 'Personas activas', val: stats.personas },
+              { label: 'Registros total',  val: stats.registros },
+              { label: stats.mes || 'Este mes', val: stats.mesActual, accent: true },
+            ].map(s => (
+              <div key={s.label} className="flex justify-between items-center py-0.5">
+                <span className="text-xs text-text2">{s.label}</span>
+                <span className={`font-mono text-xs font-medium ${s.accent ? 'text-accent' : 'text-text1'}`}>
+                  {s.val}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
-        <div className="px-5 py-3 border-t border-border">
-          <div className="text-xs text-text3 truncate mb-1">{user?.email}</div>
-          <button onClick={handleLogout} className="text-xs text-text3 hover:text-danger">
-            Cerrar sesión
-          </button>
+        {/* Footer */}
+        <div className={`border-t border-border ${open ? 'px-5 py-3' : 'px-0 py-3 flex flex-col items-center gap-2'}`}>
+          {open ? (
+            <>
+              <div className="text-xs text-text3 truncate mb-1">{user?.email}</div>
+              <button onClick={handleLogout} className="text-xs text-text3 hover:text-danger">
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="text-sm text-text3 hover:text-danger"
+            >
+              ⏻
+            </button>
+          )}
         </div>
       </aside>
 

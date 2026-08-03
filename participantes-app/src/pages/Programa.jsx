@@ -251,10 +251,12 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
   const clavePresidente = asigPresidente?.clave || null
 
   const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
-  const totalPartes      = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)).length
-  const confirmadas      = asignaciones.filter(a => {
-    const p = partes.find(pt => pt.id === a.parte_id)
-    return p && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion) && a.confirmado
+  const partesContables  = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
+  const totalPartes      = partesContables.length
+  const confirmadas      = partesContables.filter(p => {
+    const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
+    // Una parte se considera confirmada si su asignación principal está confirmada
+    return asigParte.some(a => a.rol === 'principal')
   }).length
   const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
 
@@ -280,11 +282,19 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
             ) : null)}
           </div>
           {/* Progreso */}
-          <div className="flex items-center gap-2">
-            <div className="w-20 h-1.5 bg-bg rounded-full overflow-hidden">
-              <div className="h-1.5 bg-accent rounded-full" style={{width:`${pct}%`}} />
+          <div className="flex flex-col items-end gap-1 min-w-[72px]">
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-mono text-text3">{confirmadas}/{totalPartes}</span>
+              <span className={`text-xs font-mono font-medium ${pct === 100 ? 'text-accent' : pct >= 50 ? 'text-amber' : 'text-text3'}`}>
+                {pct}%
+              </span>
             </div>
-            <span className="text-xs font-mono text-text3">{confirmadas}/{totalPartes}</span>
+            <div className="w-full h-2 bg-bg rounded-full overflow-hidden">
+              <div
+                className={`h-2 rounded-full transition-all duration-300 ${pct === 100 ? 'bg-accent' : pct >= 50 ? 'bg-amber' : 'bg-danger'}`}
+                style={{width:`${pct}%`}}
+              />
+            </div>
           </div>
           <span className="text-text3 text-sm">{expandida ? '▲' : '▼'}</span>
         </div>

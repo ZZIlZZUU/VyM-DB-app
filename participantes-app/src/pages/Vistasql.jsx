@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useConfirm } from '../hooks/useConfirm'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const BADGE_CLASS = {
   T:'bg-accent-bg           text-accent', 
@@ -29,6 +31,7 @@ function Pill({ value }) {
 
 export default function VistaSql() {
   const [tab, setTab] = useState('personas')
+  const { confirm, confirmProps } = useConfirm()
 
   // ── Personas ──
   const [personas, setPersonas]       = useState([])
@@ -93,13 +96,23 @@ export default function VistaSql() {
 
   // ── Eliminar ──
   async function deletePersona(clave) {
-    if (!confirm(`¿Deshabilitar a esta persona? Sus registros se conservan.`)) return
+    const ok = await confirm({
+      title:   '¿Deshabilitar a esta persona?',
+      message: 'Sus registros históricos se conservan.',
+      danger:  true,
+    })
+    if (!ok) return
     await supabase.from('personas').update({ activo: false }).eq('clave', clave)
     fetchPersonas()
   }
 
   async function deleteParticipacion(id) {
-    if (!confirm('¿Eliminar este registro?')) return
+    const ok = await confirm({
+      title:   '¿Eliminar este registro?',
+      message: 'Esta acción no se puede deshacer.',
+      danger:  true,
+    })
+    if (!ok) return
     await supabase.from('participaciones').delete().eq('id', id)
     fetchParticipaciones()
   }
@@ -271,6 +284,7 @@ export default function VistaSql() {
           </div>
         </>
       )}
+      <ConfirmDialog {...confirmProps} />
     </div>
   )
 }

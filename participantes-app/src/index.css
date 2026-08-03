@@ -39,3 +39,15 @@ textarea {
 .animate-slide-up {
   animation: slide-up 200ms ease forwards;
 }
+
+/* ConfirmDialog — animaciones */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95) translateY(4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+.animate-fade-in  { animation: fade-in  150ms ease forwards; }
+.animate-scale-in { animation: scale-in 150ms ease forwards; }

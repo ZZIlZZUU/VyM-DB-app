@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
+import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
 import { SkeletonList } from '../components/Skeleton'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const ESTATUS_POR_SEXO_LISTA = {
   'Mat-F': ['Matriculada', 'Matriculada bautizada'],
@@ -39,6 +41,7 @@ export default function Personas() {
   const [editClave, setEditClave]     = useState(null)
   const [saving, setSaving]           = useState(false)
   const { toast, showToast, success, error: toastError } = useToast()
+  const { confirm, confirmProps } = useConfirm()
   const nombreRef = useRef(null)
 
   const fetchPersonas = useCallback(async () => {
@@ -120,10 +123,12 @@ export default function Personas() {
   }
 
   async function toggleActivo(p) {
-    const msg = p.activo
-      ? `¿Deshabilitar a ${p.nombre}? Sus registros históricos se conservan.`
-      : `¿Habilitar a ${p.nombre}?`
-    if (!confirm(msg)) return
+    const ok = await confirm({
+      title:   p.activo ? `¿Deshabilitar a ${p.nombre}?` : `¿Habilitar a ${p.nombre}?`,
+      message: p.activo ? 'Sus registros históricos se conservan.' : '',
+      danger:  p.activo,
+    })
+    if (!ok) return
     await supabase.from('personas').update({ activo: !p.activo }).eq('clave', p.clave)
     showToast(p.activo ? 'Persona deshabilitada' : 'Persona habilitada', p.activo ? 'warning' : 'success')
   }
@@ -286,6 +291,7 @@ export default function Personas() {
       </div>
 
       <Toast toast={toast} />
+      <ConfirmDialog {...confirmProps} />
     </div>
   )
 }

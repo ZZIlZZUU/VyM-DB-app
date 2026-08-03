@@ -4,8 +4,10 @@ import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 import { useToast } from '../hooks/useToast'
+import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
 import { SkeletonPrograma } from '../components/Skeleton'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -356,6 +358,7 @@ export default function Programa() {
   const [vistaTab, setVistaTab]         = useState('semanas')
   const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
   const { toast, showToast, success, error: toastError } = useToast()
+  const { confirm, confirmProps } = useConfirm()
 
   const fetchData = useCallback(async () => {
     const [
@@ -588,7 +591,12 @@ export default function Programa() {
 
   // ── Eliminar semana ──────────────────────────────────────
   async function handleEliminarSemana(semanaId) {
-    if (!confirm('¿Eliminar esta semana y todas sus partes y asignaciones?')) return
+    const ok = await confirm({
+      title:   '¿Eliminar esta semana?',
+      message: 'Se borrarán todas sus partes y asignaciones. Esta acción no se puede deshacer.',
+      danger:  true,
+    })
+    if (!ok) return
     await supabase.from('programa_semanas').delete().eq('id', semanaId)
     showToast('Semana eliminada')
     await fetchData()
@@ -721,6 +729,7 @@ export default function Programa() {
       )}
 
       <Toast toast={toast} />
+      <ConfirmDialog {...confirmProps} />
     </div>
   )
 }

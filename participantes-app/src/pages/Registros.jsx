@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
+import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
 import { SkeletonList } from '../components/Skeleton'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -81,6 +83,7 @@ export default function Registros() {
   const [editId, setEditId]               = useState(null)
   const [saving, setSaving]               = useState(false)
   const { toast, showToast, success, error: toastError } = useToast()
+  const { confirm, confirmProps } = useConfirm()
   const [search, setSearch]               = useState('')
   const [filterMes, setFilterMes]         = useState('')
   const [filterLista, setFilterLista]     = useState('')
@@ -170,7 +173,12 @@ export default function Registros() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('¿Eliminar este registro?')) return
+    const ok = await confirm({
+      title:   '¿Eliminar este registro?',
+      message: 'Esta acción no se puede deshacer.',
+      danger:  true,
+    })
+    if (!ok) return
     await supabase.from('participaciones').delete().eq('id', id)
     success('Registro eliminado')
     if (editId === id) clearForm()
@@ -360,6 +368,7 @@ export default function Registros() {
       </div>
 
       <Toast toast={toast} />
+      <ConfirmDialog {...confirmProps} />
     </div>
   )
 }

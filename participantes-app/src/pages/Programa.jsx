@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
@@ -77,29 +77,132 @@ const TIPO_PARTICIPACION = {
   LEBC: 'LEBC',
 }
 
-// ── Componente selector de persona ───────────────────────────
+// ── Componente selector de persona con búsqueda ──────────────
 function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
+  const [open, setOpen]     = useState(false)
+  const [query, setQuery]   = useState('')
+  const inputRef            = useRef(null)
+  const containerRef        = useRef(null)
+
   const candidatos = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
 
+  const seleccionado = candidatos.find(p => p.clave === value)
+    || personas.find(p => p.clave === value)
+
+  const filtrados = query.trim()
+    ? candidatos.filter(p =>
+        p.nombre.toLowerCase().includes(query.toLowerCase()) ||
+        p.clave.toLowerCase().includes(query.toLowerCase())
+      )
+    : candidatos
+
+  // Cerrar al hacer click fuera
+  useEffect(() => {
+    if (!open) return
+    function handleOutside(e) {
+      if (!containerRef.current?.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [open])
+
+  // Enfocar input al abrir
+  useEffect(() => {
+    if (open) { setQuery(''); setTimeout(() => inputRef.current?.focus(), 0) }
+  }, [open])
+
+  function handleSelect(clave) {
+    onChange(clave || null)
+    setOpen(false)
+    setQuery('')
+  }
+
+  function getIndicador(p) {
+    if (p._score < 50)  return { icon: '⚠', cls: 'text-danger' }
+    if (p._score < 80)  return { icon: '↻', cls: 'text-amber' }
+    return { icon: '✓', cls: 'text-accent' }
+  }
+
   return (
-    <select
-      value={value || ''}
-      onChange={e => onChange(e.target.value || null)}
-      disabled={disabled}
-      className="w-full px-2 py-1 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50"
-    >
-      <option value="">— Sin asignar —</option>
-      {candidatos.map(p => {
-        const penalizado = p._score < 50
-        const advertencia = p._score >= 50 && p._score < 80
-        return (
-          <option key={p.clave} value={p.clave}>
-            {penalizado ? '⚠ ' : advertencia ? '↻ ' : '✓ '}
-            {p.clave} — {p.nombre}
-          </option>
-        )
-      })}
-    </select>
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(o => !o)}
+        className={`w-full flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs text-left transition-colors
+          ${open ? 'border-accent bg-surface' : 'border-border2 bg-surface hover:border-accent/60'}
+          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          text-text1`}
+      >
+        {seleccionado ? (
+          <>
+            <span className={`flex-shrink-0 ${getIndicador(seleccionado).cls}`}>
+              {getIndicador(seleccionado).icon}
+            </span>
+            <span className="font-mono text-text3 flex-shrink-0">{seleccionado.clave}</span>
+            <span className="truncate flex-1">{seleccionado.nombre}</span>
+          </>
+        ) : (
+          <span className="text-text3 flex-1">— Sin asignar —</span>
+        )}
+        <span className="text-text3 flex-shrink-0 ml-auto">▾</span>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 w-56 bg-surface border border-border2 rounded-xl shadow-lg overflow-hidden">
+          {/* Búsqueda */}
+          <div className="px-2 pt-2 pb-1 border-b border-border">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { setOpen(false); setQuery('') }
+                if (e.key === 'Enter' && filtrados.length > 0) handleSelect(filtrados[0].clave)
+              }}
+              placeholder="Buscar nombre o clave…"
+              className="w-full px-2 py-1 text-xs bg-bg border border-border2 rounded-lg outline-none focus:border-accent text-text1 placeholder:text-text3"
+            />
+          </div>
+
+          {/* Opciones */}
+          <div className="max-h-48 overflow-y-auto py-1">
+            {/* Opción "sin asignar" */}
+            <button
+              type="button"
+              onClick={() => handleSelect(null)}
+              className="w-full text-left px-3 py-1.5 text-xs text-text3 hover:bg-bg"
+            >
+              — Sin asignar —
+            </button>
+
+            {filtrados.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-text3 italic">Sin resultados</div>
+            ) : (
+              filtrados.map(p => {
+                const ind = getIndicador(p)
+                const isSelected = p.clave === value
+                return (
+                  <button
+                    key={p.clave}
+                    type="button"
+                    onClick={() => handleSelect(p.clave)}
+                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
+                      ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
+                  >
+                    <span className={`flex-shrink-0 w-3 ${ind.cls}`}>{ind.icon}</span>
+                    <span className="font-mono text-text3 flex-shrink-0 w-12">{p.clave}</span>
+                    <span className="truncate text-text1">{p.nombre}</span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

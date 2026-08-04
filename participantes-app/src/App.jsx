@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { useConfirm } from './hooks/useConfirm'
+import ConfirmDialog from './components/ConfirmDialog'
 import VistaEditable  from './pages/VistaEditable'
 import VistaSql       from './pages/VistaSql'
 import Personas       from './pages/Personas'
@@ -37,6 +39,7 @@ export default function App() {
     if (saved !== null) return saved === 'true'
     return window.innerWidth >= 768
   })
+  const { confirm, confirmProps } = useConfirm()
 
   useEffect(() => {
     localStorage.setItem('sidebarOpen', open)
@@ -59,6 +62,11 @@ export default function App() {
   }
 
   async function handleLogout() {
+    const ok = await confirm({
+      title:   '¿Cerrar sesión?',
+      message: 'Tendrás que volver a iniciar sesión para acceder.',
+    })
+    if (!ok) return
     await supabase.auth.signOut()
   }
 
@@ -79,6 +87,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
+      <ConfirmDialog {...confirmProps} />
 
       {/* SIDEBAR */}
       <aside className={`${open ? 'w-56' : 'w-14'} bg-surface border-r border-border flex flex-col sticky top-0 h-screen flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden`}>

@@ -1,6 +1,4 @@
 {
-  "buildCommand": "cd participantes-app && pnpm install && pnpm run build",
-  "outputDirectory": "participantes-app/dist",
   "rewrites": [
     {
       "source": "/(.*)",

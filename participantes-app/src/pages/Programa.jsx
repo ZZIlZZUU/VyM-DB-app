@@ -213,6 +213,16 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
   const principal = asig[0] || null
   const ayudante  = asigAyu[0] || null
 
+  const principalPartRecord = principal?.participacion_id ? historial.find(h => h.id === principal.participacion_id) : null
+  const ayudantePartRecord  = ayudante?.participacion_id ? historial.find(h => h.id === ayudante.participacion_id) : null
+
+  const principalCambiado = !!principal?.participacion_id && principalPartRecord && principalPartRecord.clave !== principal?.clave
+  const ayudanteCambiado  = !!ayudante?.participacion_id && ayudantePartRecord && ayudantePartRecord.clave !== ayudante?.clave
+  const ayudanteNuevo     = parte.requiere_ayudante && ayudante?.clave && principal?.participacion_id && !ayudante?.participacion_id
+  const ayudanteRemovido  = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
+
+  const necesitaReconfirmar = principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
+
     // Slot vacío — no renderizar nada asignable
   if (parte.tipo_asignacion === 'SMT_VACIO') {
     return (
@@ -326,12 +336,26 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
         {principal?.clave && (
           <button
             onClick={() => onConfirmar(parte.id, principal, ayudante)}
-            className={`text-xs px-2 py-1 rounded-lg border transition-none
-              ${principal?.confirmado
-                ? 'bg-accent-bg text-accent border-accent/30'
-                : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'}`}
+            className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${
+              necesitaReconfirmar
+                ? 'bg-amber/15 text-amber border-amber/40 hover:bg-amber hover:text-white'
+                : principal?.confirmado
+                ? 'bg-accent-bg text-accent border-accent/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'
+            }`}
+            title={
+              necesitaReconfirmar
+                ? 'Se cambiaron participantes en esta asignación. Haz clic para reconfirmar.'
+                : principal?.confirmado
+                ? 'Asignación confirmada. Haz clic para desconfirmar.'
+                : 'Haz clic para confirmar esta asignación.'
+            }
           >
-            {principal?.confirmado ? '✓ Confirmado' : 'Confirmar'}
+            {necesitaReconfirmar
+              ? '↻ Reconfirmar'
+              : principal?.confirmado
+              ? '✓ Confirmado'
+              : 'Confirmar'}
           </button>
         )}
       </div>
@@ -349,7 +373,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     .filter(a => partes.some(p => p.id === a.parte_id))
     .map(a => a.clave)
 
-      // Clave del presidente de esta semana
+  // Clave del presidente de esta semana
   const partePresidente = partes.find(p => p.tipo_asignacion === 'P')
   const asigPresidente  = partePresidente
     ? asignaciones.find(a => a.parte_id === partePresidente.id && a.rol === 'principal')
@@ -359,12 +383,41 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
   const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
   const partesContables  = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
   const totalPartes      = partesContables.length
-  const confirmadas      = partesContables.filter(p => {
+
+  // Detección de reconfirmaciones pendientes en la semana
+  const hayReconfirmaciones = partesContables.some(p => {
+    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+    if (!asigP?.clave) return false
+
+    const pr = asigP.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
+    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
+
+    const pCambio = !!asigP.participacion_id && pr && pr.clave !== asigP.clave
+    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
+    const aNuevo  = p.requiere_ayudante && asigA?.clave && asigP.participacion_id && !asigA?.participacion_id
+    const aRem    = p.requiere_ayudante && !asigA?.clave && ar
+
+    return pCambio || aCambio || aNuevo || aRem
+  })
+
+  const confirmadas = partesContables.filter(p => {
     const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
-    // Una parte se considera confirmada si su asignación principal está confirmada
-    return asigParte.some(a => a.rol === 'principal')
+    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+
+    const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
+    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
+    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
+    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
+    const aNuevo  = p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
+    const aRem    = p.requiere_ayudante && !asigA?.clave && ar
+    const necesitaRec = pCambio || aCambio || aNuevo || aRem
+
+    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
   }).length
-  const pct              = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
+
+  const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
 
   // Agrupar por sección
   const secciones = ['APERTURA','TB','SMT','VC','CIERRE']
@@ -438,9 +491,19 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
           <div className="flex justify-end mt-4 pt-3 border-t border-border gap-2">
             <button
               onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
-              className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-green-800"
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                hayReconfirmaciones
+                  ? 'bg-amber text-white hover:bg-amber-600 shadow-sm'
+                  : pct === 100 && totalPartes > 0
+                  ? 'bg-accent-bg text-accent border border-accent/30 hover:bg-accent/20'
+                  : 'bg-accent text-white hover:bg-green-800'
+              }`}
             >
-              Confirmar todo →
+              {hayReconfirmaciones
+                ? '↻ Actualizar confirmación →'
+                : pct === 100 && totalPartes > 0
+                ? '✓ Todo confirmado'
+                : 'Confirmar todo →'}
             </button>
           </div>
         </div>
@@ -568,6 +631,10 @@ export default function Programa() {
   async function handleAsignar(parteId, clave, rol, existingId) {
     if (!clave) {
       if (existingId) {
+        const asigExistente = asignaciones.find(a => a.id === existingId)
+        if (asigExistente?.participacion_id) {
+          await supabase.from('participaciones').delete().eq('id', asigExistente.participacion_id)
+        }
         await supabase.from('programa_asignaciones').delete().eq('id', existingId)
         await fetchData()
       }
@@ -582,9 +649,6 @@ export default function Programa() {
       await supabase.from('programa_asignaciones').insert(payload)
     }
 
-    // ORACION y CONCLU son puramente visuales (se propagan desde clavePresidente en FilaParte)
-    // No se guardan en BD — no hay lógica de propagación aquí
-
     await fetchData()
   }
 
@@ -595,12 +659,7 @@ export default function Programa() {
     const parte = partes.find(p => p.id === parteId)
     if (!parte) return
 
-    // ORACION y CONCLU son puramente visuales (propagadas del Presidente)
-    // No generan registro en participaciones ni en programa_asignaciones
     if (parte.tipo_asignacion === 'ORACION' || parte.tipo_asignacion === 'CONCLU') return
-
-    // Evitar que una asignación de ayudante sea procesada como principal
-    // (puede ocurrir si se llama directamente con el objeto ayudante)
     if (principal.rol === 'ayudante') return
 
     const semana = semanas.find(s => s.id === parte.semana_id)
@@ -611,8 +670,27 @@ export default function Programa() {
 
     const tipoParticipacion = TIPO_PARTICIPACION[parte.tipo_asignacion] || 'X'
 
-    let participacionId = principal.participacion_id
-    if (!participacionId) {
+    // Detección de cambios con respecto al historial guardado
+    const principalPartRecord = principal.participacion_id ? historial.find(h => h.id === principal.participacion_id) : null
+    const ayudantePartRecord  = ayudante?.participacion_id ? historial.find(h => h.id === ayudante.participacion_id) : null
+
+    const principalCambiado = !!principal.participacion_id && principalPartRecord && principalPartRecord.clave !== principal.clave
+    const ayudanteCambiado  = !!ayudante?.participacion_id && ayudantePartRecord && ayudantePartRecord.clave !== ayudante?.clave
+    const ayudanteNuevo     = parte.requiere_ayudante && ayudante?.clave && principal.participacion_id && !ayudante?.participacion_id
+    const ayudanteRemovido  = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
+
+    const esReconfirmacion = principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
+
+    // 1. CASO: RECONFIRMAR (Participante cambió en asignación previamente confirmada)
+    if (esReconfirmacion) {
+      if (principal.participacion_id) {
+        await supabase.from('participaciones').delete().eq('id', principal.participacion_id)
+      }
+      if (ayudante?.participacion_id) {
+        await supabase.from('participaciones').delete().eq('id', ayudante.participacion_id)
+      }
+
+      // Insertar nuevo registro de principal
       const { data: partData } = await supabase.from('participaciones').insert({
         clave:         persona.clave,
         nombre:        persona.nombre,
@@ -624,17 +702,84 @@ export default function Programa() {
         observaciones: null,
       }).select().single()
 
-      participacionId = partData?.id
+      await supabase.from('programa_asignaciones').update({
+        confirmado: true,
+        participacion_id: partData?.id || null,
+      }).eq('id', principal.id)
+
+      // Insertar nuevo registro de ayudante si aplica
+      if (ayudante?.clave && ayudante?.id) {
+        const personaAyu = personas.find(p => p.clave === ayudante.clave)
+        if (personaAyu) {
+          const { data: ayuData } = await supabase.from('participaciones').insert({
+            clave:         personaAyu.clave,
+            nombre:        personaAyu.nombre,
+            lista:         personaAyu.lista,
+            fecha:         semana.fecha_inicio,
+            mes:           semana.mes,
+            tipo:          'A',
+            peso:          1,
+            observaciones: 'Ayudante SMT',
+          }).select().single()
+
+          await supabase.from('programa_asignaciones').update({
+            confirmado: true,
+            participacion_id: ayuData?.id || null,
+          }).eq('id', ayudante.id)
+        }
+      }
+
+      showToast('Asignación reconfirmada ✓')
+      await fetchData()
+      return
     }
 
+    // 2. CASO: DESCONFIRMAR (Estaba confirmado sin cambios y se presiona nuevamente)
+    if (principal.confirmado) {
+      if (principal.participacion_id) {
+        await supabase.from('participaciones').delete().eq('id', principal.participacion_id)
+      }
+      if (ayudante?.participacion_id) {
+        await supabase.from('participaciones').delete().eq('id', ayudante.participacion_id)
+      }
+
+      await supabase.from('programa_asignaciones').update({
+        confirmado: false,
+        participacion_id: null,
+      }).eq('id', principal.id)
+
+      if (ayudante?.id) {
+        await supabase.from('programa_asignaciones').update({
+          confirmado: false,
+          participacion_id: null,
+        }).eq('id', ayudante.id)
+      }
+
+      showToast('Asignación desconfirmada')
+      await fetchData()
+      return
+    }
+
+    // 3. CASO: CONFIRMAR POR PRIMERA VEZ
+    const { data: partData } = await supabase.from('participaciones').insert({
+      clave:         persona.clave,
+      nombre:        persona.nombre,
+      lista:         persona.lista,
+      fecha:         semana.fecha_inicio,
+      mes:           semana.mes,
+      tipo:          tipoParticipacion,
+      peso:          PESO_TIPO[tipoParticipacion] || 1,
+      observaciones: null,
+    }).select().single()
+
     await supabase.from('programa_asignaciones').update({
-      confirmado: !principal.confirmado,
-      participacion_id: participacionId,
+      confirmado: true,
+      participacion_id: partData?.id || null,
     }).eq('id', principal.id)
 
     if (ayudante?.clave && ayudante?.id) {
       const personaAyu = personas.find(p => p.clave === ayudante.clave)
-      if (personaAyu && !principal.confirmado) {
+      if (personaAyu) {
         const { data: ayuData } = await supabase.from('participaciones').insert({
           clave:         personaAyu.clave,
           nombre:        personaAyu.nombre,
@@ -648,30 +793,48 @@ export default function Programa() {
 
         await supabase.from('programa_asignaciones').update({
           confirmado: true,
-          participacion_id: ayuData?.id,
+          participacion_id: ayuData?.id || null,
         }).eq('id', ayudante.id)
       }
     }
 
-    showToast(principal.confirmado ? 'Asignación desconfirmada' : 'Asignación confirmada ✓')
+    showToast('Asignación confirmada ✓')
     await fetchData()
   }
 
   // ── Confirmar toda la semana ─────────────────────────────
   async function handleConfirmarTodo(semanaId, partesS, asignacionesS) {
-    // Solo iteramos sobre rol === 'principal' para evitar procesar el ayudante dos veces:
-    // una como ayudante dentro de handleConfirmar, y otra como "principal" en el loop.
-    const asigPendientes = asignacionesS.filter(a =>
-      partesS.some(p => p.id === a.parte_id) && !a.confirmado && a.clave && a.rol === 'principal'
-    )
-    for (const asig of asigPendientes) {
-      const parte = partesS.find(p => p.id === asig.parte_id)
-      if (parte) {
-        const ayudante = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
-        await handleConfirmar(parte.id, asig, ayudante)
+    const partesSemana = partesS.filter(p => p.semana_id === semanaId && !['SMT_VACIO', 'ORACION', 'CONCLU'].includes(p.tipo_asignacion))
+
+    let procesadas = 0
+    for (const parte of partesSemana) {
+      const principal = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'principal')
+      if (!principal?.clave) continue
+
+      const ayudante = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+
+      const principalPartRecord = principal.participacion_id ? historial.find(h => h.id === principal.participacion_id) : null
+      const ayudantePartRecord  = ayudante?.participacion_id ? historial.find(h => h.id === ayudante.participacion_id) : null
+
+      const pCambiado = !!principal.participacion_id && principalPartRecord && principalPartRecord.clave !== principal.clave
+      const aCambiado = !!ayudante?.participacion_id && ayudantePartRecord && ayudantePartRecord.clave !== ayudante?.clave
+      const aNuevo    = parte.requiere_ayudante && ayudante?.clave && principal.participacion_id && !ayudante?.participacion_id
+      const aRem      = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
+
+      const necesitaReconfirmar = pCambiado || aCambiado || aNuevo || aRem
+      const sinConfirmar = !principal.confirmado
+
+      if (sinConfirmar || necesitaReconfirmar) {
+        await handleConfirmar(parte.id, principal, ayudante)
+        procesadas++
       }
     }
-    success('Semana confirmada completa ✓')
+
+    if (procesadas > 0) {
+      success('Semana actualizada y confirmada ✓')
+    } else {
+      showToast('La semana ya está completamente confirmada y al día')
+    }
   }
 
   // ── Generar S-140.docx ──────────────────────────────────

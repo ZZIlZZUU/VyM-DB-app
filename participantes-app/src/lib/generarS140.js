@@ -159,12 +159,29 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
   })
 }
 
+import { supabase } from './supabase'
+
 // ── Función principal: genera y descarga el .docx ────────────
 export async function generarYDescargarS140({ congregacion, semanas }) {
-  // 1. Cargar la plantilla desde /public/
-  const response = await fetch('/S-140_plantilla.docx')
-  if (!response.ok) throw new Error('No se encontró la plantilla S-140_plantilla.docx en /public/')
-  const arrayBuffer = await response.arrayBuffer()
+  // 1. Cargar la plantilla (primero Supabase Storage, luego local)
+  let arrayBuffer
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from('plantillas')
+      .download('S-140_plantilla.docx')
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Descarga vacía de Supabase Storage')
+    }
+    arrayBuffer = await data.arrayBuffer()
+  } catch (storageErr) {
+    const response = await fetch('/S-140_plantilla.docx')
+    if (!response.ok) {
+      throw new Error('No se encontró la plantilla S-140_plantilla.docx en Supabase Storage ni en /public/')
+    }
+    arrayBuffer = await response.arrayBuffer()
+  }
 
   // 2. Preparar los datos
   const datos = buildDatosPlantilla(congregacion, semanas)

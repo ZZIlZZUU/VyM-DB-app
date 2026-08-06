@@ -35,6 +35,7 @@ export default function Personas() {
   const [personas, setPersonas]       = useState([])
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
+  const [searchVal, setSearchVal]     = useState('')
   const [filterLista, setFilterLista] = useState('')
   const [filterActivo, setFilterActivo] = useState('true')
   const [form, setForm]               = useState(FORM_EMPTY)
@@ -43,6 +44,14 @@ export default function Personas() {
   const { toast, showToast, success, error: toastError } = useToast()
   const { confirm, confirmProps } = useConfirm()
   const nombreRef = useRef(null)
+
+  // Debounce de 300ms para búsqueda
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchVal)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchVal])
 
   const fetchPersonas = useCallback(async () => {
     const { data } = await supabase.from('personas').select('*').order('nombre')
@@ -234,8 +243,8 @@ export default function Personas() {
 
         <div className="flex gap-2 mb-3 flex-wrap">
           <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={searchVal}
+            onChange={e => setSearchVal(e.target.value)}
             placeholder="Buscar..."
             className="flex-1 px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-0"
           />
@@ -274,6 +283,11 @@ export default function Personas() {
               </div>
               <span className="font-mono text-xs text-text3 w-12 shrink-0">{p.clave}</span>
               <span className="flex-1 text-sm text-text1 truncate">{p.nombre}</span>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 mr-2 ${
+                p.lista === 'Mat' ? 'bg-blue-bg text-blue' : 'bg-amber-bg text-amber'
+              }`}>
+                {p.lista === 'Mat' ? 'Mat' : 'Anc/SM'}
+              </span>
               <span className="text-xs text-text3 hidden sm:block">{p.estatus}</span>
               <button
                 onClick={e => { e.stopPropagation(); toggleActivo(p) }}

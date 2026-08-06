@@ -14,11 +14,11 @@
 - [x] Loading states / skeletons (#13) — `Skeleton.jsx` con variantes por página
 - [x] Nombre de congregación configurable — tabla `configuracion` en Supabase
 
-**🟡 Altas — PENDIENTES:**
-- [ ] Búsqueda instantánea en Personas (#6) — input con debounce 300ms por nombre/clave
-- [ ] Badges de lista en Personas (#6) — "Mat" azul / "Anc" amber como etiqueta coloreada
-- [ ] Selectores con búsqueda en Programa (#4) — autocomplete + filtro por lista/sexo
-- [ ] Tooltips: pasar mouse sobre persona → últimas 3 participaciones (#4)
+**🟡 Altas — COMPLETADAS:**
+- [x] Búsqueda instantánea en Personas (#6) — input con debounce 300ms por nombre/clave
+- [x] Badges de lista en Personas (#6) — "Mat" azul / "Anc" amber como etiqueta coloreada
+- [x] Selectores con búsqueda en Programa (#4) — autocomplete + filtro por lista/sexo
+- [x] Tooltips: pasar mouse sobre persona → últimas 3 participaciones (#4)
 
 **🟢 Medias — PENDIENTES:**
 - [ ] Breadcrumbs / navegación contextual (#2)

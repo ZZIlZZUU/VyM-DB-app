@@ -77,10 +77,10 @@ const TIPO_PARTICIPACION = {
   LEBC: 'LEBC',
 }
 
-// ── Componente selector de persona con búsqueda ──────────────
 function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
   const [open, setOpen]     = useState(false)
   const [query, setQuery]   = useState('')
+  const [hoveredClave, setHoveredClave] = useState(null)
   const inputRef            = useRef(null)
   const containerRef        = useRef(null)
 
@@ -108,19 +108,27 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
   // Enfocar input al abrir
   useEffect(() => {
-    if (open) { setQuery(''); setTimeout(() => inputRef.current?.focus(), 0) }
+    if (open) { setQuery(''); setHoveredClave(null); setTimeout(() => inputRef.current?.focus(), 0) }
   }, [open])
 
   function handleSelect(clave) {
     onChange(clave || null)
     setOpen(false)
     setQuery('')
+    setHoveredClave(null)
   }
 
   function getIndicador(p) {
     if (p._score < 50)  return { icon: '⚠', cls: 'text-danger' }
     if (p._score < 80)  return { icon: '↻', cls: 'text-amber' }
     return { icon: '✓', cls: 'text-accent' }
+  }
+
+  const getUltimasParticipaciones = (clave) => {
+    return historial
+      .filter(h => h.clave === clave)
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+      .slice(0, 3)
   }
 
   return (
@@ -130,6 +138,8 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen(o => !o)}
+        onMouseEnter={() => value && setHoveredClave(value)}
+        onMouseLeave={() => setHoveredClave(null)}
         className={`w-full flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs text-left transition-colors
           ${open ? 'border-accent bg-surface' : 'border-border2 bg-surface hover:border-accent/60'}
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -159,7 +169,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Escape') { setOpen(false); setQuery('') }
+                if (e.key === 'Escape') { setOpen(false); setQuery(''); setHoveredClave(null) }
                 if (e.key === 'Enter' && filtrados.length > 0) handleSelect(filtrados[0].clave)
               }}
               placeholder="Buscar nombre o clave…"
@@ -189,6 +199,8 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
                     key={p.clave}
                     type="button"
                     onClick={() => handleSelect(p.clave)}
+                    onMouseEnter={() => setHoveredClave(p.clave)}
+                    onMouseLeave={() => setHoveredClave(null)}
                     className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
                       ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
                   >
@@ -200,6 +212,49 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               })
             )}
           </div>
+
+          {/* Tooltip con historial */}
+          {hoveredClave && (() => {
+            const p = personas.find(pers => pers.clave === hoveredClave)
+            if (!p) return null
+            const parts = getUltimasParticipaciones(hoveredClave)
+            return (
+              <div className="absolute z-[60] left-full top-0 ml-2 w-64 bg-surface border border-border2 rounded-xl shadow-xl p-3 text-xs flex flex-col gap-2 animate-scale-in">
+                <div className="font-semibold text-text1 border-b border-border pb-1">
+                  {p.nombre} ({p.clave})
+                </div>
+                {parts.length === 0 ? (
+                  <span className="text-text3 italic">Sin participaciones recientes</span>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {parts.map((pt, idx) => {
+                      const colorKey = {
+                        'T': 'SMT_EST',
+                        'A': 'SMT_AYU',
+                        'EBC': 'EBC_CON',
+                        'OC': 'ORACION_C'
+                      }[pt.tipo] || pt.tipo
+                      return (
+                        <div key={idx} className="flex flex-col gap-0.5 bg-bg/50 p-1.5 rounded-lg border border-border">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-text3 font-medium">
+                              {pt.mes} {String(pt.fecha || '').slice(0, 4)}
+                            </span>
+                            <span className={`text-[10px] font-mono font-medium px-1 rounded ${TIPO_COLOR[colorKey] || 'bg-bg text-text2'}`}>
+                              {pt.tipo}
+                            </span>
+                          </div>
+                          {pt.observaciones && (
+                            <span className="text-[10px] text-text2 italic truncate">{pt.observaciones}</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

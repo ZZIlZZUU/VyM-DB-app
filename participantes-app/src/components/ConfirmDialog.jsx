@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 // ConfirmDialog — reemplaza window.confirm() con personalidad
 // Props:
@@ -10,6 +10,16 @@ import { useEffect } from 'react'
 //   danger    boolean — si true, el botón confirmar usa rojo en vez de verde
 
 export default function ConfirmDialog({ open, title, message, onConfirm, onCancel, danger = false }) {
+  const confirmRef = useRef(null)
+
+  // Enfocar el botón de confirmar al abrir
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        confirmRef.current?.focus()
+      }, 50)
+    }
+  }, [open])
 
   // ESC → cancelar / Enter → confirmar
   useEffect(() => {
@@ -17,15 +27,17 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
     function handleKey(e) {
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         onCancel()
       }
-      if (e.key === 'Enter' && !e.target.closest?.('button')) {
+      if (e.key === 'Enter') {
         e.preventDefault()
+        e.stopPropagation()
         onConfirm()
       }
     }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    window.addEventListener('keydown', handleKey, true) // Usar capture mode para interceptar el Enter antes que otros elementos
+    return () => window.removeEventListener('keydown', handleKey, true)
   }, [open, onConfirm, onCancel])
 
   if (!open) return null
@@ -59,6 +71,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
 
           {/* Confirmar — negro normal, verde oscuro/verde hover según `danger` */}
           <button
+            ref={confirmRef}
             onClick={onConfirm}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150
               ${danger

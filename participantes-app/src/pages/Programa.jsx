@@ -78,11 +78,15 @@ const TIPO_PARTICIPACION = {
 }
 
 function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
-  const [open, setOpen]     = useState(false)
-  const [query, setQuery]   = useState('')
+  const [open, setOpen]           = useState(false)
+  const [query, setQuery]         = useState('')
   const [hoveredClave, setHoveredClave] = useState(null)
-  const inputRef            = useRef(null)
-  const containerRef        = useRef(null)
+  const [dropdownStyle, setDropdownStyle] = useState({})
+  const [tooltipStyle, setTooltipStyle]   = useState({})
+  const inputRef     = useRef(null)
+  const containerRef = useRef(null)
+  const triggerRef   = useRef(null)
+  const hoverTimerRef = useRef(null)
 
   const candidatos = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
 
@@ -96,6 +100,33 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       )
     : candidatos
 
+  // Calcular posición del dropdown (arriba o abajo según espacio disponible)
+  function calcDropdownPos() {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const dropH = 240 // estimado: input + max-h-48
+    if (spaceBelow < dropH && rect.top > dropH) {
+      // Abrir hacia arriba
+      setDropdownStyle({ bottom: rect.height + 4, top: 'auto' })
+    } else {
+      setDropdownStyle({ top: '100%', bottom: 'auto', marginTop: 4 })
+    }
+  }
+
+  // Calcular posición del tooltip (izquierda o derecha según espacio)
+  function calcTooltipPos(itemEl) {
+    if (!itemEl) return
+    const rect = itemEl.getBoundingClientRect()
+    const tooltipW = 256
+    const spaceRight = window.innerWidth - rect.right
+    if (spaceRight < tooltipW + 12) {
+      setTooltipStyle({ right: '100%', left: 'auto', top: 0, marginRight: 8, marginLeft: 0 })
+    } else {
+      setTooltipStyle({ left: '100%', right: 'auto', top: 0, marginLeft: 8, marginRight: 0 })
+    }
+  }
+
   // Cerrar al hacer click fuera
   useEffect(() => {
     if (!open) return
@@ -108,14 +139,38 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
   // Enfocar input al abrir
   useEffect(() => {
-    if (open) { setQuery(''); setHoveredClave(null); setTimeout(() => inputRef.current?.focus(), 0) }
+    if (open) {
+      setQuery('')
+      setHoveredClave(null)
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
   }, [open])
+
+  // Limpiar timer de hover al desmontar
+  useEffect(() => () => clearTimeout(hoverTimerRef.current), [])
+
+  function handleToggle() {
+    if (disabled) return
+    calcDropdownPos()
+    setOpen(o => !o)
+  }
 
   function handleSelect(clave) {
     onChange(clave || null)
     setOpen(false)
     setQuery('')
     setHoveredClave(null)
+  }
+
+  function handleItemMouseEnter(clave, e) {
+    clearTimeout(hoverTimerRef.current)
+    calcTooltipPos(e.currentTarget)
+    hoverTimerRef.current = setTimeout(() => setHoveredClave(clave), 120)
+  }
+
+  function handleItemMouseLeave() {
+    clearTimeout(hoverTimerRef.current)
+    hoverTimerRef.current = setTimeout(() => setHoveredClave(null), 80)
   }
 
   function getIndicador(p) {
@@ -135,11 +190,10 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
     <div ref={containerRef} className="relative">
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setOpen(o => !o)}
-        onMouseEnter={() => value && setHoveredClave(value)}
-        onMouseLeave={() => setHoveredClave(null)}
+        onClick={handleToggle}
         className={`w-full flex items-center gap-1.5 px-2 py-1 border rounded-lg text-xs text-left transition-colors
           ${open ? 'border-accent bg-surface' : 'border-border2 bg-surface hover:border-accent/60'}
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -161,7 +215,10 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 w-56 bg-surface border border-border2 rounded-xl shadow-lg overflow-hidden">
+        <div
+          className="absolute z-50 left-0 w-56 bg-surface border border-border2 rounded-xl shadow-lg"
+          style={dropdownStyle}
+        >
           {/* Búsqueda */}
           <div className="px-2 pt-2 pb-1 border-b border-border">
             <input
@@ -177,7 +234,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
             />
           </div>
 
-          {/* Opciones */}
+          {/* Opciones — overflow-hidden QUITADO para que el tooltip no se recorte */}
           <div className="max-h-48 overflow-y-auto py-1">
             {/* Opción "sin asignar" */}
             <button
@@ -194,67 +251,70 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               filtrados.map(p => {
                 const ind = getIndicador(p)
                 const isSelected = p.clave === value
+                const isHovered  = hoveredClave === p.clave
                 return (
-                  <button
-                    key={p.clave}
-                    type="button"
-                    onClick={() => handleSelect(p.clave)}
-                    onMouseEnter={() => setHoveredClave(p.clave)}
-                    onMouseLeave={() => setHoveredClave(null)}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
-                      ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
-                  >
-                    <span className={`flex-shrink-0 w-3 ${ind.cls}`}>{ind.icon}</span>
-                    <span className="font-mono text-text3 flex-shrink-0 w-12">{p.clave}</span>
-                    <span className="truncate text-text1">{p.nombre}</span>
-                  </button>
+                  <div key={p.clave} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(p.clave)}
+                      onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
+                      onMouseLeave={handleItemMouseLeave}
+                      className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
+                        ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
+                    >
+                      <span className={`flex-shrink-0 w-3 ${ind.cls}`}>{ind.icon}</span>
+                      <span className="font-mono text-text3 flex-shrink-0 w-12">{p.clave}</span>
+                      <span className="truncate text-text1">{p.nombre}</span>
+                    </button>
+
+                    {/* Tooltip por ítem — fuera del scroll, posición calculada */}
+                    {isHovered && (() => {
+                      const persona = personas.find(pers => pers.clave === p.clave)
+                      if (!persona) return null
+                      const parts = getUltimasParticipaciones(p.clave)
+                      return (
+                        <div
+                          className="fixed z-[200] w-64 bg-surface border border-border2 rounded-xl shadow-xl p-3 text-xs flex flex-col gap-2 pointer-events-none"
+                          style={tooltipStyle}
+                        >
+                          <div className="font-semibold text-text1 border-b border-border pb-1">
+                            {persona.nombre} <span className="font-mono text-text3">({persona.clave})</span>
+                          </div>
+                          {parts.length === 0 ? (
+                            <span className="text-text3 italic">Sin participaciones recientes</span>
+                          ) : (
+                            <div className="flex flex-col gap-1.5">
+                              {parts.map((pt, idx) => {
+                                const colorKey = {
+                                  'T': 'SMT_EST', 'A': 'SMT_AYU',
+                                  'EBC': 'EBC_CON', 'OC': 'ORACION_C'
+                                }[pt.tipo] || pt.tipo
+                                return (
+                                  <div key={idx} className="flex flex-col gap-0.5 bg-bg/50 p-1.5 rounded-lg border border-border">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] text-text3 font-medium">
+                                        {pt.mes} {String(pt.fecha || '').slice(0, 4)}
+                                      </span>
+                                      <span className={`text-[10px] font-mono font-medium px-1 rounded ${TIPO_COLOR[colorKey] || 'bg-bg text-text2'}`}>
+                                        {pt.tipo}
+                                      </span>
+                                    </div>
+                                    {pt.observaciones && (
+                                      <span className="text-[10px] text-text2 italic truncate">{pt.observaciones}</span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
                 )
               })
             )}
           </div>
-
-          {/* Tooltip con historial */}
-          {hoveredClave && (() => {
-            const p = personas.find(pers => pers.clave === hoveredClave)
-            if (!p) return null
-            const parts = getUltimasParticipaciones(hoveredClave)
-            return (
-              <div className="absolute z-[60] left-full top-0 ml-2 w-64 bg-surface border border-border2 rounded-xl shadow-xl p-3 text-xs flex flex-col gap-2 animate-scale-in">
-                <div className="font-semibold text-text1 border-b border-border pb-1">
-                  {p.nombre} ({p.clave})
-                </div>
-                {parts.length === 0 ? (
-                  <span className="text-text3 italic">Sin participaciones recientes</span>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {parts.map((pt, idx) => {
-                      const colorKey = {
-                        'T': 'SMT_EST',
-                        'A': 'SMT_AYU',
-                        'EBC': 'EBC_CON',
-                        'OC': 'ORACION_C'
-                      }[pt.tipo] || pt.tipo
-                      return (
-                        <div key={idx} className="flex flex-col gap-0.5 bg-bg/50 p-1.5 rounded-lg border border-border">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-text3 font-medium">
-                              {pt.mes} {String(pt.fecha || '').slice(0, 4)}
-                            </span>
-                            <span className={`text-[10px] font-mono font-medium px-1 rounded ${TIPO_COLOR[colorKey] || 'bg-bg text-text2'}`}>
-                              {pt.tipo}
-                            </span>
-                          </div>
-                          {pt.observaciones && (
-                            <span className="text-[10px] text-text2 italic truncate">{pt.observaciones}</span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import { useConfirm } from './hooks/useConfirm'
 import ConfirmDialog from './components/ConfirmDialog'
+import Breadcrumb from './components/Breadcrumb'
 import VistaEditable  from './pages/VistaEditable'
 import VistaSql       from './pages/VistaSql'
 import Personas       from './pages/Personas'
@@ -30,11 +31,19 @@ const TOPBAR_SUB = {
   programa:     'Importar EPUB mwb · Asignar roles · Generar S-140',
 }
 
+const RT_CONFIG = {
+  conectado:    { color: 'bg-accent',  pulse: false, label: 'Conectado :)' },
+  conectando:   { color: 'bg-amber',   pulse: true,  label: 'Conectando…' },
+  desconectado: { color: 'bg-danger',  pulse: false, label: 'Sin conexión' },
+  error:        { color: 'bg-danger',  pulse: true,  label: 'Error RT' },
+}
+
 export default function App() {
-  const [view, setView]   = useState('editable')
-  const [user, setUser]   = useState(null)
-  const [stats, setStats] = useState({ personas: 0, registros: 0, mesActual: 0, mes: '' })
-  const [open, setOpen]   = useState(() => {
+  const [view, setView]         = useState('editable')
+  const [user, setUser]         = useState(null)
+  const [rtStatus, setRtStatus] = useState('conectando')
+  const [stats, setStats]       = useState({ personas: 0, registros: 0, mesActual: 0, mes: '' })
+  const [open, setOpen]         = useState(() => {
     const saved = localStorage.getItem('sidebarOpen')
     if (saved !== null) return saved === 'true'
     return window.innerWidth >= 768
@@ -48,6 +57,17 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
     fetchStats()
+  }, [])
+
+  useEffect(() => {
+    const channel = supabase.channel('__status__')
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED')    setRtStatus('conectado')
+        if (status === 'CHANNEL_ERROR') setRtStatus('error')
+        if (status === 'TIMED_OUT')     setRtStatus('desconectado')
+        if (status === 'CLOSED')        setRtStatus('desconectado')
+      })
+    return () => supabase.removeChannel(channel)
   }, [])
 
   async function fetchStats() {
@@ -84,6 +104,8 @@ export default function App() {
       default: return null
     }
   }
+
+  const rtCfg = RT_CONFIG[rtStatus] || RT_CONFIG.conectando
 
   return (
     <div className="flex min-h-screen">
@@ -181,11 +203,18 @@ export default function App() {
 
       {/* MAIN */}
       <main className="flex-1 flex flex-col min-w-0">
-        <div className="bg-surface border-b border-border px-6 py-3 sticky top-0 z-10">
-          <div className="text-sm font-medium text-text1">{NAV.find(n => n.id === view)?.label}</div>
-          <div className="text-xs text-text3 font-mono mt-0.5">{TOPBAR_SUB[view]}</div>
+        <div className="bg-surface border-b border-border px-6 py-3 sticky top-0 z-10 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-medium text-text1">{NAV.find(n => n.id === view)?.label}</div>
+            <div className="text-xs text-text3 font-mono mt-0.5">{TOPBAR_SUB[view]}</div>
+          </div>
+          <div className="flex items-center gap-1.5 select-none" title={`Estado Realtime: ${rtCfg.label}`}>
+            <span className={`w-2 h-2 rounded-full ${rtCfg.color} ${rtCfg.pulse ? 'animate-pulse' : ''}`} />
+            <span className="text-[10px] text-text3">{rtCfg.label}</span>
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-6">
+          <Breadcrumb view={view} NAV={NAV} onNavigate={setView} />
           {renderView()}
         </div>
       </main>

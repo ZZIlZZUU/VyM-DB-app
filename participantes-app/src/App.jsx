@@ -10,6 +10,7 @@ import Registros      from './pages/Registros'
 import Exportar       from './pages/Exportar'
 import Estadisticas   from './pages/Estadisticas'
 import Programa       from './pages/Programa'
+import Usuarios       from './pages/Usuarios'
 
 const NAV = [
   { id: 'editable',     icon: '⊞', label: 'Vista editable',     section: 'Vistas' },
@@ -17,6 +18,7 @@ const NAV = [
   { id: 'personas',     icon: '👤', label: 'Personas',            section: 'Gestión' },
   { id: 'registros',    icon: '✎', label: 'Registros',           section: 'Gestión' },
   { id: 'programa',     icon: '📋', label: 'Programa (S-140)',    section: 'Gestión' },
+  { id: 'usuarios',     icon: '🔑', label: 'Usuarios',           section: 'Gestión' },
   { id: 'exportar',     icon: '↑', label: 'Exportar / Importar', section: 'Herramientas' },
   { id: 'estadisticas', icon: '◈', label: 'Estadísticas',        section: 'Herramientas' },
 ]
@@ -29,6 +31,7 @@ const TOPBAR_SUB = {
   exportar:     'CSV · SQL · JSON — compatible con Supabase / PostgreSQL',
   estadisticas: 'Resumen de participaciones por tipo y mes',
   programa:     'Importar EPUB mwb · Asignar roles · Generar S-140',
+  usuarios:     'Gestión de acceso a la aplicación',
 }
 
 const RT_CONFIG = {
@@ -99,6 +102,7 @@ export default function App() {
       case 'personas':     return <Personas />
       case 'registros':    return <Registros />
       case 'programa':     return <Programa />
+      case 'usuarios':     return <Usuarios />
       case 'exportar':     return <Exportar />
       case 'estadisticas': return <Estadisticas />
       default: return null

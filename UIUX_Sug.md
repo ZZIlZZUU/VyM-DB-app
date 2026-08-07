@@ -20,12 +20,14 @@
 - [x] Selectores con búsqueda en Programa (#4) — autocomplete + filtro por lista/sexo
 - [x] Tooltips: pasar mouse sobre persona → últimas 3 participaciones (#4)
 
+**🟢 Medias — COMPLETADAS:**
+- [x] Breadcrumbs / navegación contextual (#2) — componente `Breadcrumb.jsx` interactivo
+- [x] Transición suave de vistas al cambiar de página (#14) — con fundido (opacity fade) para evitar problemas de containing block en dropdowns fijos
+- [x] Edición inline en Registros (#5) — formulario expandible `RowForm` directamente debajo de cada card de la lista
+- [x] Indicador de conexión Realtime en topbar (#16) — dot pulsante + etiqueta conectados a Supabase v2
+
 **🟢 Medias — PENDIENTES:**
-- [ ] Breadcrumbs / navegación contextual (#2)
-- [ ] Transición suave de vistas al cambiar de página (#14)
-- [ ] Edición inline en Registros (#5) — click en celda → dropdown en lugar de modal
 - [ ] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
-- [ ] Indicador de conexión Realtime en topbar (#16) — dot verde/amber/rojo
 - [ ] Atajos de teclado globales (#17) — `Ctrl+K` command palette, `?` ayuda, `N` nuevo
 
 **🔵 Bajas — FUTURO:**
@@ -48,12 +50,8 @@
 
 ---
 
-### 2. **Breadcrumbs / Navegación contextual**
-**Estado actual:** El título + descripción en topbar funciona, pero sin navegación inversa.
-
-**Sugerencias:**
-- Breadcrumb en topbar: `Home / Gestión / Personas` → clickeable para navegar
-- En Programa.jsx: breadcrumb tipo `Programa > Semana 3 > Asignaciones`
+### 2. **Breadcrumbs / Navegación contextual** ✅ IMPLEMENTADO
+**Solución implementada:** Se integró el componente `Breadcrumb.jsx` en el cuerpo principal debajo del Topbar. Detecta automáticamente la vista activa y la sección (ej: `Inicio › Gestión › Programa (S-140)`) y provee un enlace navegable para retornar a la pantalla de inicio (`editable`).
 
 ---
 
@@ -83,10 +81,10 @@
 ---
 
 ### 5. **Registros (CRUD participaciones)**
-**Estado actual:** Modal + lista funcional.
+**Estado actual:** Formulario de creación limpio + lista con edición inline mediante panel desplegable (`RowForm`).
 
 **Sugerencias:**
-- **Edición inline:** click en celda de tipo → dropdown en lugar de modal
+- **Edición inline** ✅ IMPLEMENTADA: Al hacer click en una fila de la lista de registros se expande un panel local para editar fecha, tipo y observaciones sin perder scroll ni recargar modal.
 - **Filtros persistentes:** guardar último filtro aplicado en `localStorage`
 - **Bulk actions:** checkbox en cada fila, acciones múltiples (eliminar, cambiar tipo)
 - **Validación en tiempo real:** si tipo "NC" en persona Mat → rojo inmediato con tooltip
@@ -163,10 +161,8 @@
 
 ---
 
-### 14. **Transiciones & animaciones**
-**Pendiente:**
-- Transición suave al cambiar de página en el router (fade + slide-up)
-- Hover effects en filas de tabla: `hover:bg-surface` con transición suave
+### 14. **Transiciones & animaciones** ✅ IMPLEMENTADO
+**Solución implementada:** Se integró una animación suave de fundido de opacidad (`view-fade` de 150ms) en la envoltura de la vista seleccionada en `App.jsx`. Esta animación de opacidad evita la creación de un *containing block* de CSS (que causan los transforms), garantizando que los elementos con posicionamiento fijo como los dropdowns no sufran de desfases posicionales en el viewport.
 
 ---
 
@@ -180,10 +176,8 @@
 
 ## 🚀 Performance & Polish
 
-### 16. **Indicadores de conexión**
-**Pendiente:**
-- Dot en topbar: verde (conectado), amber (reconectando), rojo (desconectado)
-- Tooltip con estado de conexión
+### 16. **Indicadores de conexión** ✅ IMPLEMENTADO
+**Solución implementada:** Se conectó al canal `__status__` de Supabase Realtime v2 para monitorizar el estado de conexión del cliente en tiempo real. Se renderiza un dot indicador de color + etiqueta a la derecha del topbar (`bg-accent` para Realtime, `bg-amber` para Conectando, y `bg-danger` para Sin Conexión o Error RT).
 
 ---
 

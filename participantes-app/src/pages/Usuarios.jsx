@@ -70,7 +70,8 @@ export default function Usuarios() {
         toastError(insertError.message || 'Error al invitar al usuario')
       }
     } else {
-      success('Usuario invitado: ' + targetEmail)
+      success('Usuario añadido a la lista de acceso.')
+      showToast('Recuérdale que use "Olvidé mi contraseña" en el login para establecer su acceso.', 'info')
       setEmail('')
     }
 

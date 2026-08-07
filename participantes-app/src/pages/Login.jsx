@@ -3,15 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [email, setEmail]               = useState('')
+  const [password, setPassword]         = useState('')
+  const [error, setError]               = useState('')
+  const [loading, setLoading]           = useState(false)
+  const [resetMessage, setResetMessage] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
   const navigate = useNavigate()
 
   async function handleLogin(e) {
     e.preventDefault()
     setError('')
+    setResetMessage('')
     setLoading(true)
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -37,6 +40,27 @@ export default function Login() {
     }
 
     navigate('/')
+  }
+
+  async function handleResetPassword() {
+    if (!email.trim()) {
+      setError('Ingresa tu correo electrónico para restablecer o definir tu contraseña.')
+      return
+    }
+    setError('')
+    setResetMessage('')
+    setResetLoading(true)
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://vy-m-db-app-flame.vercel.app',
+    })
+
+    if (error) {
+      setError(error.message || 'Error al enviar el correo de restablecimiento.')
+    } else {
+      setResetMessage('Te hemos enviado un correo para establecer o restablecer tu contraseña.')
+    }
+    setResetLoading(false)
   }
 
   return (
@@ -94,6 +118,12 @@ export default function Login() {
               </div>
             )}
 
+            {resetMessage && (
+              <div className="text-xs text-accent bg-accent-bg border border-accent/30 rounded-lg px-3 py-2">
+                {resetMessage}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -101,6 +131,17 @@ export default function Login() {
             >
               {loading ? 'Verificando...' : 'Entrar'}
             </button>
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={resetLoading}
+                className="text-xs text-text3 hover:text-accent underline transition-colors disabled:opacity-50"
+              >
+                {resetLoading ? 'Enviando correo...' : '¿Olvidaste tu contraseña?'}
+              </button>
+            </div>
           </form>
         </div>
 

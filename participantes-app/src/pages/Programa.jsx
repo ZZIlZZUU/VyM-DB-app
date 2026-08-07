@@ -99,14 +99,15 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       )
     : candidatos
 
-  // Cerrar al hacer click o scroll fuera, y ocultar tooltip al hacer scroll
+  // Cerrar al hacer click fuera, y ocultar tooltip al hacer scroll
   useEffect(() => {
     if (!open) {
       setTooltip(null)
       return
     }
     const handleOutside = (e) => {
-      if (!containerRef.current?.contains(e.target)) {
+      if (containerRef.current && !containerRef.current.contains(e.target) &&
+          !e.target.closest?.('[data-persona-dropdown]')) {
         setOpen(false)
         setTooltip(null)
       }
@@ -120,20 +121,18 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
     }
     document.addEventListener('mousedown', handleOutside)
     window.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('resize', handleScroll)
+    window.addEventListener('resize', () => { setOpen(false); setTooltip(null) })
     return () => {
       document.removeEventListener('mousedown', handleOutside)
       window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('resize', handleScroll)
+      window.removeEventListener('resize', () => { setOpen(false); setTooltip(null) })
     }
   }, [open])
 
   // Enfocar input al abrir
   useEffect(() => {
     if (open) {
-      setQuery('')
-      setTooltip(null)
-      setTimeout(() => inputRef.current?.focus(), 0)
+      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0)
     }
   }, [open])
 
@@ -142,7 +141,10 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
   function handleToggle() {
     if (disabled) return
-    setTooltip(null)
+    if (!open) {
+      setQuery('')
+      setTooltip(null)
+    }
     setOpen(o => !o)
   }
 
@@ -155,7 +157,6 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
   function handleItemMouseEnter(clave, e) {
     clearTimeout(hoverTimer.current)
-    // Capturar rect inmediatamente — antes del delay — para coordenadas correctas
     const rect = e.currentTarget.getBoundingClientRect()
     const spaceRight = window.innerWidth - rect.right
     const left = spaceRight >= TOOLTIP_W + 12
@@ -184,7 +185,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       .slice(0, 3)
   }
 
-  // Dropdown: abre hacia abajo o arriba según espacio disponible con posicionamiento fijo
+  // Dropdown: abre hacia abajo o arriba según espacio disponible
   function getDropdownStyle() {
     if (!triggerRef.current) return {}
     const rect = triggerRef.current.getBoundingClientRect()
@@ -248,6 +249,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       {/* Dropdown */}
       {open && (
         <div
+          data-persona-dropdown
           className="fixed z-[200] bg-surface border border-border2 rounded-xl shadow-xl overflow-hidden"
           style={getDropdownStyle()}
         >

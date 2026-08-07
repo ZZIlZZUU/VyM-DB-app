@@ -51,3 +51,12 @@ textarea {
 }
 .animate-fade-in  { animation: fade-in  150ms ease forwards; }
 .animate-scale-in { animation: scale-in 150ms ease forwards; }
+
+/* Vista — animación de transición */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.18s ease-out both;
+}

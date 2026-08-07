@@ -594,12 +594,18 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
               />
             </div>
           </div>
-          <span className="text-text3 text-sm">{expandida ? '▲' : '▼'}</span>
+          <span className={`text-text3 text-sm transition-transform duration-300 inline-block ${expandida ? 'rotate-180' : 'rotate-0'}`}>▼</span>
         </div>
       </button>
 
       {/* Contenido expandido */}
-      {expandida && (
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: expandida ? '3000px' : '0px',
+          opacity:   expandida ? 1 : 0,
+        }}
+      >
         <div className="border-t border-border px-5 py-3">
           {secciones.map(sec => {
             const partesSeccion = partes.filter(p => p.seccion === sec)
@@ -646,7 +652,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

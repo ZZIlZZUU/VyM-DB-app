@@ -215,7 +215,9 @@ export default function App() {
         </div>
         <div className="flex-1 overflow-auto p-6">
           <Breadcrumb view={view} NAV={NAV} onNavigate={setView} />
-          {renderView()}
+          <div key={view} className="animate-fade-in-up">
+            {renderView()}
+          </div>
         </div>
       </main>
     </div>

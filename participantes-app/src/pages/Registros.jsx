@@ -55,6 +55,12 @@ function getTipos(persona) {
   return persona.estatus === 'Anciano' ? TIPOS_ANC : TIPOS_SM
 }
 
+function getMes(fecha) {
+  if (!fecha) return ''
+  const mi = parseInt(fecha.split('-')[1] || 0) - 1
+  return MESES[mi] || ''
+}
+
 function TipoChips({ tipos, selected, onSelect }) {
   return (
     <div className="flex flex-wrap gap-1.5 mt-1">
@@ -73,23 +79,113 @@ function TipoChips({ tipos, selected, onSelect }) {
   )
 }
 
+function RowForm({ registro, personas, onSave, onDelete, onCancel }) {
+  const [fecha, setFecha]                 = useState(registro.fecha || '')
+  const [tipo, setTipo]                   = useState(registro.tipo || '')
+  const [observaciones, setObservaciones] = useState(registro.observaciones || '')
+  const [saving, setSaving]               = useState(false)
+
+  const persona = personas.find(p => p.clave === registro.clave)
+  const tiposPermitidos = getTipos(persona)
+  const previewMes = getMes(fecha)
+
+  async function handleSaveSubmit() {
+    if (!fecha || !tipo) return
+    setSaving(true)
+    await onSave(registro.id, { fecha, tipo, observaciones })
+    setSaving(false)
+  }
+
+  return (
+    <div className="p-3 bg-bg/50 flex flex-col gap-3 text-left">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Fecha */}
+        <div>
+          <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">Fecha</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            className="w-full px-2.5 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent"
+          />
+          {previewMes && (
+            <span className="text-[10px] text-text3 font-mono mt-0.5 inline-block">→ {previewMes}</span>
+          )}
+        </div>
+
+        {/* Observaciones */}
+        <div>
+          <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">
+            Observaciones <span className="text-border2 normal-case">(opcional)</span>
+          </label>
+          <input
+            type="text"
+            value={observaciones}
+            onChange={e => setObservaciones(e.target.value)}
+            placeholder="Ej: Cubrió turno..."
+            className="w-full px-2.5 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent"
+          />
+        </div>
+      </div>
+
+      {/* Tipo */}
+      <div>
+        <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo de participación</label>
+        {tiposPermitidos.length > 0 ? (
+          <TipoChips tipos={tiposPermitidos} selected={tipo} onSelect={setTipo} />
+        ) : (
+          <div className="text-xs text-text3">Sin tipos disponibles</div>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="flex items-center justify-between pt-2 border-t border-border mt-1">
+        <button
+          type="button"
+          onClick={() => onDelete(registro.id)}
+          className="text-xs text-danger hover:underline font-medium"
+        >
+          Eliminar registro
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-3 py-1 text-xs border border-border2 rounded-lg text-text2 hover:bg-surface transition-none"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveSubmit}
+            disabled={saving || !fecha || !tipo}
+            className="px-3 py-1 text-xs bg-accent text-white font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-none"
+          >
+            {saving ? 'Guardando...' : 'Actualizar →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const FORM_EMPTY = { clave: '', fecha: '', tipo: '', observaciones: '' }
 
 export default function Registros() {
-  const [personas, setPersonas]           = useState([])
+  const [personas, setPersonas]               = useState([])
   const [participaciones, setParticipaciones] = useState([])
-  const [loading, setLoading]             = useState(true)
-  const [form, setForm]                   = useState(FORM_EMPTY)
-  const [editId, setEditId]               = useState(null)
-  const [saving, setSaving]               = useState(false)
-  const { toast, showToast, success, error: toastError } = useToast()
-  const { confirm, confirmProps } = useConfirm()
-  const [search, setSearch]               = useState('')
-  const [filterMes, setFilterMes]         = useState('')
-  const [filterLista, setFilterLista]     = useState('')
+  const [loading, setLoading]                 = useState(true)
+  const [form, setForm]                       = useState(FORM_EMPTY)
+  const [editId, setEditId]                   = useState(null)
+  const [saving, setSaving]                   = useState(false)
+  const { toast, success, error: toastError } = useToast()
+  const { confirm, confirmProps }             = useConfirm()
+  const [search, setSearch]                   = useState('')
+  const [filterMes, setFilterMes]             = useState('')
+  const [filterLista, setFilterLista]         = useState('')
 
   const fetchData = useCallback(async () => {
-    setLoading(true)
     const [{ data: ps }, { data: rs }] = await Promise.all([
       supabase.from('personas').select('*').eq('activo', true).order('nombre'),
       supabase.from('participaciones').select('*').order('fecha', { ascending: false }).limit(100),
@@ -111,7 +207,6 @@ export default function Registros() {
   const personaSeleccionada = personas.find(p => p.clave === form.clave)
   const tiposPermitidos = getTipos(personaSeleccionada)
 
-  // Al cambiar persona, limpiar tipo si ya no es válido
   function handlePersonaChange(clave) {
     const p = personas.find(x => x.clave === clave)
     const tipos = getTipos(p)
@@ -122,26 +217,7 @@ export default function Registros() {
     }))
   }
 
-  function getMes(fecha) {
-    if (!fecha) return ''
-    const mi = parseInt(fecha.split('-')[1] || 0) - 1
-    return MESES[mi] || ''
-  }
-
-
-
-  function startEdit(r) {
-    setEditId(r.id)
-    setForm({ clave: r.clave, fecha: r.fecha, tipo: r.tipo, observaciones: r.observaciones || '' })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function clearForm() {
-    setEditId(null)
-    setForm(FORM_EMPTY)
-  }
-
-  async function handleSave() {
+  async function handleAddSave() {
     if (!form.clave || !form.fecha || !form.tipo) {
       toastError('Completa persona, fecha y tipo')
       return
@@ -160,16 +236,29 @@ export default function Registros() {
       observaciones: form.observaciones.trim() || null,
     }
 
-    if (editId) {
-      await supabase.from('participaciones').update(payload).eq('id', editId)
-      success('Registro actualizado')
-    } else {
-      await supabase.from('participaciones').insert(payload)
-      success('Registro guardado')
+    await supabase.from('participaciones').insert(payload)
+    success('Registro guardado')
+    setForm(FORM_EMPTY)
+    setSaving(false)
+  }
+
+  async function handleInlineSave(id, data) {
+    if (!data.fecha || !data.tipo) {
+      toastError('Completa fecha y tipo')
+      return
+    }
+    const mes = getMes(data.fecha)
+    const payload = {
+      fecha: data.fecha,
+      mes,
+      tipo: data.tipo,
+      peso: PESO_MAP[data.tipo] || 1,
+      observaciones: data.observaciones.trim() || null,
     }
 
-    clearForm()
-    setSaving(false)
+    await supabase.from('participaciones').update(payload).eq('id', id)
+    success('Registro actualizado')
+    setEditId(null)
   }
 
   async function handleDelete(id) {
@@ -181,7 +270,7 @@ export default function Registros() {
     if (!ok) return
     await supabase.from('participaciones').delete().eq('id', id)
     success('Registro eliminado')
-    if (editId === id) clearForm()
+    if (editId === id) setEditId(null)
   }
 
   // Filtros lista
@@ -198,17 +287,10 @@ export default function Registros() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-      {/* ── FORMULARIO ── */}
+      {/* ── FORMULARIO (AGREGAR REGISTRO) ── */}
       <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-          <span className="text-sm font-medium text-text1">
-            {editId ? `Editando registro #${editId}` : 'Agregar registro'}
-          </span>
-          {editId && (
-            <button onClick={clearForm} className="text-xs text-text3 hover:text-danger border border-border2 rounded px-2 py-1">
-              ✕ Cancelar
-            </button>
-          )}
+          <span className="text-sm font-medium text-text1">Agregar registro</span>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -302,16 +384,16 @@ export default function Registros() {
           )}
 
           <button
-            onClick={handleSave}
+            onClick={handleAddSave}
             disabled={saving}
             className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50"
           >
-            {saving ? 'Guardando...' : editId ? 'Actualizar →' : 'Guardar →'}
+            {saving ? 'Guardando...' : 'Guardar →'}
           </button>
         </div>
       </div>
 
-      {/* ── LISTA REGISTROS ── */}
+      {/* ── LISTA REGISTROS CON EDICIÓN INLINE ── */}
       <div className="bg-surface border border-border rounded-xl p-5">
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
           <span className="text-sm font-medium text-text1">Registros recientes</span>
@@ -344,24 +426,43 @@ export default function Registros() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-6 text-sm text-text3">Sin resultados</div>
           ) : filtered.map(r => (
-            <div
-              key={r.id}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-none
-                ${editId === r.id
-                  ? 'border-accent bg-accent-bg'
-                  : 'border-transparent hover:border-border hover:bg-bg'}`}
-              onClick={() => startEdit(r)}
-            >
-              <span className="font-mono text-xs text-text3 w-8 flex-shrink-0">#{r.id}</span>
-              <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-mono font-medium flex-shrink-0 ${BADGE_CLASS[r.tipo] || 'bg-bg text-text2'}`}>
-                {r.tipo}
-              </span>
-              <span className="flex-1 text-sm text-text1 truncate">{r.nombre}</span>
-              <span className="font-mono text-xs text-text3 flex-shrink-0">{r.fecha}</span>
-              <button
-                onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
-                className="text-text3 hover:text-danger text-xs px-1 flex-shrink-0"
-              >✕</button>
+            <div key={r.id}>
+              {/* Fila del registro */}
+              <div
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-none
+                  ${editId === r.id
+                    ? 'border-accent bg-accent-bg rounded-b-none'
+                    : 'border-transparent hover:border-border hover:bg-bg'}`}
+                onClick={() => setEditId(editId === r.id ? null : r.id)}
+              >
+                <span className="font-mono text-xs text-text3 w-8 flex-shrink-0">#{r.id}</span>
+                <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-mono font-medium flex-shrink-0 ${BADGE_CLASS[r.tipo] || 'bg-bg text-text2'}`}>
+                  {r.tipo}
+                </span>
+                <span className="flex-1 text-sm text-text1 truncate">{r.nombre}</span>
+                <span className="font-mono text-xs text-text3 flex-shrink-0">{r.fecha}</span>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
+                  className="text-text3 hover:text-danger text-xs px-1 flex-shrink-0"
+                  title="Eliminar registro"
+                >✕</button>
+              </div>
+
+              {/* Panel inline expandible */}
+              <div
+                className="overflow-hidden transition-all duration-200 ease-in-out border border-t-0 border-accent rounded-b-lg bg-surface"
+                style={{ maxHeight: editId === r.id ? '320px' : '0px', opacity: editId === r.id ? 1 : 0 }}
+              >
+                <RowForm
+                  key={r.id}
+                  registro={r}
+                  personas={personas}
+                  onSave={handleInlineSave}
+                  onDelete={handleDelete}
+                  onCancel={() => setEditId(null)}
+                />
+              </div>
             </div>
           ))}
         </div>

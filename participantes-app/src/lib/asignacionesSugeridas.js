@@ -180,14 +180,11 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
       if (p.estatus === 'Siervo Ministerial' && vecesEsteMes(p.clave) === 0) score += 25
     }
 
-    // Aleatorizar un poco para evitar siempre el mismo orden cuando el score empata
-    score += Math.random() * 5
-
     return { ...p, _score: score }
   })
 
-  // Ordenar de mayor a menor score (mejor candidato primero)
-  return scored.sort((a, b) => b._score - a._score)
+  // Ordenar de mayor a menor score (mejor candidato primero) y desempate por nombre
+  return scored.sort((a, b) => b._score - a._score || a.nombre.localeCompare(b.nombre))
 }
 
 /**

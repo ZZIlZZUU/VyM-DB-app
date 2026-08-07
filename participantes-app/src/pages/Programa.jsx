@@ -78,15 +78,14 @@ const TIPO_PARTICIPACION = {
 }
 
 function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
-  const [open, setOpen]           = useState(false)
-  const [query, setQuery]         = useState('')
-  const [hoveredClave, setHoveredClave] = useState(null)
-  const [dropdownStyle, setDropdownStyle] = useState({})
-  const [tooltipStyle, setTooltipStyle]   = useState({})
-  const inputRef     = useRef(null)
-  const containerRef = useRef(null)
-  const triggerRef   = useRef(null)
-  const hoverTimerRef = useRef(null)
+  const [open, setOpen]       = useState(false)
+  const [query, setQuery]     = useState('')
+  const [tooltip, setTooltip] = useState(null) // { clave, top, left }
+  const inputRef      = useRef(null)
+  const containerRef  = useRef(null)
+  const triggerRef    = useRef(null)
+  const hoverTimer    = useRef(null)
+  const TOOLTIP_W     = 256
 
   const candidatos = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
 
@@ -100,58 +99,50 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       )
     : candidatos
 
-  // Calcular posición del dropdown (arriba o abajo según espacio disponible)
-  function calcDropdownPos() {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const dropH = 240 // estimado: input + max-h-48
-    if (spaceBelow < dropH && rect.top > dropH) {
-      // Abrir hacia arriba
-      setDropdownStyle({ bottom: rect.height + 4, top: 'auto' })
-    } else {
-      setDropdownStyle({ top: '100%', bottom: 'auto', marginTop: 4 })
-    }
-  }
-
-  // Calcular posición del tooltip (izquierda o derecha según espacio)
-  function calcTooltipPos(itemEl) {
-    if (!itemEl) return
-    const rect = itemEl.getBoundingClientRect()
-    const tooltipW = 256
-    const spaceRight = window.innerWidth - rect.right
-    if (spaceRight < tooltipW + 12) {
-      setTooltipStyle({ right: '100%', left: 'auto', top: 0, marginRight: 8, marginLeft: 0 })
-    } else {
-      setTooltipStyle({ left: '100%', right: 'auto', top: 0, marginLeft: 8, marginRight: 0 })
-    }
-  }
-
-  // Cerrar al hacer click fuera
+  // Cerrar al hacer click o scroll fuera, y ocultar tooltip al hacer scroll
   useEffect(() => {
-    if (!open) return
-    function handleOutside(e) {
-      if (!containerRef.current?.contains(e.target)) setOpen(false)
+    if (!open) {
+      setTooltip(null)
+      return
+    }
+    const handleOutside = (e) => {
+      if (!containerRef.current?.contains(e.target)) {
+        setOpen(false)
+        setTooltip(null)
+      }
+    }
+    const handleScroll = (e) => {
+      clearTimeout(hoverTimer.current)
+      setTooltip(null)
+      if (!containerRef.current?.contains(e.target)) {
+        setOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleScroll)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleScroll)
+    }
   }, [open])
 
   // Enfocar input al abrir
   useEffect(() => {
     if (open) {
       setQuery('')
-      setHoveredClave(null)
+      setTooltip(null)
       setTimeout(() => inputRef.current?.focus(), 0)
     }
   }, [open])
 
-  // Limpiar timer de hover al desmontar
-  useEffect(() => () => clearTimeout(hoverTimerRef.current), [])
+  // Limpiar timer al desmontar
+  useEffect(() => () => clearTimeout(hoverTimer.current), [])
 
   function handleToggle() {
     if (disabled) return
-    calcDropdownPos()
+    setTooltip(null)
     setOpen(o => !o)
   }
 
@@ -159,32 +150,73 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
     onChange(clave || null)
     setOpen(false)
     setQuery('')
-    setHoveredClave(null)
+    setTooltip(null)
   }
 
   function handleItemMouseEnter(clave, e) {
-    clearTimeout(hoverTimerRef.current)
-    calcTooltipPos(e.currentTarget)
-    hoverTimerRef.current = setTimeout(() => setHoveredClave(clave), 120)
+    clearTimeout(hoverTimer.current)
+    // Capturar rect inmediatamente — antes del delay — para coordenadas correctas
+    const rect = e.currentTarget.getBoundingClientRect()
+    const spaceRight = window.innerWidth - rect.right
+    const left = spaceRight >= TOOLTIP_W + 12
+      ? rect.right + 8
+      : rect.left - TOOLTIP_W - 8
+    hoverTimer.current = setTimeout(() => {
+      setTooltip({ clave, top: rect.top, left })
+    }, 150)
   }
 
   function handleItemMouseLeave() {
-    clearTimeout(hoverTimerRef.current)
-    hoverTimerRef.current = setTimeout(() => setHoveredClave(null), 80)
+    clearTimeout(hoverTimer.current)
+    setTooltip(null)
   }
 
   function getIndicador(p) {
-    if (p._score < 50)  return { icon: '⚠', cls: 'text-danger' }
-    if (p._score < 80)  return { icon: '↻', cls: 'text-amber' }
+    if (p._score < 50) return { icon: '⚠', cls: 'text-danger' }
+    if (p._score < 80) return { icon: '↻', cls: 'text-amber' }
     return { icon: '✓', cls: 'text-accent' }
   }
 
-  const getUltimasParticipaciones = (clave) => {
+  function getUltimasParticipaciones(clave) {
     return historial
       .filter(h => h.clave === clave)
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
       .slice(0, 3)
   }
+
+  // Dropdown: abre hacia abajo o arriba según espacio disponible con posicionamiento fijo
+  function getDropdownStyle() {
+    if (!triggerRef.current) return {}
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const dropdownHeight = 230
+    const dropdownWidth = 224
+
+    const style = {
+      position: 'fixed',
+      zIndex: 200,
+      width: `${Math.max(rect.width, dropdownWidth)}px`,
+    }
+
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+      style.bottom = `${window.innerHeight - rect.top + 4}px`
+    } else {
+      style.top = `${rect.bottom + 4}px`
+    }
+
+    if (rect.left + dropdownWidth > window.innerWidth - 12) {
+      style.right = `${Math.max(12, window.innerWidth - rect.right)}px`
+    } else {
+      style.left = `${Math.max(12, rect.left)}px`
+    }
+
+    return style
+  }
+
+  // Tooltip: persona y participaciones para la clave activa
+  const tooltipPersona = tooltip ? personas.find(p => p.clave === tooltip.clave) : null
+  const tooltipParts   = tooltip ? getUltimasParticipaciones(tooltip.clave) : []
 
   return (
     <div ref={containerRef} className="relative">
@@ -216,8 +248,8 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
       {/* Dropdown */}
       {open && (
         <div
-          className="absolute z-50 left-0 w-56 bg-surface border border-border2 rounded-xl shadow-lg"
-          style={dropdownStyle}
+          className="fixed z-[200] bg-surface border border-border2 rounded-xl shadow-xl overflow-hidden"
+          style={getDropdownStyle()}
         >
           {/* Búsqueda */}
           <div className="px-2 pt-2 pb-1 border-b border-border">
@@ -226,7 +258,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Escape') { setOpen(false); setQuery(''); setHoveredClave(null) }
+                if (e.key === 'Escape') { setOpen(false); setQuery(''); setTooltip(null) }
                 if (e.key === 'Enter' && filtrados.length > 0) handleSelect(filtrados[0].clave)
               }}
               placeholder="Buscar nombre o clave…"
@@ -234,9 +266,8 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
             />
           </div>
 
-          {/* Opciones — overflow-hidden QUITADO para que el tooltip no se recorte */}
+          {/* Opciones */}
           <div className="max-h-48 overflow-y-auto py-1">
-            {/* Opción "sin asignar" */}
             <button
               type="button"
               onClick={() => handleSelect(null)}
@@ -251,77 +282,70 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               filtrados.map(p => {
                 const ind = getIndicador(p)
                 const isSelected = p.clave === value
-                const isHovered  = hoveredClave === p.clave
                 return (
-                  <div key={p.clave} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(p.clave)}
-                      onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
-                      onMouseLeave={handleItemMouseLeave}
-                      className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
-                        ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
-                    >
-                      <span className={`flex-shrink-0 w-3 ${ind.cls}`}>{ind.icon}</span>
-                      <span className="font-mono text-text3 flex-shrink-0 w-12">{p.clave}</span>
-                      <span className="truncate text-text1">{p.nombre}</span>
-                    </button>
-
-                    {/* Tooltip por ítem — fuera del scroll, posición calculada */}
-                    {isHovered && (() => {
-                      const persona = personas.find(pers => pers.clave === p.clave)
-                      if (!persona) return null
-                      const parts = getUltimasParticipaciones(p.clave)
-                      return (
-                        <div
-                          className="fixed z-[200] w-64 bg-surface border border-border2 rounded-xl shadow-xl p-3 text-xs flex flex-col gap-2 pointer-events-none"
-                          style={tooltipStyle}
-                        >
-                          <div className="font-semibold text-text1 border-b border-border pb-1">
-                            {persona.nombre} <span className="font-mono text-text3">({persona.clave})</span>
-                          </div>
-                          {parts.length === 0 ? (
-                            <span className="text-text3 italic">Sin participaciones recientes</span>
-                          ) : (
-                            <div className="flex flex-col gap-1.5">
-                              {parts.map((pt, idx) => {
-                                const colorKey = {
-                                  'T': 'SMT_EST', 'A': 'SMT_AYU',
-                                  'EBC': 'EBC_CON', 'OC': 'ORACION_C'
-                                }[pt.tipo] || pt.tipo
-                                return (
-                                  <div key={idx} className="flex flex-col gap-0.5 bg-bg/50 p-1.5 rounded-lg border border-border">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-[10px] text-text3 font-medium">
-                                        {pt.mes} {String(pt.fecha || '').slice(0, 4)}
-                                      </span>
-                                      <span className={`text-[10px] font-mono font-medium px-1 rounded ${TIPO_COLOR[colorKey] || 'bg-bg text-text2'}`}>
-                                        {pt.tipo}
-                                      </span>
-                                    </div>
-                                    {pt.observaciones && (
-                                      <span className="text-[10px] text-text2 italic truncate">{pt.observaciones}</span>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  </div>
+                  <button
+                    key={p.clave}
+                    type="button"
+                    onClick={() => handleSelect(p.clave)}
+                    onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
+                    onMouseLeave={handleItemMouseLeave}
+                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs
+                      ${isSelected ? 'bg-accent-bg' : 'hover:bg-bg'}`}
+                  >
+                    <span className={`flex-shrink-0 w-3 ${ind.cls}`}>{ind.icon}</span>
+                    <span className="font-mono text-text3 flex-shrink-0 w-12">{p.clave}</span>
+                    <span className="truncate text-text1">{p.nombre}</span>
+                  </button>
                 )
               })
             )}
           </div>
         </div>
       )}
+
+      {/* Tooltip — position:fixed con coordenadas reales, fuera del flujo DOM del dropdown */}
+      {tooltip && tooltipPersona && (
+        <div
+          className="fixed z-[300] w-64 bg-surface border border-border2 rounded-xl shadow-xl p-3 text-xs flex flex-col gap-2 pointer-events-none"
+          style={{ top: tooltip.top, left: tooltip.left }}
+        >
+          <div className="font-semibold text-text1 border-b border-border pb-1">
+            {tooltipPersona.nombre}{' '}
+            <span className="font-mono text-text3">({tooltipPersona.clave})</span>
+          </div>
+          {tooltipParts.length === 0 ? (
+            <span className="text-text3 italic">Sin participaciones recientes</span>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {tooltipParts.map((pt, idx) => {
+                const colorKey = {
+                  'T': 'SMT_EST', 'A': 'SMT_AYU',
+                  'EBC': 'EBC_CON', 'OC': 'ORACION_C'
+                }[pt.tipo] || pt.tipo
+                return (
+                  <div key={idx} className="flex flex-col gap-0.5 bg-bg/50 p-1.5 rounded-lg border border-border">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-text3 font-medium">
+                        {pt.mes} {String(pt.fecha || '').slice(0, 4)}
+                      </span>
+                      <span className={`text-[10px] font-mono font-medium px-1 rounded ${TIPO_COLOR[colorKey] || 'bg-bg text-text2'}`}>
+                        {pt.tipo}
+                      </span>
+                    </div>
+                    {pt.observaciones && (
+                      <span className="text-[10px] text-text2 italic truncate">{pt.observaciones}</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Fila de parte ─────────────────────────────────────────────
 function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar, clavePresidente }) {
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')

@@ -45,6 +45,7 @@ participantes-app/
 │   │   ├── Personas.jsx             — CRUD personas
 │   │   ├── Registros.jsx            — CRUD participaciones
 │   │   ├── Programa.jsx             — módulo S-140 completo
+│   │   ├── Usuarios.jsx             — gestión de acceso y lista blanca de usuarios autorizados
 │   │   ├── Exportar.jsx             — CSV / SQL / JSON + importar CSV
 │   │   └── Estadisticas.jsx         — resumen por tipo/mes/persona
 │   ├── components/
@@ -422,7 +423,10 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 ## Pendientes
 
 - [ ] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
-- [ ] **Gestión de usuarios** — pantalla para invitar desde la app sin entrar a Supabase. Actualmente se requiere acceso manual a la tabla `usuarios_autorizados`.
+- [x] **Gestión de usuarios desde la app (`Usuarios.jsx`)** — pantalla para invitar usuarios vía Edge Function `invite-user` en Supabase y lista blanca `usuarios_autorizados` con Realtime, badges y diálogo de confirmación.
+- [ ] **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo "Nueva contraseña" que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
+- [ ] **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
+- [ ] **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
 - [ ] **Confirmación de cierre de sesión** — el botón en el sidebar no tiene diálogo de confirmación; fácil de presionar por accidente. Implementar `useConfirm` ahí también.
 - [ ] **Pop-ups de confirmación personalizados en App.jsx** — el sidebar vive fuera del árbol de páginas, necesita su propio `ConfirmDialog` montado en `App.jsx`.
 
@@ -462,4 +466,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - **Breadcrumbs de navegación:** Creado el componente interactivo `Breadcrumb.jsx` montado en el área principal de la app para una navegación ágil y contextual de regreso a la pantalla de inicio (`editable`).
 - **Edición inline en Registros.jsx:** Removido el modal y la acción `window.scrollTo`. Ahora al hacer clic en un registro se expande un panel inline (`RowForm`) con reinicio automático de estado mediante prop `key={r.id}`. El formulario principal se simplificó para enfocarse únicamente en agregar nuevos registros.
 - **Bugs de linter `react-hooks/set-state-in-effect`:** Corregidos problemas en efectos síncronos de `RowForm` (Registros) y en el focus y limpieza del buscador de `PersonaSelector` (Programa).
-- **Desfase de dropdowns fijos (Containing block en CSS):** Resuelto error donde el selector de personas aparecía desplazado a la derecha de forma incorrecta. Ocurría porque la animación de entrada de la vista principal (`fade-in-up`) usaba `transform` con `fill-mode: both`, lo cual establecía un bloque de contención alternativo en CSS para los descendientes fijos. Se migró a una transición basada puramente en opacidad (`view-fade`) y se añadió `{ preventScroll: true }` en el focus del input de búsqueda para evitar micro-scrolls accidentales del navegador que cerraban o movían el dropdown.
+- **Desfase de dropdowns fijos (Containing block en CSS):** Resuelto error donde el selector de personas aparecía desplazado a la derecha de forma incorrecta. Ocurría porque la animación de entrada de la vista principal (`fade-in-up`) usaba `transform` con `fill-mode: both`, lo cual establecía un bloque de contención alternativo en CSS para los descendientes fijos. Se migró a una transición basada puramente en opacidad (`view-fade`) y se añadió `{ preventScroll: true }` en el focus del input de búsqueda para evitar micro-scrolls accidentales del navegador que cerraban o movían el dropdown.
+- **Gestión de usuarios y Edge Function `invite-user` (07/08/2026):**
+  - Creada página `Usuarios.jsx` con formulario de invitación, lista de usuarios autorizados con badges (`Activo`/`Inactivo`), alternancia de estado con `useConfirm`, Realtime en canal `usuarios-mgmt` y `SkeletonList`.
+  - Conectado a la Edge Function `https://evqhdemvmnhwnsnrmdzk.supabase.co/functions/v1/invite-user` enviando `Authorization: Bearer ${session.access_token}` y `apikey`. Crea la cuenta en Supabase Auth y la lista blanca de forma segura.
+  - Registrada la vista en `NAV` (sección "Gestión"), `TOPBAR_SUB` y `renderView` en `App.jsx`.

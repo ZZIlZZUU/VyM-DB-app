@@ -8,6 +8,7 @@
 - [x] Sidebar colapsable (#1)
 - [x] Sistema de notificaciones / toast (#9)
 - [x] Confirmaciones modales mejoradas (#10) — `ConfirmDialog` con ESC/Enter/animación
+- [x] Gestión de usuarios desde la app (#21) — `Usuarios.jsx` + Edge Function `invite-user` + Realtime
 
 **🟡 Altas — COMPLETADAS:**
 - [x] Barra de progreso en Programa (#4) — con colores dinámico rojo/amber/verde
@@ -27,6 +28,7 @@
 - [x] Indicador de conexión Realtime en topbar (#16) — dot pulsante + etiqueta conectados a Supabase v2
 
 **🟢 Medias — PENDIENTES:**
+- [ ] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
 - [ ] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
 - [ ] Atajos de teclado globales (#17) — `Ctrl+K` command palette, `?` ayuda, `N` nuevo
 

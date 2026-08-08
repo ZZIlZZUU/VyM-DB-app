@@ -17,7 +17,7 @@
 
 **🟡 Altas — COMPLETADAS:**
 - [x] Búsqueda instantánea en Personas (#6) — input con debounce 300ms por nombre/clave
-- [x] Badges de lista en Personas (#6) — "Mat" azul / "Anc" amber como etiqueta coloreada
+- [x] Badges de lista en Personas (#6) — “Mat” azul / “Anc” amber como etiqueta coloreada
 - [x] Selectores con búsqueda en Programa (#4) — autocomplete + filtro por lista/sexo
 - [x] Tooltips: pasar mouse sobre persona → últimas 3 participaciones (#4)
 
@@ -29,7 +29,7 @@
 
 **🟢 Medias — PENDIENTES:**
 - [ ] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
-- [ ] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
+- [x] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
 - [ ] Atajos de teclado globales (#17) — `Ctrl+K` command palette, `?` ayuda, `N` nuevo
 
 **🔵 Bajas — FUTURO:**
@@ -44,6 +44,7 @@
 ## 🎯 Estructura General
 
 ### 1. **Sidebar colapsable** ✅ IMPLEMENTADO
+
 **Solución implementada:** Toggle ← / → en el header del sidebar. Estado persiste en `localStorage`. En modo colapsado (`w-14`): solo iconos con tooltip `title`. En modo expandido (`w-56`): iconos + labels + stats + email + cerrar sesión. Transición `duration-300 ease-in-out`.
 
 **Pendiente menor:**
@@ -53,6 +54,7 @@
 ---
 
 ### 2. **Breadcrumbs / Navegación contextual** ✅ IMPLEMENTADO
+
 **Solución implementada:** Se integró el componente `Breadcrumb.jsx` en el cuerpo principal debajo del Topbar. Detecta automáticamente la vista activa y la sección (ej: `Inicio › Gestión › Programa (S-140)`) y provee un enlace navegable para retornar a la pantalla de inicio (`editable`).
 
 ---
@@ -60,6 +62,7 @@
 ## 📊 Vistas — Mejoras Específicas
 
 ### 3. **Vista Editable (tabla cruzada)**
+
 **Estado actual:** Tabla grande y densa. Difícil navegar en pantallas pequeñas.
 
 **Sugerencias:**
@@ -70,12 +73,13 @@
 ---
 
 ### 4. **Programa S-140**
+
 **Estado actual:** Interfaz funcional. Barra de progreso y nombre de congregación ya implementados.
 
 **Pendientes:**
 - **Selector de personas con búsqueda** — input con autocomplete + filtro por lista/sexo (actualmente selects nativos largos)
 - **Tooltips contextuales** — pasar mouse sobre persona → muestra últimos 3 meses de participaciones
-- **Botón "Generar S-140" flotante** — sticky en esquina inferior derecha, no dentro del scroll
+- **Botón “Generar S-140” flotante** — sticky en esquina inferior derecha, no dentro del scroll
 - **Confirmación visual al confirmar** — flash verde momentáneo en la fila (además del toast)
 - **Modo lectura vs edición** — toggle que oculte selectores y muestre programa limpio
 - **Indicador visual por sección** — APERTURA ✓ | TB ○ | SMT ✓✓○ | VC ✓ | CIERRE ✓
@@ -83,27 +87,30 @@
 ---
 
 ### 5. **Registros (CRUD participaciones)**
+
 **Estado actual:** Formulario de creación limpio + lista con edición inline mediante panel desplegable (`RowForm`).
 
 **Sugerencias:**
 - **Edición inline** ✅ IMPLEMENTADA: Al hacer click en una fila de la lista de registros se expande un panel local para editar fecha, tipo y observaciones sin perder scroll ni recargar modal.
 - **Filtros persistentes:** guardar último filtro aplicado en `localStorage`
 - **Bulk actions:** checkbox en cada fila, acciones múltiples (eliminar, cambiar tipo)
-- **Validación en tiempo real:** si tipo "NC" en persona Mat → rojo inmediato con tooltip
+- **Validación en tiempo real:** si tipo “NC” en persona Mat → rojo inmediato con tooltip
 
 ---
 
 ### 6. **Personas**
+
 **Estado actual:** CRUD funcional, ConfirmDialog integrado.
 
 **Pendientes:**
 - **Búsqueda instantánea** — input que filtre por nombre/clave mientras escribes (debounce 300ms)
-- **Badges de lista** — "Mat" azul / "Anc" amber como etiqueta coloreada en cada fila
+- **Badges de lista** — “Mat” azul / “Anc” amber como etiqueta coloreada en cada fila
 - **Filtro rápido por estatus** — botones tipo tag (Activos | Bautizados | Todos)
 
 ---
 
 ### 7. **Estadísticas**
+
 **Sugerencias:**
 - Barras horizontales: participaciones por tipo
 - Pastel: distribución Mat vs Anc/SM
@@ -113,6 +120,7 @@
 ---
 
 ### 8. **Exportar / Importar**
+
 **Sugerencias:**
 - **Drag & drop** para subir CSV/XLSX
 - **Preview de datos** antes de importar — primeras 5 filas
@@ -123,11 +131,13 @@
 ## 🎨 Design System & Componentes
 
 ### 9. **Sistema de notificaciones (Toast)** ✅ IMPLEMENTADO
+
 **Solución implementada:** `src/hooks/useToast.js` + `src/components/Toast.jsx`. 4 tipos: `success` (verde accent), `error` (danger rojo), `warning` (amber), `info` (azul). Barra de color lateral + icono + animación slide-up. Auto-dismiss 3s. Integrado en Programa, Personas, Registros, Exportar.
 
 ---
 
 ### 10. **Confirmaciones modales** ✅ IMPLEMENTADO
+
 **Solución implementada:** `src/hooks/useConfirm.js` + `src/components/ConfirmDialog.jsx`. Reemplaza `window.confirm()` en Programa, Personas, Registros y VistaSql. Características:
 - ESC → cancelar / Enter → confirmar (listeners de teclado)
 - Botón cancelar: fondo blanco normal → `bg-danger-bg text-danger` en hover
@@ -137,11 +147,12 @@
 - Click fuera del card → cancela
 
 **Pendiente:**
-- Aplicar en el botón "Cerrar sesión" del sidebar (`App.jsx` necesita su propio `ConfirmDialog` montado)
+- Aplicar en el botón “Cerrar sesión” del sidebar (`App.jsx` necesita su propio `ConfirmDialog` montado)
 
 ---
 
 ### 11. **Paleta de colores + states**
+
 **Pendiente:**
 - Estados `disabled` (opacity-50, cursor-not-allowed) consistentes en todos los botones
 - Estados `focus` con ring de color accent en inputs y selects
@@ -150,6 +161,7 @@
 ---
 
 ### 12. **Tipografía**
+
 **Pendiente:**
 - Usar `font-mono` solo para datos numéricos/códigos
 - Jerarquía más clara en subtítulos de sección
@@ -159,16 +171,19 @@
 ## 🎯 Interacciones & Feedback
 
 ### 13. **Loading states** ✅ IMPLEMENTADO
+
 **Solución implementada:** `src/components/Skeleton.jsx` con componentes `SkeletonBlock`, `SkeletonRow`, `SkeletonList`, `SkeletonCard`, `SkeletonPrograma`. Integrado en Programa (tarjetas skeleton), Personas (lista 6 filas) y Registros (lista 8 filas). Animación `animate-pulse` de Tailwind.
 
 ---
 
 ### 14. **Transiciones & animaciones** ✅ IMPLEMENTADO
+
 **Solución implementada:** Se integró una animación suave de fundido de opacidad (`view-fade` de 150ms) en la envoltura de la vista seleccionada en `App.jsx`. Esta animación de opacidad evita la creación de un *containing block* de CSS (que causan los transforms), garantizando que los elementos con posicionamiento fijo como los dropdowns no sufran de desfases posicionales en el viewport.
 
 ---
 
 ### 15. **Responsiveness**
+
 **Pendiente:**
 - Tablas en mobile → card layout
 - Modales full-screen en mobile
@@ -179,11 +194,13 @@
 ## 🚀 Performance & Polish
 
 ### 16. **Indicadores de conexión** ✅ IMPLEMENTADO
+
 **Solución implementada:** Se conectó al canal `__status__` de Supabase Realtime v2 para monitorizar el estado de conexión del cliente en tiempo real. Se renderiza un dot indicador de color + etiqueta a la derecha del topbar (`bg-accent` para Realtime, `bg-amber` para Conectando, y `bg-danger` para Sin Conexión o Error RT).
 
 ---
 
 ### 17. **Atajos de teclado**
+
 **Implementado parcialmente:**
 - ESC / Enter en `ConfirmDialog` ✅
 
@@ -195,6 +212,7 @@
 ---
 
 ### 18. **Accesibilidad (a11y)**
+
 **Pendiente:**
 - ARIA labels en iconos y botones sin texto
 - `focus:ring-2 focus:ring-accent` en todos los inputs
@@ -203,6 +221,7 @@
 ---
 
 ### 19. **Onboarding / Primer uso**
+
 **Pendiente:**
 - Tour interactivo al primer login
 - Documentación integrada con panel lateral de ayuda
@@ -210,6 +229,7 @@
 ---
 
 ### 20. **Dark mode (futuro)**
+
 **Pendiente:** Requiere refactor a CSS variables. Guardar preferencia + respetar `prefers-color-scheme`.
 
 ---
@@ -225,7 +245,7 @@
 ## 🛠 Stack Sugerido para Mejoras Pendientes
 
 | Feature | Librería | Notas |
-|---------|----------|-------|
+| --- | --- | --- |
 | Selectores avanzados | `headlessui` + custom | Más flexible que `<select>` nativo |
 | Gráficos | `recharts` | Más React-native |
 | Command palette | `cmdk` | Ligero, accesible |
@@ -237,7 +257,8 @@
 ## Vista Editable — Rediseño y Nueva Vista Semanal
 
 > Estado actual analizado del código (`Vistaeditable.jsx`).
-> Estas ideas están en estado **"Terminar de definir"** — requieren decisiones antes de implementar.
+Estas ideas están en estado **“Terminar de definir”** — requieren decisiones antes de implementar.
+> 
 
 ### Contexto: qué existe hoy
 
@@ -270,7 +291,7 @@ Vista de lectura del programa confirmado de una semana. Fuente de datos: `progra
 ### Resumen de decisiones pendientes
 
 | # | Decisión |
-|---|----------|
+| --- | --- |
 | 1 | ¿Modal readonly muestra link navegable a Programa? |
 | 1 | ¿Se puede editar solo `observaciones` en modo readonly? |
 | 2 | ¿Celdas Matriculados: compacto (`T²`) o expandido (badges apilados)? |

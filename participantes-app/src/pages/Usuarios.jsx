@@ -12,22 +12,22 @@ export default function Usuarios() {
   const [email, setEmail]       = useState('')
   const [inviting, setInviting] = useState(false)
 
-  const { toast, showToast, success, error: toastError } = useToast()
+  const { toast, showToast, success, error } = useToast()
   const { confirm, confirmProps } = useConfirm()
 
   const fetchUsuarios = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data, error: fetchErr } = await supabase
       .from('usuarios_autorizados')
       .select('*')
       .order('email')
     
-    if (error) {
-      toastError('Error al cargar usuarios autorizados')
+    if (fetchErr) {
+      error('Error al cargar usuarios autorizados')
     } else {
       setUsuarios(data || [])
     }
     setLoading(false)
-  }, [toastError])
+  }, [error])
 
   useEffect(() => {
     fetchUsuarios()
@@ -48,34 +48,47 @@ export default function Usuarios() {
     }
   }, [fetchUsuarios])
 
-  async function handleInvite(e) {
+  const handleInvite = async (e) => {
     if (e) e.preventDefault()
-    const targetEmail = email.trim().toLowerCase()
-    
-    if (!targetEmail) {
-      toastError('Ingresa un correo electrónico')
-      return
-    }
+    const emailTrimmed = email.trim().toLowerCase()
+    if (!emailTrimmed) return
 
     setInviting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
 
-    const { error: insertError } = await supabase
-      .from('usuarios_autorizados')
-      .insert({ email: targetEmail, activo: true })
+      const res = await fetch(
+        'https://evqhdemvmnhwnsnrmdzk.supabase.co/functions/v1/invite-user',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ email: emailTrimmed }),
+        }
+      )
 
-    if (insertError) {
-      if (insertError.code === '23505') {
-        toastError('El usuario ya se encuentra registrado')
-      } else {
-        toastError(insertError.message || 'Error al invitar al usuario')
+      const result = await res.json()
+
+      if (!res.ok) {
+        // Código 23505 = email duplicado en usuarios_autorizados
+        if (result.code === '23505') {
+          error('Este correo ya está en la lista de usuarios autorizados.')
+        } else {
+          error(result.error || 'Error al invitar al usuario.')
+        }
+        return
       }
-    } else {
-      success('Usuario añadido a la lista de acceso.')
-      showToast('Recuérdale que use "Olvidé mi contraseña" en el login para establecer su acceso.', 'info')
-      setEmail('')
-    }
 
-    setInviting(false)
+      success(`Invitación enviada a ${emailTrimmed}. Recibirá un correo para establecer su contraseña.`)
+      setEmail('')
+    } catch (err) {
+      error('Error de conexión al enviar la invitación.')
+    } finally {
+      setInviting(false)
+    }
   }
 
   async function toggleActivo(u) {
@@ -94,7 +107,7 @@ export default function Usuarios() {
       .eq('email', u.email)
 
     if (updateError) {
-      toastError(updateError.message || 'Error al actualizar usuario')
+      error(updateError.message || 'Error al actualizar usuario')
     } else {
       showToast(
         u.activo ? 'Usuario desactivado' : 'Usuario activado',

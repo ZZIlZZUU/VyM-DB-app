@@ -18,7 +18,7 @@ const NAV = [
   { id: 'personas',     icon: '👤', label: 'Personas',            section: 'Gestión' },
   { id: 'registros',    icon: '✎', label: 'Registros',           section: 'Gestión' },
   { id: 'programa',     icon: '📋', label: 'Programa (S-140)',    section: 'Gestión' },
-  { id: 'usuarios',     icon: '🔑', label: 'Usuarios',           section: 'Gestión' },
+  { id: 'usuarios',     icon: '🔑', label: 'Usuarios',           section: 'Gestión', adminOnly: true },
   { id: 'exportar',     icon: '↑', label: 'Exportar / Importar', section: 'Herramientas' },
   { id: 'estadisticas', icon: '◈', label: 'Estadísticas',        section: 'Herramientas' },
 ]
@@ -44,6 +44,7 @@ const RT_CONFIG = {
 export default function App() {
   const [view, setView]         = useState('editable')
   const [user, setUser]         = useState(null)
+  const [rol, setRol]           = useState('editor')
   const [rtStatus, setRtStatus] = useState('conectando')
   const [stats, setStats]       = useState({ personas: 0, registros: 0, mesActual: 0, mes: '' })
   const [open, setOpen]         = useState(() => {
@@ -58,7 +59,17 @@ export default function App() {
   }, [open])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUser(data.user)
+      if (data.user) {
+        const { data: ua } = await supabase
+          .from('usuarios_autorizados')
+          .select('rol')
+          .eq('email', data.user.email)
+          .single()
+        setRol(ua?.rol ?? 'editor')
+      }
+    })
     fetchStats()
   }, [])
 
@@ -146,7 +157,7 @@ export default function App() {
                 </div>
               )}
               {!open && <div className="pt-3" />}
-              {NAV.filter(n => n.section === section).map(item => (
+              {NAV.filter(item => !item.adminOnly || rol === 'admin').filter(n => n.section === section).map(item => (
                 <button
                   key={item.id}
                   onClick={() => setView(item.id)}

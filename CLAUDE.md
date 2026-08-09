@@ -924,6 +924,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ## Sugerencias / mejoras propuestas
 
+- [x]  **Flujo de establecimiento y recuperación de contraseña (`SetPassword.jsx`)** — crear pantalla `/set-password` accesible públicamente para procesar eventos `PASSWORD_RECOVERY` / `SIGNED_IN` del hash de Supabase v2 y actualizar contraseña vía `supabase.auth.updateUser({ password })`.
+- [x]  **Control de acceso por Roles (ocultar Usuarios a editores)** — consulta de `rol` (`admin` | `editor`) desde `usuarios_autorizados` en `App.jsx` y filtrado dinámico del sidebar navegable marcando la entrada con `adminOnly: true`.
 - [x]  **Eliminar dependencia de `S-140_plantilla.docx` en local** — Carga la plantilla primero desde el bucket `plantillas` de Supabase Storage en `generarS140.js`. Si falla la descarga, aplica fallback al archivo local de `/public/` para evitar que la generación falle silenciosamente.
 - [x]  **Migración SQL para `tipo_asignacion` VARCHAR(10) → VARCHAR(15)** — el tipo `SMT_EXP` tiene 7 chars y cabe en VARCHAR(10), pero `SMT_EXP_M`/`SMT_EXP_F` son tipos internos de UI (no se guardan en BD) por lo que no hay problema inmediato. Aun así conviene revisar el DDL de `programa_partes.tipo_asignacion` para asegurar espacio suficiente.
 - [x]  **Confirmación por semana con “re-confirmar”** — al cambiar participantes ya confirmados, los cambios se acumulan en slots de semanas siguientes. Implementado botón “↻ Reconfirmar” en asignación individual y “↻ Actualizar confirmación →” a nivel semanal en `Programa.jsx`. Borra registros obsoletos en `participaciones` y genera los nuevos sin dejar datos huérfanos.

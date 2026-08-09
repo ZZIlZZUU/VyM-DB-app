@@ -914,9 +914,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 - [x]  **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
 - [x]  **Gestión de usuarios desde la app (`Usuarios.jsx`)** — pantalla para invitar usuarios vía Edge Function `invite-user` en Supabase y lista blanca `usuarios_autorizados` con Realtime, badges y diálogo de confirmación.
-- [x]  **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo “Nueva contraseña” que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
-- [x]  **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
-- [x]  **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
+- [ ]  **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo “Nueva contraseña” que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
+- [ ]  **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
+- [ ]  **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
 - [x]  **Confirmación de cierre de sesión** — el botón en el sidebar no tiene diálogo de confirmación; fácil de presionar por accidente. Implementar `useConfirm` ahí también.
 - [x]  **Pop-ups de confirmación personalizados en App.jsx** — el sidebar vive fuera del árbol de páginas, necesita su propio `ConfirmDialog` montado en `App.jsx`.
 
@@ -924,8 +924,6 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ## Sugerencias / mejoras propuestas
 
-- [x]  **Flujo de establecimiento y recuperación de contraseña (`SetPassword.jsx`)** — crear pantalla `/set-password` accesible públicamente para procesar eventos `PASSWORD_RECOVERY` / `SIGNED_IN` del hash de Supabase v2 y actualizar contraseña vía `supabase.auth.updateUser({ password })`.
-- [x]  **Control de acceso por Roles (ocultar Usuarios a editores)** — consulta de `rol` (`admin` | `editor`) desde `usuarios_autorizados` en `App.jsx` y filtrado dinámico del sidebar navegable marcando la entrada con `adminOnly: true`.
 - [x]  **Eliminar dependencia de `S-140_plantilla.docx` en local** — Carga la plantilla primero desde el bucket `plantillas` de Supabase Storage en `generarS140.js`. Si falla la descarga, aplica fallback al archivo local de `/public/` para evitar que la generación falle silenciosamente.
 - [x]  **Migración SQL para `tipo_asignacion` VARCHAR(10) → VARCHAR(15)** — el tipo `SMT_EXP` tiene 7 chars y cabe en VARCHAR(10), pero `SMT_EXP_M`/`SMT_EXP_F` son tipos internos de UI (no se guardan en BD) por lo que no hay problema inmediato. Aun así conviene revisar el DDL de `programa_partes.tipo_asignacion` para asegurar espacio suficiente.
 - [x]  **Confirmación por semana con “re-confirmar”** — al cambiar participantes ya confirmados, los cambios se acumulan en slots de semanas siguientes. Implementado botón “↻ Reconfirmar” en asignación individual y “↻ Actualizar confirmación →” a nivel semanal en `Programa.jsx`. Borra registros obsoletos en `participaciones` y genera los nuevos sin dejar datos huérfanos.
@@ -963,3 +961,43 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     - Creada página `Usuarios.jsx` con formulario de invitación, lista de usuarios autorizados con badges (`Activo`/`Inactivo`), alternancia de estado con `useConfirm`, Realtime en canal `usuarios-mgmt` y `SkeletonList`.
     - Conectado a la Edge Function `https://evqhdemvmnhwnsnrmdzk.supabase.co/functions/v1/invite-user` enviando `Authorization: Bearer ${session.access_token}` y `apikey`. Crea la cuenta en Supabase Auth y la lista blanca de forma segura.
     - Registrada la vista en `NAV` (sección “Gestión”), `TOPBAR_SUB` y `renderView` en `App.jsx`.
+---
+
+## Pendientes y mejoras detectadas (09/08/2026)
+
+### Gestión de usuarios — funcionalidades faltantes
+
+- [ ] **Editar nombre de usuario desde `Usuarios.jsx`** — el campo `nombre` en `usuarios_autorizados` siempre queda `NULL` al invitar. El admin debería poder asignar un nombre visible desde la lista de usuarios (edición inline o modal simple con `UPDATE`).
+- [ ] **Cambiar rol desde la UI** — el `rol` se asigna hardcodeado como `'editor'` en la Edge Function `invite-user`. No hay forma de promover a `admin` sin ir al Dashboard de Supabase. Agregar un selector `editor | admin` en la fila de cada usuario en `Usuarios.jsx`.
+- [ ] **Eliminar usuario completamente** — hoy solo existe Activar/Desactivar. Eliminar requiere borrar de `usuarios_autorizados` + llamar `auth.admin.deleteUser(userId)` con `service_role` — necesita una nueva Edge Function `delete-user`.
+
+### Panel de perfil de usuario
+
+- [ ] **Panel de perfil como drawer deslizante** — overlay desde el footer del sidebar al hacer clic en el email/avatar. No es una ruta nueva. Secciones:
+  - **Perfil:** mostrar email (read-only) + editar nombre visible (UPDATE en `usuarios_autorizados`)
+  - **Seguridad:** cambiar contraseña (`supabase.auth.updateUser({ password })` — no requiere Edge Function) + cambiar email (`supabase.auth.updateUser({ email })` — Supabase envía verificación automática)
+  - **Preferencias:** toggle de tema claro/oscuro (estructura lista aunque dark mode sea futuro) + sidebar por defecto expandido/colapsado
+  - **Danger Zone:** dar de baja mi cuenta (`activo = false` en `usuarios_autorizados` + `signOut()`) con `ConfirmDialog danger: true` — considerar escribir el email para confirmar (patrón GitHub); Cerrar sesión movido aquí
+- [ ] **Próxima asignación en el panel de perfil** — query sobre `programa_asignaciones` JOIN `personas` por email para mostrar "Tu próxima participación: TB el 15 de agosto"
+- [ ] **Historial de actividad del usuario** — la tabla `historial_cambios` ya tiene triggers. Mostrar en el panel las últimas N acciones del usuario autenticado (`WHERE usuario_email = auth.email()`)
+
+### Robustez — bugs y gaps silenciosos
+
+- [ ] **Importación ciega en `Exportar.jsx`** — cuando falla una fila al importar CSV, el toast dice "N registros importados" pero nunca reporta cuántas ni cuáles fallaron. Agregar resumen post-importación: "30 importados, 5 con error" + lista de filas fallidas con motivo.
+- [ ] **Sin manejo de errores de red en fetches** — ninguna página captura errores de conexión. Si Supabase falla, las páginas quedan en blanco sin mensaje. Agregar distinción entre "tabla vacía" vs "error de red" en todos los `fetchData`.
+- [ ] **SQL injection en exportación** — `exportSQL()` en `Exportar.jsx` concatena strings sin escapar comillas simples. Un nombre como "O'Brien" o una observación con `'` rompe el SQL generado. Escapar con `.replace(/'/g, "''")` antes de insertar en la sentencia.
+- [ ] **`CHIP_CLASS` duplicado en `VistaEditable.jsx`** — `BADGE_CLASS` y `CHIP_CLASS` son idénticas. Eliminar `CHIP_CLASS` y usar solo `BADGE_CLASS` en toda la vista para evitar desincronización futura.
+
+### Features nuevas de bajo costo
+
+- [ ] **Año configurable desde `configuracion`** — el string `2026` está hardcodeado en el header del sidebar (`Participantes 2026`, `AÑO EN CURSO`). Agregar clave `anio_en_curso` a la tabla `configuracion` y leerla al montar `App.jsx` junto al nombre de congregación. Así el cambio de año no requiere tocar código.
+- [ ] **`historial_cambios` visible en la app** — la tabla existe con triggers automáticos y acumula datos, pero ninguna página la consulta. Agregar vista simple en la sección Herramientas: últimos 50 cambios con quién, qué tabla, qué operación y cuándo. Query directo, sin lógica nueva.
+- [ ] **Toast en `VistaEditable` al guardar** — `MatCellModal` y `AncCellModal` cierran el modal al guardar pero no emiten ningún toast. Es la única página sin feedback visual de éxito/error. Conectar `useToast` igual que el resto de páginas.
+- [ ] **Personas con poca actividad en `Estadisticas.jsx`** — ya existe la tarjeta "sin ningún registro". Agregar tarjeta complementaria "Poca actividad" con personas que tienen 1–2 registros en el año. El dato ya está en el array calculado — solo falta el componente de presentación.
+- [ ] **Filtro por rango de meses en `Exportar.jsx`** — hoy se exporta todo o nada. Agregar selectores de mes inicio/fin para exportar solo el rango deseado (ej. enero–agosto 2026). La lógica de filtro ya existe en `Estadisticas.jsx` — reutilizar el mismo patrón.
+- [ ] **Empty state en `Programa.jsx` cuando no hay semanas** — cuando `semanas.length === 0` solo hay lista vacía. Agregar ilustración SVG simple + mensaje + botón de call to action claro ("Sube tu primer EPUB para comenzar") en el área de contenido, no solo el toolbar.
+- [ ] **Badge de semanas sin confirmar en sidebar** — mostrar un dot rojo o número en el icono de Programa en el NAV si hay semanas importadas con confirmación < 100%. El query de progreso ya existe en `TarjetaSemana` — extraerlo a `App.jsx` al montar.
+
+### PWA
+
+- [ ] **PWA básica con `vite-plugin-pwa`** — no hay `manifest.json`, service worker, `<meta name="theme-color">` ni íconos de app. Con `vite-plugin-pwa` se configura en ~15 minutos. Permite instalar la app en el homescreen de móvil como app nativa — crítico para uso semanal durante reuniones. Stack: `pnpm add -D vite-plugin-pwa`, configurar en `vite.config.js`, agregar íconos en `/public/`.

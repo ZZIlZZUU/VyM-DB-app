@@ -28,7 +28,7 @@
 - [x] Indicador de conexión Realtime en topbar (#16) — dot pulsante + etiqueta conectados a Supabase v2
 
 **🟢 Medias — PENDIENTES:**
-- [x] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
+- [ ] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
 - [x] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
 - [ ] Atajos de teclado globales (#17) — `Ctrl+K` command palette, `?` ayuda, `N` nuevo
 
@@ -299,3 +299,144 @@ Vista de lectura del programa confirmado de una semana. Fuente de datos: `progra
 | 3 | ¿Vista semanal muestra asignaciones no confirmadas o solo confirmadas? |
 | 3 | ¿Hay variante calendario o solo lista lineal? |
 | 3 | ¿Desde la vista semanal se puede navegar a Programa para editar? |
+---
+
+## 📱 Navegación móvil — Rediseño (09/08/2026)
+
+### Problema actual
+
+En viewport de ~417px el sidebar colapsado (`w-14 = 56px`) consume el 13% del ancho horizontal permanentemente. El contenido queda cortado — los tabs de `VistaEditable` ("Ancianos y SM", "Mapa de calor") no caben en la pantalla. El espacio horizontal en portrait es el recurso más escaso en móvil.
+
+### Solución: comportamiento adaptativo por breakpoint
+
+**Desktop (≥ 768px):** comportamiento actual sin cambios — sidebar fijo, colapsable, sticky.
+
+**Móvil (< 768px):** sidebar desaparece del layout y se convierte en drawer overlay desde la izquierda. El contenido siempre ocupa el 100% del ancho.
+
+**Patrón recomendado — Drawer lateral (Opción A):**
+- Botón hamburguesa (≡) en el topbar a la izquierda, visible solo en móvil
+- Al presionar: sidebar aparece como `position: fixed`, `left: 0`, con backdrop semitransparente sobre el contenido
+- Se cierra con: tap fuera del drawer, ESC, o cualquier navegación
+- El sidebar mantiene exactamente el mismo JSX — solo cambia `position` y `z-index` en móvil
+- Transición: `translate-x-[-100%]` → `translate-x-0` con `duration-300`
+
+**Implementación en `App.jsx`:**
+```js
+const esMóvil = window.innerWidth < 768  // o useMediaQuery hook
+// En móvil: aside con position fixed, z-50, translate-x según estado drawerOpen
+// backdrop: div fixed inset-0 bg-black/30 z-40, onClick → setDrawerOpen(false)
+// topbar: mostrar botón ≡ solo en móvil (md:hidden)
+```
+
+**No se recomienda bottom navbar** — la app tiene 8 items en el NAV, más de los 4–5 que caben en una bottom bar sin jerarquizar. El drawer lateral conserva toda la navegación sin decisiones adicionales de prioridad.
+
+### Pulido adicional para móvil
+
+- **Topbar:** en móvil ocultar subtítulo (`hidden md:block`) y reducir el indicador Realtime a solo el dot sin texto. Libera ~16px verticales.
+- **Breadcrumbs:** en móvil simplificar a solo el nombre de la vista actual o `hidden md:block`.
+- **VistaEditable:** en móvil mostrar solo el mes actual y el anterior por defecto; selector de mes para cambiar. La tabla completa de 12 meses es inutilizable en portrait.
+- **Inputs:** todos los `<input>` y `<select>` deben tener `font-size: 16px` mínimo en móvil para evitar el zoom automático de iOS al enfocar. En Tailwind: `text-base md:text-sm`.
+- **Modales:** en móvil los `ConfirmDialog` y modales de celda deberían ser full-width con `rounded-t-xl` (sheet desde abajo) en lugar de card centrada.
+
+---
+
+## 🙈 Auto-hide header (09/08/2026)
+
+### Comportamiento
+
+El topbar (`bg-surface border-b sticky top-0 z-10`) ocupa ~52px fijos en todas las vistas. En móvil portrait eso es ~7% del viewport vertical, siempre visible aunque no se use.
+
+**Auto-hide:** el header se oculta al hacer scroll hacia abajo y reaparece al hacer scroll hacia arriba — exactamente como el header de la app de Claude en móvil, YouTube, o la mayoría de apps nativas modernas.
+
+**Reglas de comportamiento:**
+- Scroll hacia abajo > 10px → header se desliza hacia arriba (`translateY(-100%)`) con `transition-transform duration-300`
+- Scroll hacia arriba (cualquier distancia) → header reaparece (`translateY(0)`)
+- Siempre visible en desktop — el auto-hide aplica solo en móvil (`< 768px`) o puede dejarse global si se prefiere
+
+**Implementación en `App.jsx`:**
+```js
+// Hook useScrollDirection — detecta dirección del scroll en el <main>
+const [headerVisible, setHeaderVisible] = useState(true)
+const lastScrollY = useRef(0)
+
+// en el onScroll del <main>:
+const current = main.scrollTop
+const goingDown = current > lastScrollY.current && current > 10
+setHeaderVisible(!goingDown)
+lastScrollY.current = current
+
+// En el JSX del topbar:
+className={`... transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}
+```
+
+**Consideración importante:** el topbar es `sticky top-0` dentro del `<main>`. El listener de scroll debe ir en el `<main>` (`overflow-auto`), no en `window`, porque el scroll ocurre dentro del contenedor flex, no en el documento. Antigravity debe tener esto claro para no poner el listener en el lugar equivocado.
+
+**Variante — solo móvil:**
+```js
+// Aplicar la clase condicionalmente:
+const isMobile = useMediaQuery('(max-width: 767px)')
+// Solo modificar transform si isMobile === true
+```
+
+### Interacción con dropdowns y modales
+
+Cuando el header está oculto y se abre un modal o dropdown, el header **no debe reaparecer** automáticamente. Solo el scroll hacia arriba lo reactiva. Sin embargo, si el modal/drawer se cierra y el usuario hace scroll hacia arriba, el header reaparece normalmente — no hay conflicto.
+
+---
+
+## 🗂 Historial de cambios — Vista en Herramientas (09/08/2026)
+
+La tabla `historial_cambios` existe con triggers automáticos y acumula un log de auditoría completo, pero ninguna página la muestra. Propuesta:
+
+- Nueva entrada en NAV sección "Herramientas": **Historial** (icono: `⟳`)
+- Vista simple: tabla con columnas `fecha`, `usuario`, `tabla`, `operación` (INSERT/UPDATE/DELETE), `descripción del cambio`
+- Filtro por usuario y por tabla
+- Paginación de 50 registros por página
+- Sin lógica nueva — solo un `SELECT` con `ORDER BY fecha DESC`
+- Solo visible para rol `admin`
+
+---
+
+## 📊 Estadísticas — mejoras pendientes (09/08/2026)
+
+- **Tarjeta "Poca actividad"** — complementar "sin ningún registro" con personas que tienen 1–2 participaciones en el año. El dato ya está en el array `porPersona` — solo falta el componente de presentación.
+- **Gráficos** (ya documentado, prioridad baja) — barras horizontales por tipo, pastel Mat vs Anc/SM, timeline últimos 6 meses con `recharts`.
+
+---
+
+## 📤 Exportar — mejoras pendientes (09/08/2026)
+
+- **Resumen de errores post-importación** — el toast actual solo dice "N importados". Agregar detalle: "30 importados · 5 con error" + lista colapsable de filas fallidas con el motivo del error de Supabase.
+- **Filtro por rango de meses** — selectores de mes inicio/fin antes de exportar. Reutilizar el patrón de filtro de `Estadisticas.jsx`.
+- **Escapado de comillas en SQL** — aplicar `.replace(/'/g, "''")` a todos los campos string antes de construir los INSERT. Afecta `nombre`, `observaciones`, y cualquier campo texto.
+
+---
+
+## 🏠 Empty states (09/08/2026)
+
+Páginas que muestran lista vacía sin guía visual cuando no hay datos:
+
+| Vista | Trigger | Call to action |
+|---|---|---|
+| `Programa.jsx` | 0 semanas importadas | "Sube tu primer EPUB para comenzar" + flecha al botón de subida |
+| `Personas.jsx` | 0 personas | "Agrega la primera persona al catálogo" |
+| `Registros.jsx` | 0 registros con filtro activo | "No hay resultados — limpiar filtros" |
+| `Estadisticas.jsx` | 0 participaciones | "Aún no hay registros para analizar" |
+
+Cada empty state: SVG ilustrativo simple (sin librería externa — inline SVG) + mensaje + botón de acción primaria.
+
+---
+
+## ⚙️ Configuración dinámica — pendientes (09/08/2026)
+
+- **Año en curso configurable** — agregar clave `anio_en_curso` a la tabla `configuracion`. Leerla en `App.jsx` junto a `nombre_congregacion`. El sidebar actualmente hardcodea `2026` y `AÑO EN CURSO` — cuando llegue 2027 requiere cambio de código.
+- **Configuración de tema** — guardar preferencia claro/oscuro en `configuracion` por usuario (o en `localStorage` como fallback). El toggle se expone desde el panel de perfil.
+
+---
+
+## 🔔 Badge de pendientes en sidebar (09/08/2026)
+
+- Mostrar dot rojo o número en el ícono de **Programa** en el NAV si hay semanas con progreso de confirmación < 100%
+- El query de progreso ya existe en `TarjetaSemana` — extraer a `App.jsx` al montar y suscribirse via Realtime para mantenerlo actualizado
+- Patrón: `{ id: 'programa', icon: '📋', label: 'Programa (S-140)', badge: pendingCount > 0 ? pendingCount : null }`
+- Renderizar el badge solo cuando `item.badge` es truthy, como `<span className="ml-auto text-xs bg-danger text-white rounded-full px-1.5">{item.badge}</span>`

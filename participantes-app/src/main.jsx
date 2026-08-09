@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 
 import Login          from './pages/Login'
+import SetPassword     from './pages/SetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 import App            from './App'
 
@@ -11,8 +12,9 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        {/* Ruta pública */}
+        {/* Rutas públicas */}
         <Route path="/login" element={<Login />} />
+        <Route path="/set-password" element={<SetPassword />} />
 
         {/* Rutas protegidas — requieren sesión activa */}
         <Route

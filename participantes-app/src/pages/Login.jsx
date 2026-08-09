@@ -52,7 +52,7 @@ export default function Login() {
     setResetLoading(true)
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://vy-m-db-app-flame.vercel.app',
+      redirectTo: 'https://vy-m-db-app-flame.vercel.app/set-password',
     })
 
     if (error) {

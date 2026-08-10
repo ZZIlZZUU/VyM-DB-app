@@ -986,13 +986,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ### Features nuevas de bajo costo
 
-- [ ] **Año configurable desde `configuracion`** — el string `2026` está hardcodeado en el header del sidebar (`Participantes 2026`, `AÑO EN CURSO`). Agregar clave `anio_en_curso` a la tabla `configuracion` y leerla al montar `App.jsx` junto al nombre de congregación. Así el cambio de año no requiere tocar código.
-- [ ] **`historial_cambios` visible en la app** — la tabla existe con triggers automáticos y acumula datos, pero ninguna página la consulta. Agregar vista simple en la sección Herramientas: últimos 50 cambios con quién, qué tabla, qué operación y cuándo. Query directo, sin lógica nueva.
-- [ ] **Toast en `VistaEditable` al guardar** — `MatCellModal` y `AncCellModal` cierran el modal al guardar pero no emiten ningún toast. Es la única página sin feedback visual de éxito/error. Conectar `useToast` igual que el resto de páginas.
+- [x] **Año configurable desde `configuracion`** — el string `2026` está hardcodeado en el header del sidebar (`Participantes 2026`, `AÑO EN CURSO`). Agregar clave `anio_en_curso` a la tabla `configuracion` y leerla al montar `App.jsx` junto al nombre de congregación. Así el cambio de año no requiere tocar código.
+- [x] **`historial_cambios` visible en la app** — la tabla existe con triggers automáticos y acumula datos, pero ninguna página la consulta. Agregar vista simple en la sección Herramientas: últimos 50 cambios con quién, qué tabla, qué operación y cuándo. Query directo, sin lógica nueva.
+- [x] **Toast en `VistaEditable` al guardar** — `MatCellModal` y `AncCellModal` cierran el modal al guardar pero no emiten ningún toast. Es la única página sin feedback visual de éxito/error. Conectar `useToast` igual que el resto de páginas.
 - [ ] **Personas con poca actividad en `Estadisticas.jsx`** — ya existe la tarjeta "sin ningún registro". Agregar tarjeta complementaria "Poca actividad" con personas que tienen 1–2 registros en el año. El dato ya está en el array calculado — solo falta el componente de presentación.
 - [ ] **Filtro por rango de meses en `Exportar.jsx`** — hoy se exporta todo o nada. Agregar selectores de mes inicio/fin para exportar solo el rango deseado (ej. enero–agosto 2026). La lógica de filtro ya existe en `Estadisticas.jsx` — reutilizar el mismo patrón.
-- [ ] **Empty state en `Programa.jsx` cuando no hay semanas** — cuando `semanas.length === 0` solo hay lista vacía. Agregar ilustración SVG simple + mensaje + botón de call to action claro ("Sube tu primer EPUB para comenzar") en el área de contenido, no solo el toolbar.
-- [ ] **Badge de semanas sin confirmar en sidebar** — mostrar un dot rojo o número en el icono de Programa en el NAV si hay semanas importadas con confirmación < 100%. El query de progreso ya existe en `TarjetaSemana` — extraerlo a `App.jsx` al montar.
+- [x] **Empty state en `Programa.jsx` cuando no hay semanas** — cuando `semanas.length === 0` solo hay lista vacía. Agregar ilustración SVG simple + mensaje + botón de call to action claro ("Sube tu primer EPUB para comenzar") en el área de contenido, no solo el toolbar.
+- [x] **Badge de semanas sin confirmar en sidebar** — mostrar un dot rojo o número en el icono de Programa en el NAV si hay semanas importadas con confirmación < 100%. El query de progreso ya existe en `TarjetaSemana` — extraerlo a `App.jsx` al montar.
 
 ### PWA
 

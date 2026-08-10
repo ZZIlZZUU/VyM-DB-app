@@ -13,9 +13,7 @@
 **🟡 Altas — COMPLETADAS:**
 - [x] Barra de progreso en Programa (#4) — con colores dinámico rojo/amber/verde
 - [x] Loading states / skeletons (#13) — `Skeleton.jsx` con variantes por página
-- [x] Nombre de congregación configurable — tabla `configuracion` en Supabase
-
-**🟡 Altas — COMPLETADAS:**
+- [x] Nombre de congregación y año en curso configurables — tabla `configuracion` en Supabase
 - [x] Búsqueda instantánea en Personas (#6) — input con debounce 300ms por nombre/clave
 - [x] Badges de lista en Personas (#6) — “Mat” azul / “Anc” amber como etiqueta coloreada
 - [x] Selectores con búsqueda en Programa (#4) — autocomplete + filtro por lista/sexo
@@ -26,6 +24,10 @@
 - [x] Transición suave de vistas al cambiar de página (#14) — con fundido (opacity fade) para evitar problemas de containing block en dropdowns fijos
 - [x] Edición inline en Registros (#5) — formulario expandible `RowForm` directamente debajo de cada card de la lista
 - [x] Indicador de conexión Realtime en topbar (#16) — dot pulsante + etiqueta conectados a Supabase v2
+- [x] Historial de cambios visible en la app — tabla en sección Herramientas
+- [x] Toast en VistaEditable al guardar/eliminar
+- [x] Empty states con SVG en Programa, Personas, Registros y Estadísticas
+- [x] Badge de semanas sin confirmar en sidebar
 
 **🟢 Medias — PENDIENTES:**
 - [ ] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
@@ -384,16 +386,14 @@ Cuando el header está oculto y se abre un modal o dropdown, el header **no debe
 
 ---
 
-## 🗂 Historial de cambios — Vista en Herramientas (09/08/2026)
+## 🗂 Historial de cambios — Vista en Herramientas (09/08/2026) ✅ IMPLEMENTADO
 
-La tabla `historial_cambios` existe con triggers automáticos y acumula un log de auditoría completo, pero ninguna página la muestra. Propuesta:
+La tabla `historial_cambios` existe con triggers automáticos y acumula un log de auditoría completo. Se ha añadido:
 
-- Nueva entrada en NAV sección "Herramientas": **Historial** (icono: `⟳`)
-- Vista simple: tabla con columnas `fecha`, `usuario`, `tabla`, `operación` (INSERT/UPDATE/DELETE), `descripción del cambio`
-- Filtro por usuario y por tabla
-- Paginación de 50 registros por página
-- Sin lógica nueva — solo un `SELECT` con `ORDER BY fecha DESC`
-- Solo visible para rol `admin`
+- Nueva entrada en NAV sección "Herramientas": **Historial Cambios** (icono: `📜`)
+- Vista simple: tabla y tarjetas responsive con columnas `fecha`, `usuario`, `tabla`, `operación` (INSERT/UPDATE/DELETE), `detalles` del cambio.
+- Filtro por tipo de operación y búsqueda predictiva por usuario, tabla o detalles.
+- Sincronización en tiempo real con Supabase.
 
 ---
 
@@ -412,31 +412,30 @@ La tabla `historial_cambios` existe con triggers automáticos y acumula un log d
 
 ---
 
-## 🏠 Empty states (09/08/2026)
+## 🏠 Empty states (09/08/2026) ✅ IMPLEMENTADO
 
 Páginas que muestran lista vacía sin guía visual cuando no hay datos:
 
 | Vista | Trigger | Call to action |
 |---|---|---|
-| `Programa.jsx` | 0 semanas importadas | "Sube tu primer EPUB para comenzar" + flecha al botón de subida |
+| `Programa.jsx` | 0 semanas importadas | "Sube tu primer EPUB para comenzar" + botón directo de subida |
 | `Personas.jsx` | 0 personas | "Agrega la primera persona al catálogo" |
 | `Registros.jsx` | 0 registros con filtro activo | "No hay resultados — limpiar filtros" |
 | `Estadisticas.jsx` | 0 participaciones | "Aún no hay registros para analizar" |
 
-Cada empty state: SVG ilustrativo simple (sin librería externa — inline SVG) + mensaje + botón de acción primaria.
+Cada empty state incorpora un SVG ilustrativo nativo (sin dependencias de red), textos amigables y llamadas a la acción (*CTA*).
 
 ---
 
 ## ⚙️ Configuración dinámica — pendientes (09/08/2026)
 
-- **Año en curso configurable** — agregar clave `anio_en_curso` a la tabla `configuracion`. Leerla en `App.jsx` junto a `nombre_congregacion`. El sidebar actualmente hardcodea `2026` y `AÑO EN CURSO` — cuando llegue 2027 requiere cambio de código.
+- **Año en curso configurable** ✅ IMPLEMENTADO — Se agregó la clave `anio_en_curso` a la tabla `configuracion`. Se lee dinámicamente en `App.jsx` y se almacena en el estado principal para su renderizado en el Sidebar.
 - **Configuración de tema** — guardar preferencia claro/oscuro en `configuracion` por usuario (o en `localStorage` como fallback). El toggle se expone desde el panel de perfil.
 
 ---
 
-## 🔔 Badge de pendientes en sidebar (09/08/2026)
+## 🔔 Badge de pendientes en sidebar (09/08/2026) ✅ IMPLEMENTADO
 
-- Mostrar dot rojo o número en el ícono de **Programa** en el NAV si hay semanas con progreso de confirmación < 100%
-- El query de progreso ya existe en `TarjetaSemana` — extraer a `App.jsx` al montar y suscribirse via Realtime para mantenerlo actualizado
-- Patrón: `{ id: 'programa', icon: '📋', label: 'Programa (S-140)', badge: pendingCount > 0 ? pendingCount : null }`
-- Renderizar el badge solo cuando `item.badge` es truthy, como `<span className="ml-auto text-xs bg-danger text-white rounded-full px-1.5">{item.badge}</span>`
+- Muestra una píldora roja pulsante con el número de semanas con confirmación < 100% en el item de **Programa (S-140)**.
+- Recalcula dinámicamente según la lógica de completado de partes.
+- Escucha mediante Realtime cambios en semanas, partes y asignaciones para actualizarse al instante.

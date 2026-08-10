@@ -30,7 +30,7 @@
 - [x] Badge de semanas sin confirmar en sidebar
 
 **🟢 Medias — PENDIENTES:**
-- [ ] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
+- [x] Flujo de establecimiento de contraseña (#22) — vista `SetPassword.jsx` para procesar tokens `#access_token=...&type=invite` y `updateUser({ password })`
 - [x] Confirmación de cierre de sesión en sidebar — `useConfirm` en `App.jsx`
 - [ ] Atajos de teclado globales (#17) — `Ctrl+K` command palette, `?` ayuda, `N` nuevo
 

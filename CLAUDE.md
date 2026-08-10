@@ -914,9 +914,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 - [x]  **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
 - [x]  **Gestión de usuarios desde la app (`Usuarios.jsx`)** — pantalla para invitar usuarios vía Edge Function `invite-user` en Supabase y lista blanca `usuarios_autorizados` con Realtime, badges y diálogo de confirmación.
-- [ ]  **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo “Nueva contraseña” que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
-- [ ]  **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
-- [ ]  **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
+- [x]  **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo “Nueva contraseña” que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
+- [x]  **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
+- [x]  **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
 - [x]  **Confirmación de cierre de sesión** — el botón en el sidebar no tiene diálogo de confirmación; fácil de presionar por accidente. Implementar `useConfirm` ahí también.
 - [x]  **Pop-ups de confirmación personalizados en App.jsx** — el sidebar vive fuera del árbol de páginas, necesita su propio `ConfirmDialog` montado en `App.jsx`.
 

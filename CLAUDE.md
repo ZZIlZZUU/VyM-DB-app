@@ -441,8 +441,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Configuración de tema y persistencia** — Crear un toggle de tema claro/oscuro que guarde la preferencia en `configuracion` de usuario o en el almacenamiento local.
 - [ ] **Onboarding / Tour de primer uso** — Crear un tour interactivo para nuevos usuarios administradores y un panel lateral deslizable de ayuda rápida.
 - [ ] **Exportación a PDF** — Agregar un botón en la futura Vista Semanal para exportar/imprimir el itinerario en PDF optimizado para impresión física.
-- [ ] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
-- [ ] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
+- [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
+- [X] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
 - [ ] **Conversión a PWA (Progressive Web App)** — Configurar `vite-plugin-pwa` para permitir la instalación de la aplicación en el dispositivo móvil como si fuera nativa, permitiendo acceso offline a los datos locales.
 
 ---

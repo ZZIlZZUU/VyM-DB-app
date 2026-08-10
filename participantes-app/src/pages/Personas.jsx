@@ -266,7 +266,24 @@ export default function Personas() {
           {loading ? (
             <SkeletonList rows={6} cols={2} />
           ) : filtered.length === 0 ? (
-            <div className="text-center py-6 text-sm text-text3">Sin resultados</div>
+            <div className="py-10 px-4 text-center max-w-xs mx-auto flex flex-col items-center gap-3 animate-fade-in">
+              <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center border border-accent/10">
+                <svg
+                  className="w-8 h-8 text-accent/60 stroke-current fill-none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-medium text-text1">Sin participantes</h3>
+              <p className="text-xs text-text3">
+                No hay participantes registrados o no coinciden con los filtros actuales.
+              </p>
+            </div>
           ) : filtered.map(p => (
             <div
               key={p.clave}

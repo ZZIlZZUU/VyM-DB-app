@@ -7,20 +7,25 @@ import { SkeletonList } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 export default function Usuarios() {
-  const [usuarios, setUsuarios] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [email, setEmail]       = useState('')
-  const [inviting, setInviting] = useState(false)
+  const [usuarios, setUsuarios]         = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [email, setEmail]               = useState('')
+  const [nombreInv, setNombreInv]       = useState('')
+  const [inviting, setInviting]         = useState(false)
+
+  const [editingEmail, setEditingEmail] = useState(null)
+  const [editNombre, setEditNombre]     = useState('')
+  const [savingName, setSavingName]     = useState(false)
 
   const { toast, showToast, success, error } = useToast()
-  const { confirm, confirmProps } = useConfirm()
+  const { confirm, confirmProps }            = useConfirm()
 
   const fetchUsuarios = useCallback(async () => {
     const { data, error: fetchErr } = await supabase
       .from('usuarios_autorizados')
       .select('*')
       .order('email')
-    
+
     if (fetchErr) {
       error('Error al cargar usuarios autorizados')
     } else {
@@ -73,7 +78,6 @@ export default function Usuarios() {
       const result = await res.json()
 
       if (!res.ok) {
-        // Código 23505 = email duplicado en usuarios_autorizados
         if (result.code === '23505') {
           error('Este correo ya está en la lista de usuarios autorizados.')
         } else {
@@ -82,12 +86,54 @@ export default function Usuarios() {
         return
       }
 
-      success(`Invitación enviada a ${emailTrimmed}. Recibirá un correo para establecer su contraseña.`)
+      // Si se especificó nombre, guardarlo en usuarios_autorizados
+      if (nombreInv.trim()) {
+        await supabase
+          .from('usuarios_autorizados')
+          .update({ nombre: nombreInv.trim() })
+          .eq('email', emailTrimmed)
+      }
+
+      success(`Invitación enviada a ${emailTrimmed}.`)
       setEmail('')
+      setNombreInv('')
+      fetchUsuarios()
     } catch (err) {
       error('Error de conexión al enviar la invitación.')
     } finally {
       setInviting(false)
+    }
+  }
+
+  async function handleRoleChange(u, newRol) {
+    if (u.rol === newRol) return
+    const { error: updateError } = await supabase
+      .from('usuarios_autorizados')
+      .update({ rol: newRol })
+      .eq('email', u.email)
+
+    if (updateError) {
+      error(updateError.message || 'Error al cambiar rol')
+    } else {
+      success(`Rol de ${u.email} actualizado a "${newRol}"`)
+      fetchUsuarios()
+    }
+  }
+
+  async function handleSaveNombre(u) {
+    setSavingName(true)
+    const { error: updateError } = await supabase
+      .from('usuarios_autorizados')
+      .update({ nombre: editNombre.trim() })
+      .eq('email', u.email)
+
+    setSavingName(false)
+    if (updateError) {
+      error(updateError.message || 'Error al guardar el nombre')
+    } else {
+      success(`Nombre de ${u.email} actualizado`)
+      setEditingEmail(null)
+      fetchUsuarios()
     }
   }
 
@@ -121,21 +167,35 @@ export default function Usuarios() {
       {/* ── COLUMNA IZQUIERDA — INVITAR USUARIO ── */}
       <div className="bg-surface border border-border rounded-xl p-5 self-start">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-          <span className="text-sm font-medium text-text1">Invitar usuario</span>
+          <span className="text-sm font-medium text-text1">Invitar nuevo usuario</span>
         </div>
 
         <form onSubmit={handleInvite} className="flex flex-col gap-3">
           <div>
             <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">
-              Correo electrónico
+              Correo electrónico *
             </label>
             <input
               type="email"
+              required
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="usuario@ejemplo.com"
               autoComplete="off"
-              className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
+              className="w-full px-3 py-2 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">
+              Nombre visible (opcional)
+            </label>
+            <input
+              type="text"
+              value={nombreInv}
+              onChange={e => setNombreInv(e.target.value)}
+              placeholder="Ej. Carlos Martínez"
+              className="w-full px-3 py-2 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
             />
           </div>
 
@@ -144,7 +204,7 @@ export default function Usuarios() {
             disabled={inviting}
             className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
           >
-            {inviting ? 'Invitando...' : 'Invitar →'}
+            {inviting ? 'Invitando...' : 'Enviar invitación →'}
           </button>
         </form>
       </div>
@@ -156,43 +216,117 @@ export default function Usuarios() {
           <span className="font-mono text-xs text-text3">{usuarios.length} total</span>
         </div>
 
-        <div className="max-h-96 overflow-y-auto flex flex-col gap-1">
+        <div className="max-h-[500px] overflow-y-auto flex flex-col gap-2">
           {loading ? (
             <SkeletonList rows={4} cols={2} />
           ) : usuarios.length === 0 ? (
             <div className="text-center py-6 text-sm text-text3">Sin usuarios autorizados</div>
           ) : (
-            usuarios.map(u => (
-              <div
-                key={u.email}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border transition-none
-                  ${!u.activo ? 'opacity-60 bg-bg/50 border-transparent' : 'border-border/50 hover:border-border hover:bg-bg'}`}
-              >
-                <span className="flex-1 text-sm text-text1 truncate font-mono">{u.email}</span>
+            usuarios.map(u => {
+              const isEditing = editingEmail === u.email
+              const isAdmin = u.rol === 'admin'
 
-                <span
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 mr-1 ${
-                    u.activo
-                      ? 'bg-accent-bg text-accent'
-                      : 'bg-danger-bg text-danger'
+              return (
+                <div
+                  key={u.email}
+                  className={`flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border transition-all ${
+                    !u.activo ? 'opacity-60 bg-bg/50 border-transparent' : 'border-border/60 bg-surface hover:border-border'
                   }`}
                 >
-                  {u.activo ? 'Activo' : 'Inactivo'}
-                </span>
+                  {/* Avatar + Info */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-accent-bg text-accent font-semibold flex items-center justify-center text-xs flex-shrink-0 border border-accent/20">
+                      {(u.nombre || u.email).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {isEditing ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <input
+                            type="text"
+                            value={editNombre}
+                            onChange={e => setEditNombre(e.target.value)}
+                            placeholder="Nombre del usuario"
+                            className="px-2 py-0.5 text-xs border border-accent rounded bg-bg text-text1 outline-none"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveNombre(u)}
+                            disabled={savingName}
+                            className="text-[10px] bg-accent text-white px-2 py-0.5 rounded hover:bg-green-800"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => setEditingEmail(null)}
+                            className="text-[10px] text-text3 px-1 hover:text-text1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-text1 truncate">
+                            {u.nombre || u.email.split('@')[0]}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingEmail(u.email)
+                              setEditNombre(u.nombre || '')
+                            }}
+                            title="Editar nombre"
+                            className="text-[11px] text-text3 hover:text-accent"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      )}
+                      <div className="text-[11px] text-text3 font-mono truncate">{u.email}</div>
+                    </div>
+                  </div>
 
-                <button
-                  onClick={() => toggleActivo(u)}
-                  title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                  className={`text-xs px-2 py-1 rounded shrink-0 border transition-colors ${
-                    u.activo
-                      ? 'text-text3 border-border2 hover:text-danger hover:bg-danger-bg hover:border-danger'
-                      : 'text-accent border-accent/30 bg-accent-bg hover:bg-accent hover:text-white'
-                  }`}
-                >
-                  {u.activo ? 'Desactivar' : 'Activar'}
-                </button>
-              </div>
-            ))
+                  {/* Badges & Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto mt-1 sm:mt-0">
+                    {/* Selector de Rol */}
+                    <select
+                      value={u.rol || 'editor'}
+                      onChange={e => handleRoleChange(u, e.target.value)}
+                      className={`text-[10px] font-mono font-medium px-2 py-1 rounded border outline-none cursor-pointer ${
+                        isAdmin
+                          ? 'bg-purple-bg text-purple border-purple/30'
+                          : 'bg-blue-bg text-blue border-blue/30'
+                      }`}
+                    >
+                      <option value="editor">EDITOR</option>
+                      <option value="admin">ADMIN</option>
+                    </select>
+
+                    {/* Badge Estado */}
+                    <span
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+                        u.activo
+                          ? 'bg-accent-bg text-accent'
+                          : 'bg-danger-bg text-danger'
+                      }`}
+                    >
+                      {u.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+
+                    {/* Botón Activar / Desactivar */}
+                    <button
+                      onClick={() => toggleActivo(u)}
+                      title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                      className={`text-xs px-2 py-1 rounded shrink-0 border transition-colors ${
+                        u.activo
+                          ? 'text-text3 border-border2 hover:text-danger hover:bg-danger-bg hover:border-danger'
+                          : 'text-accent border-accent/30 bg-accent-bg hover:bg-accent hover:text-white'
+                      }`}
+                    >
+                      {u.activo ? 'Desactivar' : 'Activar'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })
           )}
         </div>
       </div>

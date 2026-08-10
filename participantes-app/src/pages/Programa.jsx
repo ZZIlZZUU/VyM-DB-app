@@ -1064,17 +1064,32 @@ export default function Programa() {
       {vistaTab === 'semanas' && (
         <div className="flex flex-col gap-3">
           {semanas.length === 0 ? (
-            <div className="bg-surface border border-border rounded-xl p-10 text-center">
-              <div className="text-3xl mb-3">📖</div>
-              <div className="font-medium text-text1 mb-2">Sin semanas cargadas</div>
-              <div className="text-sm text-text3 mb-4">
-                Sube el archivo EPUB de la Guía de Actividades (mwb) para comenzar
+            <div className="bg-surface border border-border rounded-xl py-12 px-6 text-center flex flex-col items-center justify-center min-h-[340px] animate-fade-in shadow-sm">
+              <div className="w-20 h-20 rounded-full bg-accent/5 flex items-center justify-center border border-accent/15 mb-4 group hover:scale-105 transition-transform duration-300">
+                <svg
+                  className="w-10 h-10 text-accent stroke-current fill-accent/10"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <path d="M12 14v4" />
+                  <path d="M10 16h4" />
+                </svg>
               </div>
+              <h3 className="text-base font-semibold text-text1">Sin semanas del programa</h3>
+              <p className="text-xs text-text3 max-w-sm mt-1.5 mb-5 leading-relaxed">
+                Aún no has importado el calendario de reuniones. Sube el archivo EPUB de la Guía de Actividades de la Reunión Vida y Ministerio Cristianos (mwb) para comenzar.
+              </p>
               <button
                 onClick={() => document.getElementById('epubInput').click()}
-                className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-green-800"
+                className="px-4.5 py-2 text-xs font-semibold bg-accent hover:bg-green-800 text-white rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm hover:shadow"
               >
-                ↑ Subir EPUB mwb
+                <span>📤</span> Subir archivo EPUB mwb
               </button>
             </div>
           ) : (

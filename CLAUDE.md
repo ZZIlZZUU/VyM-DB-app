@@ -967,19 +967,15 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ### Gestión de usuarios — funcionalidades faltantes
 
-- [ ] **Editar nombre de usuario desde `Usuarios.jsx`** — el campo `nombre` en `usuarios_autorizados` siempre queda `NULL` al invitar. El admin debería poder asignar un nombre visible desde la lista de usuarios (edición inline o modal simple con `UPDATE`).
-- [ ] **Cambiar rol desde la UI** — el `rol` se asigna hardcodeado como `'editor'` en la Edge Function `invite-user`. No hay forma de promover a `admin` sin ir al Dashboard de Supabase. Agregar un selector `editor | admin` en la fila de cada usuario en `Usuarios.jsx`.
+- [x] **Editar nombre de usuario desde `Usuarios.jsx`** — el campo `nombre` en `usuarios_autorizados` se puede editar inline desde la lista de usuarios y asignar al invitar.
+- [x] **Cambiar rol desde la UI** — selector `editor | admin` en la fila de cada usuario en `Usuarios.jsx`.
 - [ ] **Eliminar usuario completamente** — hoy solo existe Activar/Desactivar. Eliminar requiere borrar de `usuarios_autorizados` + llamar `auth.admin.deleteUser(userId)` con `service_role` — necesita una nueva Edge Function `delete-user`.
 
 ### Panel de perfil de usuario
 
-- [ ] **Panel de perfil como drawer deslizante** — overlay desde el footer del sidebar al hacer clic en el email/avatar. No es una ruta nueva. Secciones:
-  - **Perfil:** mostrar email (read-only) + editar nombre visible (UPDATE en `usuarios_autorizados`)
-  - **Seguridad:** cambiar contraseña (`supabase.auth.updateUser({ password })` — no requiere Edge Function) + cambiar email (`supabase.auth.updateUser({ email })` — Supabase envía verificación automática)
-  - **Preferencias:** toggle de tema claro/oscuro (estructura lista aunque dark mode sea futuro) + sidebar por defecto expandido/colapsado
-  - **Danger Zone:** dar de baja mi cuenta (`activo = false` en `usuarios_autorizados` + `signOut()`) con `ConfirmDialog danger: true` — considerar escribir el email para confirmar (patrón GitHub); Cerrar sesión movido aquí
-- [ ] **Próxima asignación en el panel de perfil** — query sobre `programa_asignaciones` JOIN `personas` por email para mostrar "Tu próxima participación: TB el 15 de agosto"
-- [ ] **Historial de actividad del usuario** — la tabla `historial_cambios` ya tiene triggers. Mostrar en el panel las últimas N acciones del usuario autenticado (`WHERE usuario_email = auth.email()`)
+- [x] **Panel de perfil como drawer deslizante** — overlay desde el footer del sidebar al hacer clic en el email/avatar. Incluye pestañas: Mi Perfil, Seguridad, Próximas Asignaciones, Actividad Reciente y Zona de peligro (desactivación de cuenta / cerrar sesión).
+- [x] **Próxima asignación en el panel de perfil** — query sobre `programa_asignaciones` JOIN `programa_partes` por participante para mostrar próximas semanas programadas.
+- [x] **Historial de actividad del usuario** — consulta en la tabla `historial_cambios` mostrando las últimas acciones del usuario autenticado.
 
 ### Robustez — bugs y gaps silenciosos
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../hooks/useToast'
+import Toast from '../components/Toast'
 
 // ─── Constantes ───────────────────────────────────────────────
 const MESES = [
@@ -338,6 +340,7 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
 
 // ─── Componente principal ─────────────────────────────────────
 export default function VistaEditable() {
+  const { toast, success, error } = useToast()
   const [tab, setTab]               = useState('mat')
   const [personas, setPersonas]     = useState([])
   const [registros, setRegistros]   = useState([])
@@ -401,33 +404,56 @@ export default function VistaEditable() {
       peso: PESO_MAP[tipo] || 1,
       observaciones: obs || null,
     }
-    if (existingId) {
-      await supabase.from('participaciones').update(payload).eq('id', existingId)
-    } else {
-      await supabase.from('participaciones').insert(payload)
+    try {
+      if (existingId) {
+        const { error: err } = await supabase.from('participaciones').update(payload).eq('id', existingId)
+        if (err) throw err
+        success('Participación actualizada correctamente')
+      } else {
+        const { error: err } = await supabase.from('participaciones').insert(payload)
+        if (err) throw err
+        success('Participación registrada correctamente')
+      }
+      await fetchData()
+    } catch (err) {
+      console.error(err)
+      error('Error al guardar: ' + (err.message || 'Error de red'))
     }
-    await fetchData()
   }
 
   // ── Eliminar registro ──
   async function handleDelete(id) {
-    await supabase.from('participaciones').delete().eq('id', id)
-    await fetchData()
+    try {
+      const { error: err } = await supabase.from('participaciones').delete().eq('id', id)
+      if (err) throw err
+      success('Participación eliminada correctamente')
+      await fetchData()
+    } catch (err) {
+      console.error(err)
+      error('Error al eliminar: ' + (err.message || 'Error de red'))
+    }
   }
 
   // ── Agregar asignación Ancianos ──
   async function handleAncAdd({ persona, mesIdx, tipo, fecha, obs }) {
-    await supabase.from('participaciones').insert({
-      clave: persona.clave,
-      nombre: persona.nombre,
-      lista: persona.lista,
-      fecha,
-      mes: MESES[mesIdx],
-      tipo,
-      peso: PESO_MAP[tipo] || 1,
-      observaciones: obs || null,
-    })
-    await fetchData()
+    try {
+      const { error: err } = await supabase.from('participaciones').insert({
+        clave: persona.clave,
+        nombre: persona.nombre,
+        lista: persona.lista,
+        fecha,
+        mes: MESES[mesIdx],
+        tipo,
+        peso: PESO_MAP[tipo] || 1,
+        observaciones: obs || null,
+      })
+      if (err) throw err
+      success('Participación registrada correctamente')
+      await fetchData()
+    } catch (err) {
+      console.error(err)
+      error('Error al agregar: ' + (err.message || 'Error de red'))
+    }
   }
 
   // ── Filtros ──
@@ -739,6 +765,7 @@ export default function VistaEditable() {
         onAdd={handleAncAdd}
         onDelete={handleDelete}
       />
+      <Toast toast={toast} />
     </div>
   )
 }

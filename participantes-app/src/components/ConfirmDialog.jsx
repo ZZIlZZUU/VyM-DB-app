@@ -44,28 +44,28 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
 
   return (
     <div
-      className="fixed inset-0 bg-black/30 z-[100] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/40 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in"
       onClick={e => e.target === e.currentTarget && onCancel()}
     >
-      <div className="bg-surface border border-border2 rounded-xl shadow-xl w-full max-w-sm animate-scale-in">
+      <div className="bg-surface border border-border2 rounded-t-2xl rounded-b-none border-b-0 md:rounded-xl md:border-b shadow-2xl w-full max-w-full md:max-w-sm animate-slide-up md:animate-scale-in">
 
         {/* Header */}
         <div className="px-5 pt-5 pb-3">
-          <div className="text-sm font-medium text-text1">{title}</div>
+          <div className="text-base md:text-sm font-medium text-text1">{title}</div>
           {message && (
             <div className="text-xs text-text2 mt-1 leading-relaxed">{message}</div>
           )}
         </div>
 
         {/* Botones */}
-        <div className="flex gap-2 px-5 pb-5 pt-2">
+        <div className="flex gap-2 px-5 pb-6 md:pb-5 pt-2">
 
           {/* Cancelar — blanco normal, rojo hover */}
           <button
             onClick={onCancel}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-border2 text-xs font-medium text-text2 bg-surface hover:bg-danger-bg hover:text-danger hover:border-danger transition-colors duration-150"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 rounded-lg border border-border2 text-sm md:text-xs font-medium text-text2 bg-surface hover:bg-danger-bg hover:text-danger hover:border-danger transition-colors duration-150 min-h-[44px] md:min-h-0"
           >
-            <kbd className="font-mono text-[10px] bg-bg border border-border2 rounded px-1 py-0.5 leading-none">ESC</kbd>
+            <kbd className="hidden md:inline-block font-mono text-[10px] bg-bg border border-border2 rounded px-1 py-0.5 leading-none">ESC</kbd>
             Cancelar
           </button>
 
@@ -73,14 +73,14 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 rounded-lg text-sm md:text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150 min-h-[44px] md:min-h-0
               ${danger
                 ? 'hover:bg-[#06402B] hover:border-[#06402B]'
                 : 'hover:bg-accent hover:border-accent'
               }`}
           >
             Confirmar
-            <kbd className="font-mono text-[10px] bg-white/20 border border-white/30 rounded px-1 py-0.5 leading-none flex items-center gap-0.5">
+            <kbd className="hidden md:inline-flex font-mono text-[10px] bg-white/20 border border-white/30 rounded px-1 py-0.5 leading-none items-center gap-0.5">
               Enter <span className="text-[8px]">↵</span>
             </kbd>
           </button>

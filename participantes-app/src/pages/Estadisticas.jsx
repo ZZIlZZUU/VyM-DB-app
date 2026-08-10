@@ -186,143 +186,167 @@ export default function Estadisticas() {
         <span className="ml-auto font-mono text-xs text-text3">{totalRegs} registros</span>
       </div>
 
-      {/* Resumen general */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Personas activas',   val: totalActivos, accent: true },
-          { label: 'Personas inactivas', val: totalInact },
-          { label: 'Total registros',    val: totalRegs },
-          { label: 'Peso acumulado',     val: pesoTotal },
-        ].map(s => (
-          <div key={s.label} className="bg-surface border border-border rounded-xl px-4 py-3">
-            <div className={`text-2xl font-mono font-medium ${s.accent ? 'text-accent' : 'text-text1'}`}>{s.val}</div>
-            <div className="text-xs text-text3 mt-0.5">{s.label}</div>
+      {totalRegs === 0 ? (
+        <div className="bg-surface border border-border rounded-xl py-12 px-6 text-center flex flex-col items-center justify-center min-h-[340px] animate-fade-in shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center border border-accent/10 mb-4">
+            <svg
+              className="w-8 h-8 text-accent/60 stroke-current fill-none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
           </div>
-        ))}
-      </div>
-
-      {/* Grid principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {/* Por tipo */}
-        <StatCard title="Participaciones por tipo">
-          {Object.keys(porTipo).length === 0 ? (
-            <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
-          ) : (
-            Object.entries(porTipo)
-              .sort((a, b) => b[1] - a[1])
-              .map(([tipo, count]) => (
-                <div key={tipo}>
-                  <Bar label={tipo} value={count} max={maxTipo} badge />
-                  <div className="text-xs text-text3 ml-28 -mt-1 mb-1">{TIPO_LABEL[tipo] || ''}</div>
-                </div>
-              ))
-          )}
-        </StatCard>
-
-        {/* Por mes */}
-        <StatCard title="Participaciones por mes">
-          {MESES.filter(m => porMes[m]).length === 0 ? (
-            <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
-          ) : (
-            MESES.filter(m => porMes[m]).map(mes => (
-              <div key={mes}>
-                <Bar label={mes} value={porMes[mes]} max={maxMes} />
-                <div className="text-xs text-text3 ml-28 -mt-1 mb-1">
-                  {personasPorMes[mes]?.size || 0} personas distintas
-                </div>
+          <h3 className="text-sm font-semibold text-text1">Sin estadísticas disponibles</h3>
+          <p className="text-xs text-text3 max-w-sm mt-1.5 leading-relaxed">
+            No se han registrado participaciones para calcular métricas. Importa el programa o agrega registros manuales desde la sección de gestión para comenzar a ver estadísticas detalladas.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Resumen general */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Personas activas',   val: totalActivos, accent: true },
+              { label: 'Personas inactivas', val: totalInact },
+              { label: 'Total registros',    val: totalRegs },
+              { label: 'Peso acumulado',     val: pesoTotal },
+            ].map(s => (
+              <div key={s.label} className="bg-surface border border-border rounded-xl px-4 py-3">
+                <div className={`text-2xl font-mono font-medium ${s.accent ? 'text-accent' : 'text-text1'}`}>{s.val}</div>
+                <div className="text-xs text-text3 mt-0.5">{s.label}</div>
               </div>
-            ))
-          )}
-          {mesesSinActividad.length > 0 && !filterMes && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <div className="text-xs text-text3 font-mono uppercase tracking-wider mb-1">Sin actividad</div>
-              <div className="flex flex-wrap gap-1">
-                {mesesSinActividad.map(m => (
-                  <span key={m} className="text-xs bg-danger-bg text-danger px-2 py-0.5 rounded font-mono">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </StatCard>
+            ))}
+          </div>
 
-        {/* Top personas */}
-        <StatCard title="Personas más activas (top 10)">
-          {topPersonas.length === 0 ? (
-            <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
-          ) : topPersonas.map(([nombre, count]) => (
-            <Bar key={nombre} label={nombre} value={count} max={maxPersona} />
-          ))}
-        </StatCard>
+          {/* Grid principal */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* Personas sin registros */}
-        <StatCard title="Personas activas sin participaciones">
-          {sinRegs.length === 0 ? (
-            <div className="flex items-center gap-2 py-4">
-              <span className="text-accent text-lg">✓</span>
-              <span className="text-sm text-text2">Todas las personas activas tienen al menos un registro</span>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-              {sinRegs.map(p => (
-                <div key={p.clave} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
-                    ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
-                    {p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()}
+            {/* Por tipo */}
+            <StatCard title="Participaciones por tipo">
+              {Object.keys(porTipo).length === 0 ? (
+                <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
+              ) : (
+                Object.entries(porTipo)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([tipo, count]) => (
+                    <div key={tipo}>
+                      <Bar label={tipo} value={count} max={maxTipo} badge />
+                      <div className="text-xs text-text3 ml-28 -mt-1 mb-1">{TIPO_LABEL[tipo] || ''}</div>
+                    </div>
+                  ))
+              )}
+            </StatCard>
+
+            {/* Por mes */}
+            <StatCard title="Participaciones por mes">
+              {MESES.filter(m => porMes[m]).length === 0 ? (
+                <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
+              ) : (
+                MESES.filter(m => porMes[m]).map(mes => (
+                  <div key={mes}>
+                    <Bar label={mes} value={porMes[mes]} max={maxMes} />
+                    <div className="text-xs text-text3 ml-28 -mt-1 mb-1">
+                      {personasPorMes[mes]?.size || 0} personas distintas
+                    </div>
                   </div>
-                  <span className="font-mono text-xs text-text3 w-12 flex-shrink-0">{p.clave}</span>
-                  <span className="text-sm text-text1 flex-1">{p.nombre}</span>
-                  <span className="text-xs text-text3">{p.lista}</span>
+                ))
+              )}
+              {mesesSinActividad.length > 0 && !filterMes && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="text-xs text-text3 font-mono uppercase tracking-wider mb-1">Sin actividad</div>
+                  <div className="flex flex-wrap gap-1">
+                    {mesesSinActividad.map(m => (
+                      <span key={m} className="text-xs bg-danger-bg text-danger px-2 py-0.5 rounded font-mono">{m}</span>
+                    ))}
+                  </div>
                 </div>
+              )}
+            </StatCard>
+
+            {/* Top personas */}
+            <StatCard title="Personas más activas (top 10)">
+              {topPersonas.length === 0 ? (
+                <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
+              ) : topPersonas.map(([nombre, count]) => (
+                <Bar key={nombre} label={nombre} value={count} max={maxPersona} />
               ))}
-            </div>
-          )}
-          {sinRegs.length > 0 && (
-            <div className="mt-3 pt-2 border-t border-border">
-              <span className="font-mono text-xs text-danger">{sinRegs.length} persona{sinRegs.length !== 1 ? 's' : ''} sin registro{sinRegs.length !== 1 ? 's' : ''}</span>
-            </div>
-          )}
-        </StatCard>
+            </StatCard>
 
-      </div>
+            {/* Personas sin registros */}
+            <StatCard title="Personas activas sin participaciones">
+              {sinRegs.length === 0 ? (
+                <div className="flex items-center gap-2 py-4">
+                  <span className="text-accent text-lg">✓</span>
+                  <span className="text-sm text-text2">Todas las personas activas tienen al menos un registro</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                  {sinRegs.map(p => (
+                    <div key={p.clave} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
+                        ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                        {p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()}
+                      </div>
+                      <span className="font-mono text-xs text-text3 w-12 flex-shrink-0">{p.clave}</span>
+                      <span className="text-sm text-text1 flex-1">{p.nombre}</span>
+                      <span className="text-xs text-text3">{p.lista}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sinRegs.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-border">
+                  <span className="font-mono text-xs text-danger">{sinRegs.length} persona{sinRegs.length !== 1 ? 's' : ''} sin registro{sinRegs.length !== 1 ? 's' : ''}</span>
+                </div>
+              )}
+            </StatCard>
 
-      {/* Tabla resumen por mes */}
-      {!filterMes && (
-        <StatCard title="Resumen mensual detallado">
-          <div className="overflow-auto">
-            <table className="w-full border-collapse min-w-max">
-              <thead>
-                <tr>
-                  <th className="text-left text-xs font-mono text-text3 pb-2 pr-4 border-b border-border">MES</th>
-                  <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">REGISTROS</th>
-                  <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">PERSONAS</th>
-                  <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">MAT</th>
-                  <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">ANC/SM</th>
-                  <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">PESO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MESES.map(mes => {
-                  const rMes = regs.filter(r => r.mes === mes)
-                  if (rMes.length === 0) return null
-                  const pesoMes = rMes.reduce((a, r) => a + (r.peso || 1), 0)
-                  const matMes  = rMes.filter(r => r.lista === 'Mat').length
-                  const ancMes  = rMes.filter(r => r.lista === 'Anc/SM').length
-                  return (
-                    <tr key={mes} className="border-b border-border last:border-0 hover:bg-bg/50">
-                      <td className="py-2 pr-4 text-sm text-text1">{mes}</td>
-                      <td className="py-2 px-2 text-center font-mono text-xs text-text2">{rMes.length}</td>
-                      <td className="py-2 px-2 text-center font-mono text-xs text-text2">{personasPorMes[mes]?.size || 0}</td>
-                      <td className="py-2 px-2 text-center font-mono text-xs text-text2">{matMes}</td>
-                      <td className="py-2 px-2 text-center font-mono text-xs text-text2">{ancMes}</td>
-                      <td className="py-2 px-2 text-center font-mono text-xs font-medium text-accent">{pesoMes}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
           </div>
-        </StatCard>
+
+          {/* Tabla resumen por mes */}
+          {!filterMes && (
+            <StatCard title="Resumen mensual detallado">
+              <div className="overflow-auto">
+                <table className="w-full border-collapse min-w-max">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-xs font-mono text-text3 pb-2 pr-4 border-b border-border">MES</th>
+                      <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">REGISTROS</th>
+                      <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">PERSONAS</th>
+                      <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">MAT</th>
+                      <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">ANC/SM</th>
+                      <th className="text-center text-xs font-mono text-text3 pb-2 px-2 border-b border-border">PESO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MESES.map(mes => {
+                      const rMes = regs.filter(r => r.mes === mes)
+                      if (rMes.length === 0) return null
+                      const pesoMes = rMes.reduce((a, r) => a + (r.peso || 1), 0)
+                      const matMes  = rMes.filter(r => r.lista === 'Mat').length
+                      const ancMes  = rMes.filter(r => r.lista === 'Anc/SM').length
+                      return (
+                        <tr key={mes} className="border-b border-border last:border-0 hover:bg-bg/50">
+                          <td className="py-2 pr-4 text-sm text-text1">{mes}</td>
+                          <td className="py-2 px-2 text-center font-mono text-xs text-text2">{rMes.length}</td>
+                          <td className="py-2 px-2 text-center font-mono text-xs text-text2">{personasPorMes[mes]?.size || 0}</td>
+                          <td className="py-2 px-2 text-center font-mono text-xs text-text2">{matMes}</td>
+                          <td className="py-2 px-2 text-center font-mono text-xs text-text2">{ancMes}</td>
+                          <td className="py-2 px-2 text-center font-mono text-xs font-medium text-accent">{pesoMes}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </StatCard>
+          )}
+        </>
       )}
 
     </div>

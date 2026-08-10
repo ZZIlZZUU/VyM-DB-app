@@ -301,7 +301,7 @@ Vista de lectura del programa confirmado de una semana. Fuente de datos: `progra
 | 3 | ¿Desde la vista semanal se puede navegar a Programa para editar? |
 ---
 
-## 📱 Navegación móvil — Rediseño (09/08/2026)
+## 📱 Navegación móvil — Rediseño (09/08/2026) ✅ IMPLEMENTADO
 
 ### Problema actual
 
@@ -340,7 +340,7 @@ const esMóvil = window.innerWidth < 768  // o useMediaQuery hook
 
 ---
 
-## 🙈 Auto-hide header (09/08/2026)
+## 🙈 Auto-hide header (09/08/2026) ✅ IMPLEMENTADO
 
 ### Comportamiento
 

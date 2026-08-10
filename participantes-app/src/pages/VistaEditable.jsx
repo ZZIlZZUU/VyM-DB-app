@@ -49,22 +49,6 @@ const BADGE_CLASS = {
   ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
-const CHIP_CLASS = {
-  T:'bg-accent-bg           text-accent', 
-  A:'bg-blue-bg             text-blue', 
-  X:'bg-amber-bg            text-amber', 
-  LB:'bg-cyan-bg            text-cyan', 
-  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
-  P:'bg-purple-bg           text-purple', 
-  TB:'bg-teal-bg            text-teal', 
-  PE:'bg-rose-bg            text-rose',
-  EBC:'bg-orange-100        text-orange-700', 
-  LEBC: 'bg-maroon/20       text-maroon', 
-  VC:'bg-green-100          text-green-800', 
-  NC:'bg-red-100            text-red-800',
-  ORACION_C: 'bg-bg text-text2 border-border2',
-}
-
 // Intensidad del mapa de calor por cantidad de registros
 function heatColor(count, max) {
   if (!count || !max) return ''
@@ -128,7 +112,7 @@ function TipoChips({ tipos, selected, onSelect }) {
           type="button"
           onClick={() => onSelect(t === selected ? '' : t)}
           className={`px-2 py-0.5 rounded text-xs font-mono font-medium border-2 transition-none
-            ${CHIP_CLASS[t] || 'bg-bg text-text2'}
+            ${BADGE_CLASS[t] || 'bg-bg text-text2'}
             ${selected === t ? 'border-current opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}
         >
           {t} <span className="font-sans font-light text-xs">{TIPO_LABEL[t]}</span>

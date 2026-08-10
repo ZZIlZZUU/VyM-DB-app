@@ -32,9 +32,27 @@ function parseCSVLine(line) {
   return parts
 }
 
+function escapeSql(str) {
+  if (str == null) return ''
+  return String(str).replace(/'/g, "''")
+}
+
 export default function Exportar() {
   const [loading, setLoading] = useState('')
-  const { toast, success } = useToast()
+  const [mesInicio, setMesInicio] = useState('')
+  const [mesFin, setMesFin] = useState('')
+  const { toast, success, warning } = useToast()
+
+  // Helper para filtrar participaciones por rango de meses
+  function filtrarPorMeses(rows) {
+    if (!mesInicio && !mesFin) return rows
+    const idxInicio = mesInicio ? MESES.indexOf(mesInicio) : 0
+    const idxFin = mesFin ? MESES.indexOf(mesFin) : MESES.length - 1
+    const min = Math.min(idxInicio, idxFin)
+    const max = Math.max(idxInicio, idxFin)
+    const mesesRango = new Set(MESES.slice(min, max + 1))
+    return rows.filter(r => mesesRango.has(r.mes))
+  }
 
   // ── Fetch helpers ──
   async function fetchPersonas(lista = '') {
@@ -48,7 +66,7 @@ export default function Exportar() {
     let q = supabase.from('participaciones').select('*').order('fecha')
     if (lista) q = q.eq('lista', lista)
     const { data } = await q
-    return data || []
+    return filtrarPorMeses(data || [])
   }
 
   // ── Exportar participantes.csv ──
@@ -82,7 +100,7 @@ export default function Exportar() {
     setLoading('sql')
     const rows = await fetchParticipaciones()
     const sql = rows.map(r =>
-      `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${r.clave}', '${r.nombre}', '${r.lista}', '${r.fecha}', '${r.mes}', '${r.tipo}', ${r.peso}, ${r.observaciones ? `'${r.observaciones}'` : 'NULL'});`
+      `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${escapeSql(r.clave)}', '${escapeSql(r.nombre)}', '${escapeSql(r.lista)}', '${escapeSql(r.fecha)}', '${escapeSql(r.mes)}', '${escapeSql(r.tipo)}', ${r.peso}, ${r.observaciones ? `'${escapeSql(r.observaciones)}'` : 'NULL'});`
     ).join('\n')
     copyToClipboard(sql, () => { setLoading(''); success('SQL copiado al portapapeles') })
   }
@@ -111,6 +129,7 @@ export default function Exportar() {
     }).filter(r => r.clave && r.nombre)
 
     let inserted = 0
+    let errorsCount = 0
     for (const row of rows) {
       const { error } = await supabase.from('personas').upsert({
         clave:   row.clave,
@@ -121,10 +140,15 @@ export default function Exportar() {
         activo:  row.activo !== 'false',
       }, { onConflict: 'clave' })
       if (!error) inserted++
+      else errorsCount++
     }
 
     setLoading('')
-    success(`${inserted} personas importadas / actualizadas`)
+    if (errorsCount > 0) {
+      warning(`${inserted} importados/actualizados · ${errorsCount} fallaron`)
+    } else {
+      success(`${inserted} personas importadas / actualizadas`)
+    }
     e.target.value = ''
   }
 
@@ -144,6 +168,7 @@ export default function Exportar() {
     }).filter(r => r.clave && r.tipo)
 
     let inserted = 0
+    let errorsCount = 0
     for (const row of rows) {
       const { error } = await supabase.from('participaciones').insert({
         clave:         row.clave,
@@ -156,10 +181,15 @@ export default function Exportar() {
         observaciones: row.observaciones || null,
       })
       if (!error) inserted++
+      else errorsCount++
     }
 
     setLoading('')
-    success(`${inserted} registros importados`)
+    if (errorsCount > 0) {
+      warning(`${inserted} importados · ${errorsCount} fallaron`)
+    } else {
+      success(`${inserted} registros importados`)
+    }
     e.target.value = ''
   }
 
@@ -201,10 +231,42 @@ export default function Exportar() {
 
       {/* Exportar participaciones */}
       <div className="bg-surface border border-border rounded-xl p-5">
-        <div className="text-sm font-medium text-text1 mb-4 pb-3 border-b border-border">
-          Exportar participaciones.csv
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+          <div className="text-sm font-medium text-text1">
+            Exportar participaciones.csv
+          </div>
+          {(mesInicio || mesFin) && (
+            <button
+              onClick={() => { setMesInicio(''); setMesFin('') }}
+              className="text-xs text-text3 hover:text-danger border border-border2 rounded px-2 py-0.5"
+            >
+              ✕ Limpiar rango
+            </button>
+          )}
         </div>
         <div className="flex flex-col gap-3">
+          {/* Filtro de rango de meses */}
+          <div className="bg-bg/60 p-3 rounded-lg border border-border flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-text2 font-medium">Filtrar por rango:</span>
+            <select
+              value={mesInicio}
+              onChange={e => setMesInicio(e.target.value)}
+              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none"
+            >
+              <option value="">Mes inicial (todos)</option>
+              {MESES.map(m => <option key={m}>{m}</option>)}
+            </select>
+            <span className="text-xs text-text3">a</span>
+            <select
+              value={mesFin}
+              onChange={e => setMesFin(e.target.value)}
+              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none"
+            >
+              <option value="">Mes final (todos)</option>
+              {MESES.map(m => <option key={m}>{m}</option>)}
+            </select>
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <div className="text-sm text-text1 font-medium">Todos los registros</div>

@@ -141,6 +141,13 @@ export default function Estadisticas() {
   const conRegs = new Set(regs.map(r => r.clave))
   const sinRegs = psFiltradas.filter(p => p.activo && !conRegs.has(p.clave))
 
+  // Personas con poca actividad (1 o 2 participaciones)
+  const regCountByClave = {}
+  regs.forEach(r => { if (r.clave) regCountByClave[r.clave] = (regCountByClave[r.clave] || 0) + 1 })
+  const pocaActividad = psFiltradas.filter(p => p.activo && regCountByClave[p.clave] >= 1 && regCountByClave[p.clave] <= 2)
+    .map(p => ({ ...p, count: regCountByClave[p.clave] }))
+    .sort((a, b) => a.count - b.count || a.nombre.localeCompare(b.nombre))
+
   // Meses sin actividad
   const mesesConActividad = new Set(regs.map(r => r.mes))
   const mesesSinActividad = MESES.filter(m => !mesesConActividad.has(m))
@@ -302,6 +309,37 @@ export default function Estadisticas() {
               {sinRegs.length > 0 && (
                 <div className="mt-3 pt-2 border-t border-border">
                   <span className="font-mono text-xs text-danger">{sinRegs.length} persona{sinRegs.length !== 1 ? 's' : ''} sin registro{sinRegs.length !== 1 ? 's' : ''}</span>
+                </div>
+              )}
+            </StatCard>
+
+            {/* Personas con poca actividad */}
+            <StatCard title="Personas con poca actividad (1–2 participaciones)">
+              {pocaActividad.length === 0 ? (
+                <div className="flex items-center gap-2 py-4">
+                  <span className="text-accent text-lg">✓</span>
+                  <span className="text-sm text-text2">No hay personas con baja actividad</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                  {pocaActividad.map(p => (
+                    <div key={p.clave} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
+                        ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                        {p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()}
+                      </div>
+                      <span className="font-mono text-xs text-text3 w-12 flex-shrink-0">{p.clave}</span>
+                      <span className="text-sm text-text1 flex-1 truncate">{p.nombre}</span>
+                      <span className="font-mono text-xs bg-amber-bg text-amber px-2 py-0.5 rounded-full flex-shrink-0">
+                        {p.count} part.
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pocaActividad.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-border">
+                  <span className="font-mono text-xs text-amber">{pocaActividad.length} persona{pocaActividad.length !== 1 ? 's' : ''} con poca actividad</span>
                 </div>
               )}
             </StatCard>

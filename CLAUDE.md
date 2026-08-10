@@ -422,13 +422,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ## Pendientes
 
-- [ ] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
+- [x] **Despliegue en Vercel** — conectar repo GitHub, agregar variables de entorno (`.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`)
 - [x] **Gestión de usuarios desde la app (`Usuarios.jsx`)** — pantalla para invitar usuarios vía Edge Function `invite-user` en Supabase y lista blanca `usuarios_autorizados` con Realtime, badges y diálogo de confirmación.
-- [ ] **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — crear vista con campo "Nueva contraseña" que lea tokens del hash (`#access_token=...&type=invite`), ejecute `await supabase.auth.updateUser({ password: nuevaPassword })` y redirija a `/`.
-- [ ] **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrar la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
-- [ ] **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizar `redirectTo` en Supabase Edge Functions y `Login.jsx` a `https://vy-m-db-app-flame.vercel.app/set-password`.
-- [ ] **Confirmación de cierre de sesión** — el botón en el sidebar no tiene diálogo de confirmación; fácil de presionar por accidente. Implementar `useConfirm` ahí también.
-- [ ] **Pop-ups de confirmación personalizados en App.jsx** — el sidebar vive fuera del árbol de páginas, necesita su propio `ConfirmDialog` montado en `App.jsx`.
+- [x] **Página `SetPassword.jsx` (Flujo de establecimiento de contraseña)** — vista con campo "Nueva contraseña" que lee tokens del hash (`#access_token=...&type=invite`), ejecuta `await supabase.auth.updateUser({ password: nuevaPassword })` y redirige a `/`.
+- [x] **Ruta `/set-password` en `App.jsx` / `main.jsx`** — registrada la ruta accesible sin sesión activa (fuera de `ProtectedRoute`), similar a `Login.jsx`.
+- [x] **Actualizar `redirectTo` en Edge Function `invite-user` y `Login.jsx`** — actualizado `redirectTo` a `https://vy-m-db-app-flame.vercel.app/set-password`.
+- [x] **Confirmación de cierre de sesión** — `useConfirm` integrado en el botón del sidebar en `App.jsx`.
+- [x] **Pop-ups de confirmación personalizados en App.jsx** — `ConfirmDialog` propio montado en `App.jsx`.
 
 ---
 
@@ -439,8 +439,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [x] **Confirmación por semana con "re-confirmar"** — al cambiar participantes ya confirmados, los cambios se acumulan en slots de semanas siguientes. Implementado botón "↻ Reconfirmar" en asignación individual y "↻ Actualizar confirmación →" a nivel semanal en `Programa.jsx`. Borra registros obsoletos en `participaciones` y genera los nuevos sin dejar datos huérfanos.
 - [ ] **Tests del motor de sugerencias** — `asignacionesSugeridas.js` no tiene pruebas automatizadas. Con la acumulación de tipos (`SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, etc.) es fácil romper un case sin notarlo. Añadir tests unitarios con Vitest.
 - [ ] **SMT_AYU como tipo independiente** — actualmente el ayudante SMT no tiene `tipo_asignacion` propio en `programa_partes`; se infiere del `rol === 'ayudante'`. Considerar materializarlo explícitamente para simplificar queries y el generador S-140.
-- [ ] **Búsqueda instantánea en Personas** — input que filtre por nombre/clave con debounce 300ms (pendiente de implementar).
-- [ ] **Badges de lista en Personas** — mostrar "Mat" / "Anc" como etiqueta coloreada (`bg-blue-bg` para Mat, `bg-amber-bg` para Anc).
+- [x] **Búsqueda instantánea en Personas** — input que filtre por nombre/clave con debounce 300ms.
+- [x] **Badges de lista en Personas** — etiquetas coloreadas (`bg-blue-bg` para Mat, `bg-amber-bg` para Anc).
 
 ---
 
@@ -932,6 +932,41 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [x]  **Búsqueda instantánea en Personas** — input que filtre por nombre/clave con debounce 300ms (pendiente de implementar).
 - [x]  **Badges de lista en Personas** — mostrar “Mat” / “Anc” como etiqueta coloreada (`bg-blue-bg` para Mat, `bg-amber-bg` para Anc).
 
+## Pendientes y mejoras detectadas (09/08/2026)
+
+### Gestión de usuarios — funcionalidades faltantes
+
+- [x] **Editar nombre de usuario desde `Usuarios.jsx`** — el campo `nombre` en `usuarios_autorizados` se puede editar inline desde la lista de usuarios y asignar al invitar.
+- [x] **Cambiar rol desde la UI** — selector `editor | admin` en la fila de cada usuario en `Usuarios.jsx`.
+- [ ] **Eliminar usuario completamente** — hoy solo existe Activar/Desactivar. Eliminar requiere borrar de `usuarios_autorizados` + llamar `auth.admin.deleteUser(userId)` con `service_role` — necesita una nueva Edge Function `delete-user`.
+
+### Panel de perfil de usuario
+
+- [x] **Panel de perfil como drawer deslizante** — overlay desde el footer del sidebar al hacer clic en el email/avatar. Incluye pestañas: Mi Perfil, Seguridad, Próximas Asignaciones, Actividad Reciente y Zona de peligro (desactivación de cuenta / cerrar sesión).
+- [x] **Próxima asignación en el panel de perfil** — query sobre `programa_asignaciones` JOIN `programa_partes` por participante para mostrar próximas semanas programadas.
+- [x] **Historial de actividad del usuario** — consulta en la tabla `historial_cambios` mostrando las últimas acciones del usuario autenticado.
+
+### Robustez — bugs y gaps silenciosos
+
+- [x] **Importación ciega en `Exportar.jsx`** — agregado resumen post-importación con advertencia cuando fallan registros.
+- [ ] **Sin manejo de errores de red en fetches** — ninguna página captura errores de conexión. Si Supabase falla, las páginas quedan en blanco sin mensaje. Agregar distinción entre "tabla vacía" vs "error de red" en todos los `fetchData`.
+- [x] **SQL injection en exportación** — `exportSQL()` en `Exportar.jsx` ahora usa el helper `escapeSql` para escapar comillas simples (`'`).
+- [x] **`CHIP_CLASS` duplicado en `VistaEditable.jsx`** — removido `CHIP_CLASS` e integrado `BADGE_CLASS` en `TipoChips`.
+
+### Features nuevas de bajo costo
+
+- [x] **Año configurable desde `configuracion`** — el string `2026` está hardcodeado en el header del sidebar (`Participantes 2026`, `AÑO EN CURSO`). Agregar clave `anio_en_curso` a la tabla `configuracion` y leerla al montar `App.jsx` junto al nombre de congregación. Así el cambio de año no requiere tocar código.
+- [x] **`historial_cambios` visible en la app** — la tabla existe con triggers automáticos y acumula datos, pero ninguna página la consulta. Agregar vista simple en la sección Herramientas: últimos 50 cambios con quién, qué tabla, qué operación y cuándo. Query directo, sin lógica nueva.
+- [x] **Toast en `VistaEditable` al guardar** — `MatCellModal` y `AncCellModal` cierran el modal al guardar pero no emiten ningún toast. Es la única página sin feedback visual de éxito/error. Conectar `useToast` igual que el resto de páginas.
+- [x] **Personas con poca actividad en `Estadisticas.jsx`** — creada la tarjeta "Personas con poca actividad (1-2 participaciones)" con el conteo respectivo.
+- [x] **Filtro por rango de meses en `Exportar.jsx`** — añadidos selectores de mes inicio/fin para filtrar las exportaciones de participaciones en CSV y SQL.
+- [x] **Empty state en `Programa.jsx` cuando no hay semanas** — cuando `semanas.length === 0` solo hay lista vacía. Agregar ilustración SVG simple + mensaje + botón de call to action claro ("Sube tu primer EPUB para comenzar") en el área de contenido, no solo el toolbar.
+- [x] **Badge de semanas sin confirmar en sidebar** — mostrar un dot rojo o número en el icono de Programa en el NAV si hay semanas importadas con confirmación < 100%. El query de progreso ya existe en `TarjetaSemana` — extraerlo a `App.jsx` al montar.
+
+### PWA
+
+- [ ] **PWA básica con `vite-plugin-pwa`** — no hay `manifest.json`, service worker, `<meta name="theme-color">` ni íconos de app. Con `vite-plugin-pwa` se configura en ~15 minutos. Permite instalar la app en el homescreen de móvil como app nativa — crítico para uso semanal durante reuniones. Stack: `pnpm add -D vite-plugin-pwa`, configurar en `vite.config.js`, agregar íconos en `/public/`.
+
 ---
 
 ## Bugs corregidos (histórico)
@@ -963,37 +998,3 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     - Registrada la vista en `NAV` (sección “Gestión”), `TOPBAR_SUB` y `renderView` en `App.jsx`.
 ---
 
-## Pendientes y mejoras detectadas (09/08/2026)
-
-### Gestión de usuarios — funcionalidades faltantes
-
-- [x] **Editar nombre de usuario desde `Usuarios.jsx`** — el campo `nombre` en `usuarios_autorizados` se puede editar inline desde la lista de usuarios y asignar al invitar.
-- [x] **Cambiar rol desde la UI** — selector `editor | admin` en la fila de cada usuario en `Usuarios.jsx`.
-- [ ] **Eliminar usuario completamente** — hoy solo existe Activar/Desactivar. Eliminar requiere borrar de `usuarios_autorizados` + llamar `auth.admin.deleteUser(userId)` con `service_role` — necesita una nueva Edge Function `delete-user`.
-
-### Panel de perfil de usuario
-
-- [x] **Panel de perfil como drawer deslizante** — overlay desde el footer del sidebar al hacer clic en el email/avatar. Incluye pestañas: Mi Perfil, Seguridad, Próximas Asignaciones, Actividad Reciente y Zona de peligro (desactivación de cuenta / cerrar sesión).
-- [x] **Próxima asignación en el panel de perfil** — query sobre `programa_asignaciones` JOIN `programa_partes` por participante para mostrar próximas semanas programadas.
-- [x] **Historial de actividad del usuario** — consulta en la tabla `historial_cambios` mostrando las últimas acciones del usuario autenticado.
-
-### Robustez — bugs y gaps silenciosos
-
-- [ ] **Importación ciega en `Exportar.jsx`** — cuando falla una fila al importar CSV, el toast dice "N registros importados" pero nunca reporta cuántas ni cuáles fallaron. Agregar resumen post-importación: "30 importados, 5 con error" + lista de filas fallidas con motivo.
-- [ ] **Sin manejo de errores de red en fetches** — ninguna página captura errores de conexión. Si Supabase falla, las páginas quedan en blanco sin mensaje. Agregar distinción entre "tabla vacía" vs "error de red" en todos los `fetchData`.
-- [ ] **SQL injection en exportación** — `exportSQL()` en `Exportar.jsx` concatena strings sin escapar comillas simples. Un nombre como "O'Brien" o una observación con `'` rompe el SQL generado. Escapar con `.replace(/'/g, "''")` antes de insertar en la sentencia.
-- [ ] **`CHIP_CLASS` duplicado en `VistaEditable.jsx`** — `BADGE_CLASS` y `CHIP_CLASS` son idénticas. Eliminar `CHIP_CLASS` y usar solo `BADGE_CLASS` en toda la vista para evitar desincronización futura.
-
-### Features nuevas de bajo costo
-
-- [x] **Año configurable desde `configuracion`** — el string `2026` está hardcodeado en el header del sidebar (`Participantes 2026`, `AÑO EN CURSO`). Agregar clave `anio_en_curso` a la tabla `configuracion` y leerla al montar `App.jsx` junto al nombre de congregación. Así el cambio de año no requiere tocar código.
-- [x] **`historial_cambios` visible en la app** — la tabla existe con triggers automáticos y acumula datos, pero ninguna página la consulta. Agregar vista simple en la sección Herramientas: últimos 50 cambios con quién, qué tabla, qué operación y cuándo. Query directo, sin lógica nueva.
-- [x] **Toast en `VistaEditable` al guardar** — `MatCellModal` y `AncCellModal` cierran el modal al guardar pero no emiten ningún toast. Es la única página sin feedback visual de éxito/error. Conectar `useToast` igual que el resto de páginas.
-- [ ] **Personas con poca actividad en `Estadisticas.jsx`** — ya existe la tarjeta "sin ningún registro". Agregar tarjeta complementaria "Poca actividad" con personas que tienen 1–2 registros en el año. El dato ya está en el array calculado — solo falta el componente de presentación.
-- [ ] **Filtro por rango de meses en `Exportar.jsx`** — hoy se exporta todo o nada. Agregar selectores de mes inicio/fin para exportar solo el rango deseado (ej. enero–agosto 2026). La lógica de filtro ya existe en `Estadisticas.jsx` — reutilizar el mismo patrón.
-- [x] **Empty state en `Programa.jsx` cuando no hay semanas** — cuando `semanas.length === 0` solo hay lista vacía. Agregar ilustración SVG simple + mensaje + botón de call to action claro ("Sube tu primer EPUB para comenzar") en el área de contenido, no solo el toolbar.
-- [x] **Badge de semanas sin confirmar en sidebar** — mostrar un dot rojo o número en el icono de Programa en el NAV si hay semanas importadas con confirmación < 100%. El query de progreso ya existe en `TarjetaSemana` — extraerlo a `App.jsx` al montar.
-
-### PWA
-
-- [ ] **PWA básica con `vite-plugin-pwa`** — no hay `manifest.json`, service worker, `<meta name="theme-color">` ni íconos de app. Con `vite-plugin-pwa` se configura en ~15 minutos. Permite instalar la app en el homescreen de móvil como app nativa — crítico para uso semanal durante reuniones. Stack: `pnpm add -D vite-plugin-pwa`, configurar en `vite.config.js`, agregar íconos en `/public/`.

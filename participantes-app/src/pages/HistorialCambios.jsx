@@ -14,7 +14,7 @@ export default function HistorialCambios() {
       let query = supabase
         .from('historial_cambios')
         .select('*')
-        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50)
 
       if (operation !== 'ALL') {
@@ -52,12 +52,30 @@ export default function HistorialCambios() {
 
   const filteredLogs = logs.filter(log => {
     const term = search.toLowerCase()
+    const jsonStr = JSON.stringify(log.datos_despues || log.datos_antes || {}).toLowerCase()
     return (
-      (log.usuario || '').toLowerCase().includes(term) ||
+      (log.usuario_email || '').toLowerCase().includes(term) ||
       (log.tabla || '').toLowerCase().includes(term) ||
-      (log.detalles || '').toLowerCase().includes(term)
+      (log.registro_id || '').toLowerCase().includes(term) ||
+      jsonStr.includes(term)
     )
   })
+
+  const formatDetalles = (log) => {
+    const data = log.datos_despues || log.datos_antes
+    if (!data) return log.registro_id ? `ID #${log.registro_id}` : '—'
+
+    const partes = []
+    if (data.nombre) partes.push(`Nombre: ${data.nombre}`)
+    if (data.clave)  partes.push(`Clave: ${data.clave}`)
+    if (data.tipo)   partes.push(`Tipo: ${data.tipo}`)
+    if (data.mes)    partes.push(`Mes: ${data.mes}`)
+    if (data.email)  partes.push(`Email: ${data.email}`)
+    if (data.rol)    partes.push(`Rol: ${data.rol}`)
+
+    if (partes.length > 0) return partes.join(' · ')
+    return JSON.stringify(data)
+  }
 
   // Helper for operation styling
   const opBadge = (op) => {
@@ -161,60 +179,68 @@ export default function HistorialCambios() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {filteredLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-bg/40 transition-colors">
-                    <td className="px-5 py-3 text-text3 font-mono">
-                      {new Date(log.fecha).toLocaleString('es-MX', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </td>
-                    <td className="px-5 py-3 text-text1 font-medium truncate max-w-[150px]" title={log.usuario}>
-                      {log.usuario || 'Sistema'}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${opBadge(log.operacion)}`}>
-                        {log.operacion}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-text2 text-[11px]">
-                      {log.tabla}
-                    </td>
-                    <td className="px-5 py-3 text-text2 max-w-[280px] truncate" title={log.detalles}>
-                      {log.detalles}
-                    </td>
-                  </tr>
-                ))}
+                {filteredLogs.map(log => {
+                  const fechaStr = log.created_at || log.fecha
+                  const detallesStr = formatDetalles(log)
+                  return (
+                    <tr key={log.id} className="hover:bg-bg/40 transition-colors">
+                      <td className="px-5 py-3 text-text3 font-mono">
+                        {fechaStr ? new Date(fechaStr).toLocaleString('es-MX', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        }) : '—'}
+                      </td>
+                      <td className="px-5 py-3 text-text1 font-medium truncate max-w-[150px]" title={log.usuario_email}>
+                        {log.usuario_email || 'Sistema'}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${opBadge(log.operacion)}`}>
+                          {log.operacion}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-text2 text-[11px]">
+                        {log.tabla}
+                      </td>
+                      <td className="px-5 py-3 text-text2 max-w-[280px] truncate" title={detallesStr}>
+                        {detallesStr}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 
             {/* Mobile Cards View */}
             <div className="flex flex-col md:hidden divide-y divide-border/60">
-              {filteredLogs.map(log => (
-                <div key={log.id} className="p-4 flex flex-col gap-2 hover:bg-bg/20 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-text3 font-mono">
-                      {new Date(log.fecha).toLocaleString('es-MX')}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${opBadge(log.operacion)}`}>
-                      {log.operacion}
-                    </span>
+              {filteredLogs.map(log => {
+                const fechaStr = log.created_at || log.fecha
+                const detallesStr = formatDetalles(log)
+                return (
+                  <div key={log.id} className="p-4 flex flex-col gap-2 hover:bg-bg/20 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-text3 font-mono">
+                        {fechaStr ? new Date(fechaStr).toLocaleString('es-MX') : '—'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${opBadge(log.operacion)}`}>
+                        {log.operacion}
+                      </span>
+                    </div>
+                    <div className="text-xs text-text1 font-medium truncate">
+                      👤 {log.usuario_email || 'Sistema'}
+                    </div>
+                    <div className="text-[11px] text-text2">
+                      📁 Tabla: <span className="font-mono">{log.tabla}</span>
+                    </div>
+                    <div className="text-[11px] text-text3 font-mono bg-bg/50 border border-border2 rounded p-2 mt-1 truncate" title={detallesStr}>
+                      {detallesStr}
+                    </div>
                   </div>
-                  <div className="text-xs text-text1 font-medium truncate">
-                    👤 {log.usuario || 'Sistema'}
-                  </div>
-                  <div className="text-[11px] text-text2">
-                    📁 Tabla: <span className="font-mono">{log.tabla}</span>
-                  </div>
-                  <div className="text-[11px] text-text3 italic bg-bg/50 border border-border2 rounded p-2 mt-1">
-                    {log.detalles}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

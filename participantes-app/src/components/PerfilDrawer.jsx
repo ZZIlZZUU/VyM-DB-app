@@ -101,8 +101,8 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
       const { data } = await supabase
         .from('historial_cambios')
         .select('*')
-        .ilike('usuario', `%${user.email}%`)
-        .order('fecha', { ascending: false })
+        .ilike('usuario_email', `%${user.email}%`)
+        .order('created_at', { ascending: false })
         .limit(6)
       setHistorial(data || [])
     } catch (err) {
@@ -687,19 +687,31 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {historial.map(h => (
-                    <div key={h.id || h.fecha} className="bg-bg border border-border rounded-lg p-3 text-xs flex flex-col gap-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[11px] text-text3">
-                          {new Date(h.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
-                        </span>
-                        <span className="font-mono text-[10px] bg-surface px-1.5 py-0.5 border border-border rounded text-text2">
-                          {h.operacion} · {h.tabla}
-                        </span>
+                  {historial.map(h => {
+                    const data = h.datos_despues || h.datos_antes || {}
+                    const info = data.nombre || data.clave || (data.mes ? `${data.tipo} (${data.mes})` : null)
+                    const label = h.operacion === 'INSERT'
+                      ? `Agregado en ${h.tabla}${info ? `: ${info}` : ''}`
+                      : h.operacion === 'DELETE'
+                        ? `Eliminado de ${h.tabla}${info ? `: ${info}` : ''}`
+                        : h.operacion === 'UPDATE'
+                          ? `Modificado en ${h.tabla}${info ? `: ${info}` : ''}`
+                          : `Cambio en ${h.tabla}`
+
+                    return (
+                      <div key={h.id || h.created_at} className="bg-bg border border-border rounded-lg p-3 text-xs flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[11px] text-text3">
+                            {new Date(h.created_at || h.fecha || Date.now()).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                          <span className="font-mono text-[10px] bg-surface px-1.5 py-0.5 border border-border rounded text-text2">
+                            {h.operacion} · {h.tabla}
+                          </span>
+                        </div>
+                        <div className="text-text1 mt-1 leading-snug">{label}</div>
                       </div>
-                      <div className="text-text1 mt-1 leading-snug">{h.descripcion || `Cambio en ${h.tabla}`}</div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>

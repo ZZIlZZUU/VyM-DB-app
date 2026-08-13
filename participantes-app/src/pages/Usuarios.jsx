@@ -9,6 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 export default function Usuarios() {
   const [usuarios, setUsuarios]         = useState([])
   const [loading, setLoading]           = useState(true)
+  const [fetchError, setFetchError]     = useState(null)
   const [email, setEmail]               = useState('')
   const [nombreInv, setNombreInv]       = useState('')
   const [inviting, setInviting]         = useState(false)
@@ -21,17 +22,23 @@ export default function Usuarios() {
   const { confirm, confirmProps }            = useConfirm()
 
   const fetchUsuarios = useCallback(async () => {
-    const { data, error: fetchErr } = await supabase
-      .from('usuarios_autorizados')
-      .select('*')
-      .order('email')
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const { data, error: fetchErr } = await supabase
+        .from('usuarios_autorizados')
+        .select('*')
+        .order('email')
 
-    if (fetchErr) {
-      error('Error al cargar usuarios autorizados')
-    } else {
+      if (fetchErr) throw fetchErr
       setUsuarios(data || [])
+    } catch (err) {
+      console.error('[fetchUsuarios]', err)
+      setFetchError(err?.message || 'Error al conectar con la base de datos')
+      error('Error al cargar usuarios autorizados')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [error])
 
   useEffect(() => {
@@ -217,7 +224,18 @@ export default function Usuarios() {
         </div>
 
         <div className="max-h-[500px] overflow-y-auto flex flex-col gap-2">
-          {loading ? (
+          {fetchError ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl">
+              <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+              <p className="text-xs text-text3 font-mono">{fetchError}</p>
+              <button
+                onClick={fetchUsuarios}
+                className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : loading ? (
             <SkeletonList rows={4} cols={2} />
           ) : usuarios.length === 0 ? (
             <div className="text-center py-6 text-sm text-text3">Sin usuarios autorizados</div>

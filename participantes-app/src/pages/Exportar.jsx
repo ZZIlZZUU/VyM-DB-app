@@ -41,7 +41,7 @@ export default function Exportar() {
   const [loading, setLoading] = useState('')
   const [mesInicio, setMesInicio] = useState('')
   const [mesFin, setMesFin] = useState('')
-  const { toast, success, warning } = useToast()
+  const { toast, success, warning, error: toastError } = useToast()
 
   // Helper para filtrar participaciones por rango de meses
   function filtrarPorMeses(rows) {
@@ -58,59 +58,85 @@ export default function Exportar() {
   async function fetchPersonas(lista = '') {
     let q = supabase.from('personas').select('*').order('clave')
     if (lista) q = q.eq('lista', lista)
-    const { data } = await q
+    const { data, error } = await q
+    if (error) throw error
     return data || []
   }
 
   async function fetchParticipaciones(lista = '') {
     let q = supabase.from('participaciones').select('*').order('fecha')
     if (lista) q = q.eq('lista', lista)
-    const { data } = await q
+    const { data, error } = await q
+    if (error) throw error
     return filtrarPorMeses(data || [])
   }
 
   // ── Exportar participantes.csv ──
   async function exportPartCSV(lista = '') {
     setLoading('part-' + (lista || 'all'))
-    const rows = await fetchPersonas(lista)
-    const header = 'clave,lista,nombre,sexo,estatus,activo'
-    const body = rows.map(p =>
-      `${p.clave},${p.lista},"${p.nombre}",${p.sexo},${p.estatus},${p.activo}`
-    ).join('\n')
-    downloadCSV(header + '\n' + body, lista ? `participantes_${lista}.csv` : 'participantes.csv')
-    setLoading('')
-    success('CSV descargado')
+    try {
+      const rows = await fetchPersonas(lista)
+      const header = 'clave,lista,nombre,sexo,estatus,activo'
+      const body = rows.map(p =>
+        `${p.clave},${p.lista},"${p.nombre}",${p.sexo},${p.estatus},${p.activo}`
+      ).join('\n')
+      downloadCSV(header + '\n' + body, lista ? `participantes_${lista}.csv` : 'participantes.csv')
+      success('CSV descargado')
+    } catch (err) {
+      console.error(err)
+      toastError('Error al obtener datos: ' + (err?.message || 'Error de red'))
+    } finally {
+      setLoading('')
+    }
   }
 
   // ── Exportar participaciones.csv ──
   async function exportParticCSV(lista = '') {
     setLoading('partic-' + (lista || 'all'))
-    const rows = await fetchParticipaciones(lista)
-    const header = 'id,clave,nombre,lista,fecha,mes,tipo,peso,observaciones'
-    const body = rows.map(r =>
-      `${r.id},${r.clave},"${r.nombre}",${r.lista},${r.fecha},${r.mes},${r.tipo},${r.peso},"${r.observaciones || ''}"`
-    ).join('\n')
-    downloadCSV(header + '\n' + body, lista ? `participaciones_${lista}.csv` : 'participaciones.csv')
-    setLoading('')
-    success('CSV descargado')
+    try {
+      const rows = await fetchParticipaciones(lista)
+      const header = 'id,clave,nombre,lista,fecha,mes,tipo,peso,observaciones'
+      const body = rows.map(r =>
+        `${r.id},${r.clave},"${r.nombre}",${r.lista},${r.fecha},${r.mes},${r.tipo},${r.peso},"${r.observaciones || ''}"`
+      ).join('\n')
+      downloadCSV(header + '\n' + body, lista ? `participaciones_${lista}.csv` : 'participaciones.csv')
+      success('CSV descargado')
+    } catch (err) {
+      console.error(err)
+      toastError('Error al obtener datos: ' + (err?.message || 'Error de red'))
+    } finally {
+      setLoading('')
+    }
   }
 
   // ── Exportar SQL ──
   async function exportSQL() {
     setLoading('sql')
-    const rows = await fetchParticipaciones()
-    const sql = rows.map(r =>
-      `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${escapeSql(r.clave)}', '${escapeSql(r.nombre)}', '${escapeSql(r.lista)}', '${escapeSql(r.fecha)}', '${escapeSql(r.mes)}', '${escapeSql(r.tipo)}', ${r.peso}, ${r.observaciones ? `'${escapeSql(r.observaciones)}'` : 'NULL'});`
-    ).join('\n')
-    copyToClipboard(sql, () => { setLoading(''); success('SQL copiado al portapapeles') })
+    try {
+      const rows = await fetchParticipaciones()
+      const sql = rows.map(r =>
+        `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${escapeSql(r.clave)}', '${escapeSql(r.nombre)}', '${escapeSql(r.lista)}', '${escapeSql(r.fecha)}', '${escapeSql(r.mes)}', '${escapeSql(r.tipo)}', ${r.peso}, ${r.observaciones ? `'${escapeSql(r.observaciones)}'` : 'NULL'});`
+      ).join('\n')
+      copyToClipboard(sql, () => { setLoading(''); success('SQL copiado al portapapeles') })
+    } catch (err) {
+      console.error(err)
+      toastError('Error al obtener datos: ' + (err?.message || 'Error de red'))
+      setLoading('')
+    }
   }
 
   // ── Exportar JSON ──
   async function exportJSON() {
     setLoading('json')
-    const [personas, participaciones] = await Promise.all([fetchPersonas(), fetchParticipaciones()])
-    const json = JSON.stringify({ personas, participaciones }, null, 2)
-    copyToClipboard(json, () => { setLoading(''); success('JSON copiado al portapapeles') })
+    try {
+      const [personas, participaciones] = await Promise.all([fetchPersonas(), fetchParticipaciones()])
+      const json = JSON.stringify({ personas, participaciones }, null, 2)
+      copyToClipboard(json, () => { setLoading(''); success('JSON copiado al portapapeles') })
+    } catch (err) {
+      console.error(err)
+      toastError('Error al obtener datos: ' + (err?.message || 'Error de red'))
+      setLoading('')
+    }
   }
 
   // ── Importar participantes.csv ──

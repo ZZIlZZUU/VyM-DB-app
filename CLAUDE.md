@@ -416,7 +416,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 ### 🔴 Prioridad Alta (Crítica)
 - [ ] **Tests del motor de sugerencias** — `asignacionesSugeridas.js` no tiene pruebas automatizadas. Con la acumulación de tipos (`SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, etc.) es fácil romper la lógica. Añadir pruebas con Vitest.
 - [ ] **Eliminar usuario completamente** — Hoy en `Usuarios.jsx` solo existe Activar/Desactivar. Se requiere borrar de `usuarios_autorizados` y llamar a `auth.admin.deleteUser(userId)` mediante una nueva Edge Function `delete-user` segura (con rol `service_role`).
-- [ ] **Manejo de errores de red en fetches** — Capturar fallas de conexión de red en todos los métodos de consulta `fetchData` para evitar páginas en blanco y mostrar un mensaje de error explícito (diferenciando "tabla vacía" de "error de conexión").
+- [X] **Manejo de errores de red en fetches** — Capturar fallas de conexión de red en todos los métodos de consulta `fetchData` para evitar páginas en blanco y mostrar un mensaje de error explícito (diferenciando "tabla vacía" de "error de conexión").
 
 ### 🟡 Prioridad Media (Experiencia de Usuario e Interfaz)
 - [ ] **Atajos de teclado globales** — Implementar combinaciones básicas como `Ctrl+K` / `Cmd+K` para una paleta de comandos rápida, `?` para ver atajos disponibles, y la tecla `N` para crear un nuevo registro o persona de manera contextual.
@@ -485,3 +485,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Alerta detallada post-importación de CSV informando del número exacto de inserciones y fallos.
   - Removida la redundancia estilística `CHIP_CLASS` en favor de `BADGE_CLASS` en `VistaEditable.jsx`.
   - Añadido panel "Poca actividad" en la pantalla de estadísticas que lista personas activas con 1 o 2 asignaciones en el periodo para su correcta monitorización.
+- **Manejo de errores de red en fetches (12/08/2026):**
+  - Implementado `fetchError` / `fetchErrorP` / `fetchErrorR` en 8 páginas de la aplicación (`Estadisticas`, `Personas`, `Registros`, `VistaEditable`, `VistaSql`, `Exportar`, `Usuarios`, `Programa`).
+  - Agregadas validaciones try/catch/finally con desestructuración individual de errores de Supabase, limpiando errores previos antes de cada fetch.
+  - Implementado early return o renderizado condicional de error con botón de **Reintentar** para evitar skeletons congelados y páginas vacías silenciosas.
+  - Modificadas las funciones de `Exportar.jsx` para reportar fallos de red por Toast y asegurar que `loading` se limpie en catch.
+

@@ -667,6 +667,7 @@ export default function Programa() {
   const [personas, setPersonas]         = useState([])
   const [historial, setHistorial]       = useState([])
   const [loading, setLoading]           = useState(true)
+  const [fetchError, setFetchError]     = useState(null)
   const [uploading, setUploading]       = useState(false)
   const [vistaTab, setVistaTab]         = useState('semanas')
   const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
@@ -674,29 +675,47 @@ export default function Programa() {
   const { confirm, confirmProps } = useConfirm()
 
   const fetchData = useCallback(async () => {
-    const [
-      { data: sem },
-      { data: par },
-      { data: asi },
-      { data: per },
-      { data: his },
-      { data: cfg },
-    ] = await Promise.all([
-      supabase.from('programa_semanas').select('*').order('fecha_inicio'),
-      supabase.from('programa_partes').select('*').order('numero_parte'),
-      supabase.from('programa_asignaciones').select('*'),
-      supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('participaciones').select('*').order('fecha'),
-      supabase.from('configuracion').select('*'),
-    ])
-    setSemanas(sem || [])
-    setPartes(par || [])
-    setAsignaciones(asi || [])
-    setPersonas(per || [])
-    setHistorial(his || [])
-    const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
-    if (nombreCfg) setCongregacion(nombreCfg)
-    setLoading(false)
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const [
+        { data: sem, error: semErr },
+        { data: par, error: parErr },
+        { data: asi, error: asiErr },
+        { data: per, error: perErr },
+        { data: his, error: hisErr },
+        { data: cfg, error: cfgErr },
+      ] = await Promise.all([
+        supabase.from('programa_semanas').select('*').order('fecha_inicio'),
+        supabase.from('programa_partes').select('*').order('numero_parte'),
+        supabase.from('programa_asignaciones').select('*'),
+        supabase.from('personas').select('*').eq('activo', true).order('nombre'),
+        supabase.from('participaciones').select('*').order('fecha'),
+        supabase.from('configuracion').select('*'),
+      ])
+      if (semErr) throw semErr
+      if (parErr) throw parErr
+      if (asiErr) throw asiErr
+      if (perErr) throw perErr
+      if (hisErr) throw hisErr
+
+      if (cfgErr) {
+        console.warn('Error al cargar la configuración de la congregación:', cfgErr)
+      }
+
+      setSemanas(sem || [])
+      setPartes(par || [])
+      setAsignaciones(asi || [])
+      setPersonas(per || [])
+      setHistorial(his || [])
+      const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
+      if (nombreCfg) setCongregacion(nombreCfg)
+    } catch (err) {
+      console.error('[fetchData]', err)
+      setFetchError(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -1018,6 +1037,19 @@ export default function Programa() {
   if (loading) return (
     <div className="p-6">
       <SkeletonPrograma cards={4} />
+    </div>
+  )
+
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
+      <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+      <p className="text-xs text-text3 font-mono">{fetchError}</p>
+      <button
+        onClick={fetchData}
+        className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+      >
+        Reintentar
+      </button>
     </div>
   )
 

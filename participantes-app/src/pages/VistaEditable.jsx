@@ -329,6 +329,7 @@ export default function VistaEditable() {
   const [personas, setPersonas]     = useState([])
   const [registros, setRegistros]   = useState([])
   const [loading, setLoading]       = useState(true)
+  const [fetchError, setFetchError] = useState(null)
   const [heatMap, setHeatMap]       = useState(false)
   const [searchMat, setSearchMat]   = useState('')
   const [sexoFil, setSexoFil]       = useState('')
@@ -348,13 +349,22 @@ export default function VistaEditable() {
   // ── Fetch datos ──
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [{ data: ps }, { data: rs }] = await Promise.all([
-      supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('participaciones').select('*').order('fecha'),
-    ])
-    setPersonas(ps || [])
-    setRegistros(rs || [])
-    setLoading(false)
+    setFetchError(null)
+    try {
+      const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
+        supabase.from('personas').select('*').eq('activo', true).order('nombre'),
+        supabase.from('participaciones').select('*').order('fecha'),
+      ])
+      if (psErr) throw psErr
+      if (rsErr) throw rsErr
+      setPersonas(ps || [])
+      setRegistros(rs || [])
+    } catch (err) {
+      console.error('[fetchData]', err)
+      setFetchError(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -459,6 +469,19 @@ export default function VistaEditable() {
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-text3 font-mono text-sm">
       Cargando datos...
+    </div>
+  )
+
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
+      <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+      <p className="text-xs text-text3 font-mono">{fetchError}</p>
+      <button
+        onClick={fetchData}
+        className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+      >
+        Reintentar
+      </button>
     </div>
   )
 

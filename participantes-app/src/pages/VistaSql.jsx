@@ -40,6 +40,7 @@ export default function VistaSql() {
   const [pEstatus, setPEstatus]       = useState('')
   const [pActivo, setPActivo]         = useState('')
   const [loadingP, setLoadingP]       = useState(true)
+  const [fetchErrorP, setFetchErrorP] = useState(null)
 
   // ── Participaciones ──
   const [participaciones, setParticipaciones] = useState([])
@@ -48,20 +49,37 @@ export default function VistaSql() {
   const [rTipo, setRTipo]             = useState('')
   const [rLista, setRLista]           = useState('')
   const [loadingR, setLoadingR]       = useState(true)
+  const [fetchErrorR, setFetchErrorR] = useState(null)
 
   const fetchPersonas = useCallback(async () => {
     setLoadingP(true)
-    const { data } = await supabase.from('personas').select('*').order('nombre')
-    setPersonas(data || [])
-    setLoadingP(false)
+    setFetchErrorP(null)
+    try {
+      const { data, error } = await supabase.from('personas').select('*').order('nombre')
+      if (error) throw error
+      setPersonas(data || [])
+    } catch (err) {
+      console.error('[fetchPersonas]', err)
+      setFetchErrorP(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoadingP(false)
+    }
   }, [])
 
   const fetchParticipaciones = useCallback(async () => {
     setLoadingR(true)
-    const { data } = await supabase
-      .from('participaciones').select('*').order('fecha', { ascending: false })
-    setParticipaciones(data || [])
-    setLoadingR(false)
+    setFetchErrorR(null)
+    try {
+      const { data, error } = await supabase
+        .from('participaciones').select('*').order('fecha', { ascending: false })
+      if (error) throw error
+      setParticipaciones(data || [])
+    } catch (err) {
+      console.error('[fetchParticipaciones]', err)
+      setFetchErrorR(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoadingR(false)
+    }
   }, [])
 
   useEffect(() => { fetchPersonas(); fetchParticipaciones() }, [fetchPersonas, fetchParticipaciones])
@@ -164,51 +182,64 @@ export default function VistaSql() {
             <span className="ml-auto font-mono text-xs text-text3">{filteredPersonas.length} persona{filteredPersonas.length !== 1 ? 's' : ''}</span>
           </div>
 
-          <div className="bg-surface border border-border rounded-xl overflow-auto">
-            <table className="w-full border-collapse min-w-max">
-              <thead>
-                <tr>
-                  {['CLAVE','LISTA','NOMBRE','SEXO','ESTATUS','ACTIVO','CREATED_AT',''].map(h => (
-                    <th key={h} className="bg-bg px-3 py-2 text-left text-xs font-mono font-medium text-text3 tracking-wider border-b border-border whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loadingP ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-sm text-text3 font-mono">Cargando...</td></tr>
-                ) : filteredPersonas.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
-                ) : filteredPersonas.map(p => (
-                  <tr key={p.clave} className={`border-b border-border last:border-0 hover:bg-bg/50 ${!p.activo ? 'opacity-50' : ''}`}>
-                    <td className="px-3 py-2 font-mono text-xs text-text3">{p.clave}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-text2">{p.lista}</td>
-                    <td className="px-3 py-2 text-sm text-text1 font-medium">{p.nombre}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-text2">{p.sexo}</td>
-                    <td className="px-3 py-2 text-xs text-text2">{p.estatus}</td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-mono ${p.activo ? 'bg-accent-bg text-accent' : 'bg-bg text-text3'}`}>
-                        {p.activo ? 'activo' : 'inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-text3 whitespace-nowrap">
-                      {new Date(p.created_at).toLocaleDateString('es-MX')}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => toggleActivo(p)}
-                          title={p.activo ? 'Deshabilitar' : 'Habilitar'}
-                          className="text-xs text-text3 hover:text-accent px-1.5 py-0.5 rounded hover:bg-accent-bg"
-                        >{p.activo ? '⏸' : '▶'}</button>
-                      </div>
-                    </td>
+          {fetchErrorP ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl">
+              <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+              <p className="text-xs text-text3 font-mono">{fetchErrorP}</p>
+              <button
+                onClick={fetchPersonas}
+                className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : (
+            <div className="bg-surface border border-border rounded-xl overflow-auto">
+              <table className="w-full border-collapse min-w-max">
+                <thead>
+                  <tr>
+                    {['CLAVE','LISTA','NOMBRE','SEXO','ESTATUS','ACTIVO','CREATED_AT',''].map(h => (
+                      <th key={h} className="bg-bg px-3 py-2 text-left text-xs font-mono font-medium text-text3 tracking-wider border-b border-border whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {loadingP ? (
+                    <tr><td colSpan={8} className="text-center py-8 text-sm text-text3 font-mono">Cargando...</td></tr>
+                  ) : filteredPersonas.length === 0 ? (
+                    <tr><td colSpan={8} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
+                  ) : filteredPersonas.map(p => (
+                    <tr key={p.clave} className={`border-b border-border last:border-0 hover:bg-bg/50 ${!p.activo ? 'opacity-50' : ''}`}>
+                      <td className="px-3 py-2 font-mono text-xs text-text3">{p.clave}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text2">{p.lista}</td>
+                      <td className="px-3 py-2 text-sm text-text1 font-medium">{p.nombre}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text2">{p.sexo}</td>
+                      <td className="px-3 py-2 text-xs text-text2">{p.estatus}</td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-mono ${p.activo ? 'bg-accent-bg text-accent' : 'bg-bg text-text3'}`}>
+                          {p.activo ? 'activo' : 'inactivo'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-text3 whitespace-nowrap">
+                        {new Date(p.created_at).toLocaleDateString('es-MX')}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1 justify-end">
+                          <button
+                            onClick={() => toggleActivo(p)}
+                            title={p.activo ? 'Deshabilitar' : 'Habilitar'}
+                            className="text-xs text-text3 hover:text-accent px-1.5 py-0.5 rounded hover:bg-accent-bg"
+                          >{p.activo ? '⏸' : '▶'}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="mt-2 text-xs text-text3 font-mono">
             → Usa Gestión → Personas para agregar o editar
           </div>
@@ -240,45 +271,58 @@ export default function VistaSql() {
             <span className="ml-auto font-mono text-xs text-text3">{filteredPartic.length} registro{filteredPartic.length !== 1 ? 's' : ''}</span>
           </div>
 
-          <div className="bg-surface border border-border rounded-xl overflow-auto">
-            <table className="w-full border-collapse min-w-max">
-              <thead>
-                <tr>
-                  {['ID','CLAVE','NOMBRE','LISTA','FECHA','MES','TIPO','PESO','OBSERVACIONES',''].map(h => (
-                    <th key={h} className="bg-bg px-3 py-2 text-left text-xs font-mono font-medium text-text3 tracking-wider border-b border-border whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loadingR ? (
-                  <tr><td colSpan={10} className="text-center py-8 text-sm text-text3 font-mono">Cargando...</td></tr>
-                ) : filteredPartic.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
-                ) : filteredPartic.map(r => (
-                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg/50">
-                    <td className="px-3 py-2 font-mono text-xs text-text3">{r.id}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-text3">{r.clave}</td>
-                    <td className="px-3 py-2 text-sm text-text1">{r.nombre}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-text2">{r.lista}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-text2 whitespace-nowrap">{r.fecha}</td>
-                    <td className="px-3 py-2 text-xs text-text2">{r.mes}</td>
-                    <td className="px-3 py-2"><Pill value={r.tipo} /></td>
-                    <td className="px-3 py-2 font-mono text-xs text-text2 text-center">{r.peso}</td>
-                    <td className="px-3 py-2 text-xs text-text2 italic max-w-32 truncate">{r.observaciones || ''}</td>
-                    <td className="px-3 py-2">
-                      <button
-                        onClick={() => deleteParticipacion(r.id)}
-                        className="text-xs text-text3 hover:text-danger px-1.5 py-0.5 rounded hover:bg-danger-bg"
-                        title="Eliminar"
-                      >✕</button>
-                    </td>
+          {fetchErrorR ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl">
+              <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+              <p className="text-xs text-text3 font-mono">{fetchErrorR}</p>
+              <button
+                onClick={fetchParticipaciones}
+                className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : (
+            <div className="bg-surface border border-border rounded-xl overflow-auto">
+              <table className="w-full border-collapse min-w-max">
+                <thead>
+                  <tr>
+                    {['ID','CLAVE','NOMBRE','LISTA','FECHA','MES','TIPO','PESO','OBSERVACIONES',''].map(h => (
+                      <th key={h} className="bg-bg px-3 py-2 text-left text-xs font-mono font-medium text-text3 tracking-wider border-b border-border whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {loadingR ? (
+                    <tr><td colSpan={10} className="text-center py-8 text-sm text-text3 font-mono">Cargando...</td></tr>
+                  ) : filteredPartic.length === 0 ? (
+                    <tr><td colSpan={10} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
+                  ) : filteredPartic.map(r => (
+                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg/50">
+                      <td className="px-3 py-2 font-mono text-xs text-text3">{r.id}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text3">{r.clave}</td>
+                      <td className="px-3 py-2 text-sm text-text1">{r.nombre}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text2">{r.lista}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-text2 whitespace-nowrap">{r.fecha}</td>
+                      <td className="px-3 py-2 text-xs text-text2">{r.mes}</td>
+                      <td className="px-3 py-2"><Pill value={r.tipo} /></td>
+                      <td className="px-3 py-2 font-mono text-xs text-text2 text-center">{r.peso}</td>
+                      <td className="px-3 py-2 text-xs text-text2 italic max-w-32 truncate">{r.observaciones || ''}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => deleteParticipacion(r.id)}
+                          className="text-xs text-text3 hover:text-danger px-1.5 py-0.5 rounded hover:bg-danger-bg"
+                          title="Eliminar"
+                        >✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="mt-2 text-xs text-text3 font-mono">
             → Compatible con Supabase / PostgreSQL
           </div>

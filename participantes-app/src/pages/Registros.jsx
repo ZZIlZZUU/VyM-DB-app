@@ -176,6 +176,7 @@ export default function Registros() {
   const [personas, setPersonas]               = useState([])
   const [participaciones, setParticipaciones] = useState([])
   const [loading, setLoading]                 = useState(true)
+  const [fetchError, setFetchError]           = useState(null)
   const [form, setForm]                       = useState(FORM_EMPTY)
   const [editId, setEditId]                   = useState(null)
   const [saving, setSaving]                   = useState(false)
@@ -186,13 +187,23 @@ export default function Registros() {
   const [filterLista, setFilterLista]         = useState('')
 
   const fetchData = useCallback(async () => {
-    const [{ data: ps }, { data: rs }] = await Promise.all([
-      supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('participaciones').select('*').order('fecha', { ascending: false }).limit(100),
-    ])
-    setPersonas(ps || [])
-    setParticipaciones(rs || [])
-    setLoading(false)
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
+        supabase.from('personas').select('*').eq('activo', true).order('nombre'),
+        supabase.from('participaciones').select('*').order('fecha', { ascending: false }).limit(100),
+      ])
+      if (psErr) throw psErr
+      if (rsErr) throw rsErr
+      setPersonas(ps || [])
+      setParticipaciones(rs || [])
+    } catch (err) {
+      console.error('[fetchData]', err)
+      setFetchError(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -283,6 +294,19 @@ export default function Registros() {
 
   // Preview
   const previewMes = getMes(form.fecha)
+
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
+      <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+      <p className="text-xs text-text3 font-mono">{fetchError}</p>
+      <button
+        onClick={fetchData}
+        className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+      >
+        Reintentar
+      </button>
+    </div>
+  )
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

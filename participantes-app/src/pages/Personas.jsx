@@ -34,6 +34,7 @@ const FORM_EMPTY = { lista: 'Mat', sexo: 'F', nombre: '', estatus: '' }
 export default function Personas() {
   const [personas, setPersonas]       = useState([])
   const [loading, setLoading]         = useState(true)
+  const [fetchError, setFetchError]   = useState(null)
   const [search, setSearch]           = useState('')
   const [searchVal, setSearchVal]     = useState('')
   const [filterLista, setFilterLista] = useState('')
@@ -54,9 +55,18 @@ export default function Personas() {
   }, [searchVal])
 
   const fetchPersonas = useCallback(async () => {
-    const { data } = await supabase.from('personas').select('*').order('nombre')
-    setPersonas(data || [])
-    setLoading(false)
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const { data, error: err } = await supabase.from('personas').select('*').order('nombre')
+      if (err) throw err
+      setPersonas(data || [])
+    } catch (err) {
+      console.error('[fetchPersonas]', err)
+      setFetchError(err?.message || 'Error al conectar con la base de datos')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchPersonas() }, [fetchPersonas])
@@ -141,6 +151,19 @@ export default function Personas() {
     await supabase.from('personas').update({ activo: !p.activo }).eq('clave', p.clave)
     showToast(p.activo ? 'Persona deshabilitada' : 'Persona habilitada', p.activo ? 'warning' : 'success')
   }
+
+  if (fetchError) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
+      <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
+      <p className="text-xs text-text3 font-mono">{fetchError}</p>
+      <button
+        onClick={fetchPersonas}
+        className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
+      >
+        Reintentar
+      </button>
+    </div>
+  )
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

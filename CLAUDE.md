@@ -415,7 +415,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ### 🔴 Prioridad Alta (Crítica)
 - [ ] **Tests del motor de sugerencias** — `asignacionesSugeridas.js` no tiene pruebas automatizadas. Con la acumulación de tipos (`SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, etc.) es fácil romper la lógica. Añadir pruebas con Vitest.
-- [ ] **Eliminar usuario completamente** — Hoy en `Usuarios.jsx` solo existe Activar/Desactivar. Se requiere borrar de `usuarios_autorizados` y llamar a `auth.admin.deleteUser(userId)` mediante una nueva Edge Function `delete-user` segura (con rol `service_role`).
+- [X] **Eliminar usuario completamente** — Implementada la Edge Function `delete-user` (con `service_role`) para eliminar cuentas en `auth.users` y en `usuarios_autorizados`. Botón "Eliminar" en `Usuarios.jsx` condicionado a usuarios inactivos, rol admin y prevención de auto-eliminación.
 - [X] **Manejo de errores de red en fetches** — Capturar fallas de conexión de red en todos los métodos de consulta `fetchData` para evitar páginas en blanco y mostrar un mensaje de error explícito (diferenciando "tabla vacía" de "error de conexión").
 
 ### 🟡 Prioridad Media (Experiencia de Usuario e Interfaz)
@@ -490,4 +490,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Agregadas validaciones try/catch/finally con desestructuración individual de errores de Supabase, limpiando errores previos antes de cada fetch.
   - Implementado early return o renderizado condicional de error con botón de **Reintentar** para evitar skeletons congelados y páginas vacías silenciosas.
   - Modificadas las funciones de `Exportar.jsx` para reportar fallos de red por Toast y asegurar que `loading` se limpie en catch.
+- **Brief 02 — Edge Function: eliminar usuario (13/08/2026):**
+  - Creada la estructura y archivo `supabase/functions/delete-user/index.ts` que valida permisos de admin con service role key, comprueba el token Bearer del llamador, previene auto-eliminación y elimina el usuario tanto de `auth.users` como de `usuarios_autorizados`.
+  - Actualizado `App.jsx` para pasar `currentUser` y `currentRol` a `<Usuarios />`.
+  - Implementada la función `handleDeleteUsuario` con diálogo de confirmación de peligro (`useConfirm`) en `Usuarios.jsx`.
+  - Añadido botón "Eliminar" en la UI condicionado a que el usuario esté inactivo (`!u.activo`), el usuario logueado sea admin y no sea la propia cuenta.
 

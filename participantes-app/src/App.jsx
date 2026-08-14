@@ -295,7 +295,7 @@ export default function App() {
       case 'personas':     return <Personas />
       case 'registros':    return <Registros />
       case 'programa':     return <Programa />
-      case 'usuarios':     return <Usuarios />
+      case 'usuarios':     return <Usuarios currentUser={user} currentRol={rol} />
       case 'exportar':     return <Exportar />
       case 'estadisticas': return <Estadisticas />
       case 'historial':    return <HistorialCambios />

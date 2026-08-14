@@ -6,7 +6,9 @@ import Toast from '../components/Toast'
 import { SkeletonList } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 
-export default function Usuarios() {
+export default function Usuarios({ currentUser: propUser, currentRol: propRol }) {
+  const [currentUser, setCurrentUser]   = useState(propUser || null)
+  const [currentRol, setCurrentRol]     = useState(propRol || 'editor')
   const [usuarios, setUsuarios]         = useState([])
   const [loading, setLoading]           = useState(true)
   const [fetchError, setFetchError]     = useState(null)
@@ -20,6 +22,32 @@ export default function Usuarios() {
 
   const { toast, showToast, success, error } = useToast()
   const { confirm, confirmProps }            = useConfirm()
+
+  useEffect(() => {
+    if (propUser) setCurrentUser(propUser)
+  }, [propUser])
+
+  useEffect(() => {
+    if (propRol) setCurrentRol(propRol)
+  }, [propRol])
+
+  useEffect(() => {
+    if (!propUser) {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          setCurrentUser(user)
+          supabase
+            .from('usuarios_autorizados')
+            .select('rol')
+            .eq('email', user.email)
+            .single()
+            .then(({ data }) => {
+              if (data?.rol) setCurrentRol(data.rol)
+            })
+        }
+      })
+    }
+  }, [propUser])
 
   const fetchUsuarios = useCallback(async () => {
     setLoading(true)
@@ -166,6 +194,44 @@ export default function Usuarios() {
         u.activo ? 'Usuario desactivado' : 'Usuario activado',
         u.activo ? 'warning' : 'success'
       )
+    }
+  }
+
+  async function handleDeleteUsuario(u) {
+    const ok = await confirm({
+      title: `¿Eliminar permanentemente a ${u.email}?`,
+      message: 'Esta acción no se puede deshacer. Se eliminará la cuenta de autenticación y todos los accesos. Los registros de participación no se ven afectados.',
+      danger: true,
+    })
+    if (!ok) return
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const res = await fetch(
+        'https://evqhdemvmnhwnsnrmdzk.supabase.co/functions/v1/delete-user',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ emailToDelete: u.email }),
+        }
+      )
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        error(result.error || 'Error al eliminar el usuario.')
+        return
+      }
+
+      success(`Usuario ${u.email} eliminado.`)
+      fetchUsuarios()
+    } catch (err) {
+      error('Error de conexión al eliminar el usuario.')
     }
   }
 
@@ -341,6 +407,17 @@ export default function Usuarios() {
                     >
                       {u.activo ? 'Desactivar' : 'Activar'}
                     </button>
+
+                    {/* Botón Eliminar permanentemente (solo inactivos, solo admin, no cuenta propia) */}
+                    {currentRol === 'admin' && !u.activo && u.email !== currentUser?.email && (
+                      <button
+                        onClick={() => handleDeleteUsuario(u)}
+                        title="Eliminar permanentemente"
+                        className="text-xs px-2 py-1 rounded shrink-0 border transition-colors text-danger border-danger/30 hover:bg-danger-bg"
+                      >
+                        Eliminar
+                      </button>
+                    )}
                   </div>
                 </div>
               )

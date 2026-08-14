@@ -414,7 +414,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 *Nota: Todas las sugerencias anteriormente contenidas en `UIUX_Sug.md` y las pendientes de `CLAUDE.md` han sido consolidadas y priorizadas en esta sección única.*
 
 ### 🔴 Prioridad Alta (Crítica)
-- [ ] **Tests del motor de sugerencias** — `asignacionesSugeridas.js` no tiene pruebas automatizadas. Con la acumulación de tipos (`SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, etc.) es fácil romper la lógica. Añadir pruebas con Vitest.
+- [X] **Tests del motor de sugerencias** — Añadidos tests unitarios exhaustivos con Vitest para `asignacionesSugeridas.js` cubriendo 5 grupos de pruebas (filtrado de pool por tipo, rotación y scoring, transición entre meses, sugerencia de ayudantes y casos borde). Configurados scripts de test en `package.json`.
 - [X] **Eliminar usuario completamente** — Implementada la Edge Function `delete-user` (con `service_role`) para eliminar cuentas en `auth.users` y en `usuarios_autorizados`. Botón "Eliminar" en `Usuarios.jsx` condicionado a usuarios inactivos, rol admin y prevención de auto-eliminación.
 - [X] **Manejo de errores de red en fetches** — Capturar fallas de conexión de red en todos los métodos de consulta `fetchData` para evitar páginas en blanco y mostrar un mensaje de error explícito (diferenciando "tabla vacía" de "error de conexión").
 
@@ -495,4 +495,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Actualizado `App.jsx` para pasar `currentUser` y `currentRol` a `<Usuarios />`.
   - Implementada la función `handleDeleteUsuario` con diálogo de confirmación de peligro (`useConfirm`) en `Usuarios.jsx`.
   - Añadido botón "Eliminar" en la UI condicionado a que el usuario esté inactivo (`!u.activo`), el usuario logueado sea admin y no sea la propia cuenta.
+- **Brief 03 — Tests para asignacionesSugeridas.js (14/08/2026):**
+  - Instalado Vitest en `participantes-app/` y configurados los scripts `"test": "vitest run"` y `"test:watch": "vitest"` en `package.json`.
+  - Creada suite de pruebas unitarias en `src/lib/asignacionesSugeridas.test.js` con 25 tests estructurados en 5 grupos: filtrado de pool por tipo (`P`, `ORACION`, `TB`, `LB`, `SMT_EST`, `SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, `NC`, `EBC_CON`, `LEBC`), reglas de rotación y scoring, transición entre meses (Diciembre a Enero), asignación de ayudantes y manejo de casos borde / entradas inválidas.
+  - 100% de tests pasando en verde manteniendo intacto el código fuente de `asignacionesSugeridas.js`.
+
 

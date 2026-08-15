@@ -426,7 +426,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Nueva Vista Semanal (Lectura rápida del programa)** — Diseñar una vista/página de sólo lectura para mostrar la agenda de la semana actual. Definir si vive como pestaña de `VistaEditable` o sección en el sidebar, si muestra asignaciones pendientes, y el formato de visualización (lineal o calendario).
 - [ ] **Programa S-140 — Botón flotante "Generar S-140"** — Colocar el botón como un elemento flotante fijado en la parte inferior derecha, facilitando su acceso rápido sin depender de hacer scroll.
 - [ ] **Programa S-140 — Modo lectura vs edición** — Añadir un selector/toggle para alternar entre edición (con dropdowns y botones de acción) y lectura limpia (programa finalizado ideal para revisión visual rápida).
-- [ ] **Programa S-140 — Feedback visual al confirmar** — Producir un destello o transición animada de color verde momentáneo en la fila de la asignación confirmada al pulsar el check.
+- [X] **Programa S-140 — Feedback visual al confirmar** — Implementado estado local `flashing` (600ms) en `FilaParte` de `Programa.jsx` con transición verde sólido (`bg-accent text-white`), icono `✓` y `disabled={flashing}` durante la confirmación.
 - [ ] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` para no perderlo al navegar de página.
 - [ ] **Registros — Acciones masivas (Bulk actions)** — Incorporar checkboxes en la lista de registros para permitir eliminar o cambiar tipo a múltiples filas a la vez.
 - [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
@@ -499,5 +499,14 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Instalado Vitest en `participantes-app/` y configurados los scripts `"test": "vitest run"` y `"test:watch": "vitest"` en `package.json`.
   - Creada suite de pruebas unitarias en `src/lib/asignacionesSugeridas.test.js` con 25 tests estructurados en 5 grupos: filtrado de pool por tipo (`P`, `ORACION`, `TB`, `LB`, `SMT_EST`, `SMT_EXP`, `SMT_EXP_M`, `SMT_EXP_F`, `NC`, `EBC_CON`, `LEBC`), reglas de rotación y scoring, transición entre meses (Diciembre a Enero), asignación de ayudantes y manejo de casos borde / entradas inválidas.
   - 100% de tests pasando en verde manteniendo intacto el código fuente de `asignacionesSugeridas.js`.
+- **Brief 04 — Feedback visual al confirmar asignación (14/08/2026):**
+  - Añadido estado local `flashing` en `FilaParte` (`Programa.jsx`).
+  - El botón de confirmación ejecuta la acción de forma asíncrona (`await onConfirmar(...)`) y activa un flash visual de 600ms con fondo verde sólido (`bg-accent text-white border-accent`), icono `✓` y protección contra doble click con `disabled={flashing}` (`disabled:opacity-60 disabled:cursor-not-allowed`).
+- **Corrección de colapso de Sidebar en desktop y móvil (14/08/2026):**
+  - Resuelto error donde el encabezado del sidebar no ocultaba el texto de título al colapsar en desktop (`md:w-14`), desbordando y empujando el botón de alternancia (`→`) fuera de pantalla.
+  - Condicionados los encabezados de sección y las etiquetas de navegación con `${open ? 'block' : 'block md:hidden'}`, restaurando el centrado perfecto de los iconos (`md:justify-center md:px-0 md:gap-0`) y tooltips nativos en estado colapsado.
+  - Ajustado el badge de `semanasPendientes` para mostrar un punto indicador (`dot`) en desktop colapsado y el contador completo en móvil o desktop expandido.
+
+
 
 

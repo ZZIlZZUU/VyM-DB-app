@@ -330,7 +330,7 @@ export default function App() {
 
         {/* Header */}
         <div className={`border-b border-border flex items-center ${open ? 'px-5 py-4 gap-0 justify-between' : 'px-4 py-4 justify-between md:px-0 md:justify-center'}`}>
-          <div>
+          <div className={`${open ? 'block' : 'block md:hidden'}`}>
             <div className="font-mono text-xs text-text3 tracking-widest uppercase mb-1">Base de datos</div>
             <div className="text-sm font-medium text-text1 leading-tight">Participantes<br />{anioEnCurso}</div>
             <div className="font-mono text-xs text-accent mt-1">AÑO EN CURSO</div>
@@ -359,9 +359,10 @@ export default function App() {
         <nav className="flex-1 py-2 overflow-y-auto">
           {sections.map(section => (
             <div key={section}>
-              <div className="font-mono text-xs text-text3 tracking-widest uppercase px-5 pt-3 pb-1">
+              <div className={`font-mono text-xs text-text3 tracking-widest uppercase px-5 pt-3 pb-1 ${open ? 'block' : 'block md:hidden'}`}>
                 {section}
               </div>
+              {!open && <div className="hidden md:block pt-3" />}
               {NAV.filter(item => !item.adminOnly || rol === 'admin').filter(n => n.section === section).map(item => (
                 <button
                   key={item.id}
@@ -370,21 +371,26 @@ export default function App() {
                     setMobileOpen(false)
                   }}
                   title={!open ? item.label : undefined}
-                  className={`w-full flex items-center gap-2.5 py-2.5 md:py-2 text-left text-xs border-l-2 relative
-                    ${open ? 'px-5' : 'px-5 md:px-0 md:justify-center'}
+                  className={`w-full flex items-center py-2.5 md:py-2 text-left text-xs border-l-2 relative
+                    ${open ? 'px-5 gap-2.5' : 'px-5 gap-2.5 md:px-0 md:gap-0 md:justify-center'}
                     ${view === item.id
                       ? 'text-accent border-accent bg-accent-bg font-medium'
                       : 'text-text2 border-transparent hover:bg-bg hover:text-text1'}`}
                 >
                   <span className="w-4 text-center flex-shrink-0 text-sm md:text-xs">{item.icon}</span>
-                  <span className="truncate flex-1">{item.label}</span>
+                  <span className={`truncate flex-1 ${open ? 'block' : 'block md:hidden'}`}>{item.label}</span>
                   {item.id === 'programa' && semanasPendientes > 0 && (
                     open ? (
                       <span className="bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 animate-pulse">
                         {semanasPendientes}
                       </span>
                     ) : (
-                      <span className="w-2 h-2 bg-danger rounded-full absolute top-1.5 right-1.5 animate-pulse" />
+                      <>
+                        <span className="md:hidden bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 animate-pulse">
+                          {semanasPendientes}
+                        </span>
+                        <span className="hidden md:block w-2 h-2 bg-danger rounded-full absolute top-1.5 right-1.5 animate-pulse" />
+                      </>
                     )
                   )}
                 </button>

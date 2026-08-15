@@ -349,6 +349,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 }
 
 function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar, clavePresidente }) {
+  const [flashing, setFlashing] = useState(false)
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
   const principal = asig[0] || null
@@ -476,9 +477,16 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
       <div className="flex items-center justify-end">
         {principal?.clave && (
           <button
-            onClick={() => onConfirmar(parte.id, principal, ayudante)}
-            className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium ${
-              necesitaReconfirmar
+            onClick={async () => {
+              setFlashing(true)
+              await onConfirmar(parte.id, principal, ayudante)
+              setTimeout(() => setFlashing(false), 600)
+            }}
+            disabled={flashing}
+            className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+              flashing
+                ? 'bg-accent text-white border-accent'
+                : necesitaReconfirmar
                 ? 'bg-amber/15 text-amber border-amber/40 hover:bg-amber hover:text-white'
                 : principal?.confirmado
                 ? 'bg-accent-bg text-accent border-accent/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
@@ -492,7 +500,9 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
                 : 'Haz clic para confirmar esta asignación.'
             }
           >
-            {necesitaReconfirmar
+            {flashing
+              ? '✓'
+              : necesitaReconfirmar
               ? '↻ Reconfirmar'
               : principal?.confirmado
               ? '✓ Confirmado'

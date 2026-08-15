@@ -506,6 +506,12 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Resuelto error donde el encabezado del sidebar no ocultaba el texto de título al colapsar en desktop (`md:w-14`), desbordando y empujando el botón de alternancia (`→`) fuera de pantalla.
   - Condicionados los encabezados de sección y las etiquetas de navegación con `${open ? 'block' : 'block md:hidden'}`, restaurando el centrado perfecto de los iconos (`md:justify-center md:px-0 md:gap-0`) y tooltips nativos en estado colapsado.
   - Ajustado el badge de `semanasPendientes` para mostrar un punto indicador (`dot`) en desktop colapsado y el contador completo en móvil o desktop expandido.
+- **Sincronización en segundo plano y persistencia de estado en Programa y Vista Editable (14/08/2026):**
+  - Eliminado el desmontaje involuntario de vistas provocado por `setLoading(true)` en llamadas subsiguientes de `fetchData()`.
+  - Implementado parámetro `isInitial = false` en `fetchData` de `Programa.jsx` y `VistaEditable.jsx`, reservando los skeletons y loaders únicamente para la carga inicial o botón de reintento.
+  - Elevada la persistencia de semanas desplegadas a `expandedWeeks` en `Programa.jsx`, permitiendo asignar, confirmar, reconfirmar y desconfirmar asignaciones manteniendo siempre las tarjetas de semana abiertas sin saltos de scroll ni parpadeos.
+  - En `VistaEditable.jsx`, la tabla y modales (como `AncCellModal`) se mantienen montados durante guardados y actualizaciones en tiempo real.
+
 
 
 

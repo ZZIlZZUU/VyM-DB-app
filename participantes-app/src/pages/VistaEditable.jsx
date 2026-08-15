@@ -347,9 +347,11 @@ export default function VistaEditable() {
   const [ancScrollLeft, setAncScrollLeft] = useState(0)
 
   // ── Fetch datos ──
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
+  const fetchData = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true)
+      setFetchError(null)
+    }
     try {
       const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
         supabase.from('personas').select('*').eq('activo', true).order('nombre'),
@@ -361,13 +363,19 @@ export default function VistaEditable() {
       setRegistros(rs || [])
     } catch (err) {
       console.error('[fetchData]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
+      if (isInitial) {
+        setFetchError(err?.message || 'Error al conectar con la base de datos')
+      } else {
+        error('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
+      }
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [error])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(true) }, [fetchData])
 
   // Realtime — actualiza sin recargar
   useEffect(() => {
@@ -477,7 +485,7 @@ export default function VistaEditable() {
       <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
       <p className="text-xs text-text3 font-mono">{fetchError}</p>
       <button
-        onClick={fetchData}
+        onClick={() => fetchData(true)}
         className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
       >
         Reintentar

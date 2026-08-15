@@ -515,8 +515,7 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
 }
 
 // ── Tarjeta de semana ─────────────────────────────────────────
-function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAsignar, onConfirmar, onConfirmarTodo }) {
-  const [expandida, setExpandida] = useState(false)
+function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAsignar, onConfirmar, onConfirmarTodo, expandida, onToggleExpand }) {
   const mes = semana.mes
 
   // Claves ya asignadas en esta semana (para evitar dobles)
@@ -577,7 +576,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       {/* Header */}
       <button
-        onClick={() => setExpandida(e => !e)}
+        onClick={onToggleExpand}
         className="w-full flex items-center gap-3 px-5 py-3 hover:bg-bg/50 text-left"
       >
         <div className="flex-1">
@@ -681,12 +680,19 @@ export default function Programa() {
   const [uploading, setUploading]       = useState(false)
   const [vistaTab, setVistaTab]         = useState('semanas')
   const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
+  const [expandedWeeks, setExpandedWeeks] = useState({})
   const { toast, showToast, success, error: toastError } = useToast()
   const { confirm, confirmProps } = useConfirm()
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
+  const handleToggleExpand = (semanaId) => {
+    setExpandedWeeks(prev => ({ ...prev, [semanaId]: !prev[semanaId] }))
+  }
+
+  const fetchData = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true)
+      setFetchError(null)
+    }
     try {
       const [
         { data: sem, error: semErr },
@@ -722,13 +728,19 @@ export default function Programa() {
       if (nombreCfg) setCongregacion(nombreCfg)
     } catch (err) {
       console.error('[fetchData]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
+      if (isInitial) {
+        setFetchError(err?.message || 'Error al conectar con la base de datos')
+      } else {
+        toastError('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
+      }
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [toastError])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(true) }, [fetchData])
 
   useEffect(() => {
     const canal = supabase.channel('programa-changes')
@@ -979,52 +991,101 @@ export default function Programa() {
   }
 
   // ── Confirmar toda la semana ─────────────────────────────
-  async function handleConfirmarTodo(semanaId, partesS, asignacionesS) {
-    const partesSemana = partesS.filter(p => p.semana_id === semanaId && !['SMT_VACIO', 'ORACION', 'CONCLU'].includes(p.tipo_asignacion))
+  async function handleConfirmarTodo(semanaId, partesSemana, asignacionesSemana) {
+    const semana = semanas.find(s => s.id === semanaId)
+    if (!semana) return
 
-    let procesadas = 0
+    let confirmadas = 0
+
+    // Iterar solo sobre principales para evitar duplicados del ayudante
     for (const parte of partesSemana) {
-      const principal = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'principal')
-      if (!principal?.clave) continue
+      if (parte.tipo_asignacion === 'ORACION' || parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'SMT_VACIO') continue
 
-      const ayudante = asignacionesS.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+      const asigP = asignacionesSemana.find(a => a.parte_id === parte.id && a.rol === 'principal')
+      const asigA = asignacionesSemana.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
 
-      const principalPartRecord = principal.participacion_id ? historial.find(h => h.id === principal.participacion_id) : null
-      const ayudantePartRecord  = ayudante?.participacion_id ? historial.find(h => h.id === ayudante.participacion_id) : null
+      if (!asigP?.clave) continue
 
-      const pCambiado = !!principal.participacion_id && principalPartRecord && principalPartRecord.clave !== principal.clave
-      const aCambiado = !!ayudante?.participacion_id && ayudantePartRecord && ayudantePartRecord.clave !== ayudante?.clave
-      const aNuevo    = parte.requiere_ayudante && ayudante?.clave && principal.participacion_id && !ayudante?.participacion_id
-      const aRem      = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
+      const persona = personas.find(p => p.clave === asigP.clave)
+      if (!persona) continue
 
-      const necesitaReconfirmar = pCambiado || aCambiado || aNuevo || aRem
-      const sinConfirmar = !principal.confirmado
+      const tipoParticipacion = TIPO_PARTICIPACION[parte.tipo_asignacion] || 'X'
 
-      if (sinConfirmar || necesitaReconfirmar) {
-        await handleConfirmar(parte.id, principal, ayudante)
-        procesadas++
+      // Validar si es una reconfirmación o una confirmación nueva
+      const pr = asigP.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
+      const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
+      const pCambio = !!asigP.participacion_id && pr && pr.clave !== asigP.clave
+      const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
+      const aNuevo  = parte.requiere_ayudante && asigA?.clave && asigP.participacion_id && !asigA?.participacion_id
+      const aRem    = parte.requiere_ayudante && !asigA?.clave && ar
+
+      const esReconfirmacion = pCambio || aCambio || aNuevo || aRem
+
+      // Si ya está confirmado y no cambió nada, saltar
+      if (asigP.confirmado && !esReconfirmacion) continue
+
+      // Limpiar registros previos si es reconfirmación
+      if (esReconfirmacion) {
+        if (asigP.participacion_id) await supabase.from('participaciones').delete().eq('id', asigP.participacion_id)
+        if (asigA?.participacion_id) await supabase.from('participaciones').delete().eq('id', asigA.participacion_id)
       }
+
+      // Insertar principal
+      const { data: partData } = await supabase.from('participaciones').insert({
+        clave:         persona.clave,
+        nombre:        persona.nombre,
+        lista:         persona.lista,
+        fecha:         semana.fecha_inicio,
+        mes:           semana.mes,
+        tipo:          tipoParticipacion,
+        peso:          PESO_TIPO[tipoParticipacion] || 1,
+        observaciones: null,
+      }).select().single()
+
+      await supabase.from('programa_asignaciones').update({
+        confirmado: true,
+        participacion_id: partData?.id || null,
+      }).eq('id', asigP.id)
+
+      // Insertar ayudante si aplica
+      if (asigA?.clave && asigA?.id) {
+        const personaAyu = personas.find(p => p.clave === asigA.clave)
+        if (personaAyu) {
+          const { data: ayuData } = await supabase.from('participaciones').insert({
+            clave:         personaAyu.clave,
+            nombre:        personaAyu.nombre,
+            lista:         personaAyu.lista,
+            fecha:         semana.fecha_inicio,
+            mes:           semana.mes,
+            tipo:          'A',
+            peso:          1,
+            observaciones: 'Ayudante SMT',
+          }).select().single()
+
+          await supabase.from('programa_asignaciones').update({
+            confirmado: true,
+            participacion_id: ayuData?.id || null,
+          }).eq('id', asigA.id)
+        }
+      }
+
+      confirmadas++
     }
 
-    if (procesadas > 0) {
-      success('Semana actualizada y confirmada ✓')
-    } else {
-      showToast('La semana ya está completamente confirmada y al día')
-    }
+    success(`${confirmadas} asignaciones confirmadas en la semana`)
+    await fetchData()
   }
 
-  // ── Generar S-140.docx ──────────────────────────────────
+  // ── Generar documento S-140 ───────────────────────────────
   async function handleGenerarDocx() {
-    if (!semanas.length) { showToast('No hay semanas cargadas'); return }
-    showToast('Generando S-140...')
-
     try {
-      const semanasConDatos = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
+      showToast('Generando S-140...')
+      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       await generarYDescargarS140({
         congregacion,
-        semanas: semanasConDatos,
+        semanas: semanasData,
       })
-      success('S-140 descargado ✓')
+      success('S-140 descargado exitosamente')
     } catch (err) {
       console.error(err)
       toastError('Error al generar el S-140: ' + err.message)
@@ -1040,6 +1101,11 @@ export default function Programa() {
     })
     if (!ok) return
     await supabase.from('programa_semanas').delete().eq('id', semanaId)
+    setExpandedWeeks(prev => {
+      const next = { ...prev }
+      delete next[semanaId]
+      return next
+    })
     showToast('Semana eliminada')
     await fetchData()
   }
@@ -1055,7 +1121,7 @@ export default function Programa() {
       <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
       <p className="text-xs text-text3 font-mono">{fetchError}</p>
       <button
-        onClick={fetchData}
+        onClick={() => fetchData(true)}
         className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
       >
         Reintentar
@@ -1149,6 +1215,8 @@ export default function Programa() {
                   onAsignar={handleAsignar}
                   onConfirmar={handleConfirmar}
                   onConfirmarTodo={handleConfirmarTodo}
+                  expandida={!!expandedWeeks[s.id]}
+                  onToggleExpand={() => handleToggleExpand(s.id)}
                 />
               )
             })

@@ -290,7 +290,7 @@ export default function App() {
 
   function renderView() {
     switch (view) {
-      case 'editable':     return <VistaEditable />
+      case 'editable':     return <VistaEditable onNavigate={setView} />
       case 'sql':          return <VistaSql />
       case 'personas':     return <Personas />
       case 'registros':    return <Registros />

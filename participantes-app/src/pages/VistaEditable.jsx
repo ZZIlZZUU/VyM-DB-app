@@ -139,81 +139,61 @@ function Modal({ open, onClose, title, children, wide }) {
 }
 
 // ─── Modal Matriculados ───────────────────────────────────────
-function MatCellModal({ open, onClose, persona, mesIdx, registros, onSave, onDelete }) {
-  const tipos = getTiposPermitidos(persona)
-  const [tipo, setTipo]     = useState('')
-  const [fecha, setFecha]   = useState('')
-  const [obs, setObs]       = useState('')
-  const [recId, setRecId]   = useState(null)   // id del registro existente, null si es nuevo
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    // Buscar rec aquí dentro para garantizar que usamos la fecha ya en formato ISO
-    // que viene de Supabase, y toYyyyMmDd la normaliza correctamente
-    const rec = registros.find(r => r.clave === persona?.clave && r.mes === MESES[mesIdx])
-    setRecId(rec?.id ?? null)
-    setTipo(rec?.tipo || '')
-    setFecha(toYyyyMmDd(rec?.fecha) || `2026-${MES_CODE[mesIdx]}-01`)
-    setObs(rec?.observaciones || '')
-  }, [open, mesIdx, persona, registros])
-
-  async function handleSave() {
-    if (!tipo) { onClose(); return }
-    setSaving(true)
-    await onSave({ persona, mesIdx, tipo, fecha, obs, existingId: recId })
-    setSaving(false)
-    onClose()
-  }
-
-  async function handleDelete() {
-    if (!recId) return
-    setSaving(true)
-    await onDelete(recId)
-    setSaving(false)
-    onClose()
-  }
-
+function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate }) {
   if (!persona) return null
+
+  const mes = MESES[mesIdx]
+  const rec = registros.find(r => r.clave === persona.clave && r.mes === mes)
+
+  function handleIrAPrograma() {
+    onClose()
+    onNavigate?.('programa')
+  }
+
   return (
-    <Modal open={open} onClose={onClose} title={`${persona.nombre} — ${MESES[mesIdx]}`}>
-      <div className="flex flex-col gap-3">
-        <div>
-          <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo</div>
-          <TipoChips tipos={tipos} selected={tipo} onSelect={setTipo} />
-        </div>
-        <div>
-          <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Fecha</div>
-          <input
-            type="date"
-            value={fecha}
-            onChange={e => setFecha(e.target.value)}
-            className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
-          />
-        </div>
-        <div>
-          <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Observaciones</div>
-          <textarea
-            value={obs}
-            onChange={e => setObs(e.target.value)}
-            rows={2}
-            placeholder="Opcional..."
-            className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent resize-none"
-          />
-        </div>
+    <Modal open={open} onClose={onClose} title={`${persona.nombre} — ${mes}`}>
+      <div className="flex flex-col gap-4">
+
+        {rec ? (
+          <>
+            <div>
+              <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo</div>
+              <Badge tipo={rec.tipo} />
+            </div>
+            {rec.fecha && (
+              <div>
+                <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Fecha</div>
+                <div className="text-sm text-text1">{rec.fecha}</div>
+              </div>
+            )}
+            {rec.observaciones && (
+              <div>
+                <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Observaciones</div>
+                <div className="text-sm text-text2">{rec.observaciones}</div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-sm text-text3 text-center py-4">
+            Sin participación registrada este mes
+          </div>
+        )}
+
         <div className="flex gap-2 mt-1">
-          <button onClick={onClose} className="flex-1 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg">
-            Cancelar
+          <button
+            onClick={onClose}
+            className="flex-1 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg"
+          >
+            Cerrar
           </button>
-          {recId && (
-            <button onClick={handleDelete} disabled={saving} className="px-3 py-1.5 text-sm bg-danger-bg text-danger border border-danger/30 rounded-lg hover:bg-red-100 disabled:opacity-50">
-              Eliminar
-            </button>
-          )}
-          <button onClick={handleSave} disabled={saving} className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50">
-            {saving ? 'Guardando...' : 'Guardar'}
+          <button
+            onClick={handleIrAPrograma}
+            className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800"
+          >
+            Ver en Programa →
           </button>
         </div>
+
       </div>
     </Modal>
   )
@@ -323,7 +303,7 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
 }
 
 // ─── Componente principal ─────────────────────────────────────
-export default function VistaEditable() {
+export default function VistaEditable({ onNavigate }) {
   const { toast, success, error } = useToast()
   const [tab, setTab]               = useState('mat')
   const [personas, setPersonas]     = useState([])
@@ -393,35 +373,7 @@ export default function VistaEditable() {
     return Math.max(...conteos, 1)
   })()
 
-  // ── Guardar celda Matriculados ──
-  async function handleMatSave({ persona, mesIdx, tipo, fecha, obs, existingId }) {
-    const mes = MESES[mesIdx]
-    const payload = {
-      clave: persona.clave,
-      nombre: persona.nombre,
-      lista: persona.lista,
-      fecha,
-      mes,
-      tipo,
-      peso: PESO_MAP[tipo] || 1,
-      observaciones: obs || null,
-    }
-    try {
-      if (existingId) {
-        const { error: err } = await supabase.from('participaciones').update(payload).eq('id', existingId)
-        if (err) throw err
-        success('Participación actualizada correctamente')
-      } else {
-        const { error: err } = await supabase.from('participaciones').insert(payload)
-        if (err) throw err
-        success('Participación registrada correctamente')
-      }
-      await fetchData()
-    } catch (err) {
-      console.error(err)
-      error('Error al guardar: ' + (err.message || 'Error de red'))
-    }
-  }
+
 
   // ── Eliminar registro ──
   async function handleDelete(id) {
@@ -768,8 +720,7 @@ export default function VistaEditable() {
         persona={matModal.persona}
         mesIdx={matModal.mesIdx}
         registros={registros}
-        onSave={handleMatSave}
-        onDelete={handleDelete}
+        onNavigate={onNavigate}
       />
       <AncCellModal
         open={ancModal.open}

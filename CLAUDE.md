@@ -533,6 +533,11 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Clarificada la regla de Lector EBC (`LEBC`): cualquier varón elegible (`Anc/SM` o `Mat`), limpiando comentarios obsoletos de bautismo.
   - Limpieza de código: unificación de casos `TB` y `PE`, simplificación de comentarios en `LB` y `EBC_CON`, remoción del helper `yaEstaEnSemana` para uso inline directo, y actualización de JSDoc de `sugerirAyudante`.
   - Actualización de suite de pruebas unitarias (`asignacionesSugeridas.test.js`): formalizado el test de `LEBC` y añadidos 3 tests para alternancia T→A, alcanzando 28 tests en verde al 100%.
+- **Brief 08 — Modal Mat solo lectura + FAB "Generar S-140" (17/08/2026):**
+  - Pasada prop `onNavigate={setView}` desde `App.jsx` a `<VistaEditable />`.
+  - Convertido `MatCellModal` en `VistaEditable.jsx` a vista de solo lectura (tipo badge, fecha y observaciones) con mensaje "Sin participación registrada este mes" cuando aplica, y botón de navegación directa "Ver en Programa →".
+  - Eliminada función `handleMatSave` no utilizada en `VistaEditable.jsx`, preservando `handleDelete` y `handleAncAdd` para `AncCellModal`.
+  - Reubicado el botón "Generar S-140" en `Programa.jsx` a un botón de acción flotante (FAB) fijo en la esquina inferior derecha (`fixed bottom-6 right-6 z-50 rounded-full`), accesible en todo momento durante el scroll de semanas.
 
 
 

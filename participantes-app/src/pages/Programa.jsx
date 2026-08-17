@@ -1158,13 +1158,6 @@ export default function Programa() {
           >
             {uploading ? 'Procesando...' : '↑ Subir EPUB mwb'}
           </button>
-          <button
-            onClick={handleGenerarDocx}
-            disabled={!semanas.length}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50"
-          >
-            ↓ Generar S-140
-          </button>
         </div>
       </div>
 
@@ -1265,6 +1258,26 @@ export default function Programa() {
           </table>
         </div>
       )}
+
+      {/* FAB — Generar S-140 */}
+      <button
+        onClick={handleGenerarDocx}
+        disabled={!semanas.length}
+        title="Generar S-140"
+        className="
+          fixed bottom-6 right-6 z-50
+          flex items-center gap-2
+          px-4 py-3
+          bg-accent text-white text-sm font-medium
+          rounded-full shadow-lg
+          hover:bg-green-800
+          disabled:opacity-40 disabled:cursor-not-allowed
+          transition-opacity duration-150
+        "
+      >
+        <span>↓</span>
+        <span>Generar S-140</span>
+      </button>
 
       <Toast toast={toast} />
       <ConfirmDialog {...confirmProps} />

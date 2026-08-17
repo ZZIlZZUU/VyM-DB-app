@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
+} from 'recharts'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -35,6 +38,30 @@ const BADGE_CLASS = {
   ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
+function TipoTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  const { tipo, count, label } = payload[0].payload
+  return (
+    <div className="bg-surface border border-border2 rounded-lg shadow-md px-3 py-2 text-xs">
+      <div className="font-mono font-medium text-text1">{tipo}</div>
+      <div className="text-text3">{label}</div>
+      <div className="font-mono text-accent mt-1">{count} participaciones</div>
+    </div>
+  )
+}
+
+function MesTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  const { count, personas } = payload[0].payload
+  return (
+    <div className="bg-surface border border-border2 rounded-lg shadow-md px-3 py-2 text-xs">
+      <div className="font-mono font-medium text-text1">{label}</div>
+      <div className="font-mono text-accent mt-1">{count} participaciones</div>
+      <div className="text-text3">{personas} personas distintas</div>
+    </div>
+  )
+}
+
 function StatCard({ title, children }) {
   return (
     <div className="bg-surface border border-border rounded-xl p-5">
@@ -44,15 +71,12 @@ function StatCard({ title, children }) {
   )
 }
 
-function Bar({ label, value, max, badge }) {
+function CustomBar({ label, value, max }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
   return (
     <div className="flex items-center gap-3 py-1.5">
       <div className="w-28 flex-shrink-0 flex items-center gap-1.5">
-        {badge
-          ? <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-mono font-medium ${BADGE_CLASS[label] || 'bg-bg text-text2'}`}>{label}</span>
-          : <span className="text-xs text-text2 truncate">{label}</span>
-        }
+        <span className="text-xs text-text2 truncate">{label}</span>
       </div>
       <div className="flex-1 bg-bg rounded-full h-2 overflow-hidden">
         <div
@@ -132,12 +156,17 @@ export default function Estadisticas() {
   // Por tipo
   const porTipo = {}
   regs.forEach(r => { porTipo[r.tipo] = (porTipo[r.tipo] || 0) + 1 })
-  const maxTipo = Math.max(...Object.values(porTipo), 1)
+  const dataTipo = Object.entries(porTipo)
+    .sort((a, b) => b[1] - a[1])
+    .map(([tipo, count]) => ({
+      tipo,
+      count,
+      label: TIPO_LABEL[tipo] || tipo,
+    }))
 
   // Por mes
   const porMes = {}
   regs.forEach(r => { porMes[r.mes] = (porMes[r.mes] || 0) + 1 })
-  const maxMes = Math.max(...Object.values(porMes), 1)
 
   // Por persona (top 10)
   const porPersona = {}
@@ -171,6 +200,15 @@ export default function Estadisticas() {
     if (!personasPorMes[r.mes]) personasPorMes[r.mes] = new Set()
     personasPorMes[r.mes].add(r.clave)
   })
+
+  const dataMes = MESES
+    .filter(m => porMes[m])
+    .map(mes => ({
+      mes,
+      mesAbr: mes.slice(0, 3), // Ene, Feb, Mar...
+      count: porMes[mes] || 0,
+      personas: personasPorMes[mes]?.size || 0,
+    }))
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-text3 font-mono text-sm">
@@ -258,33 +296,65 @@ export default function Estadisticas() {
 
             {/* Por tipo */}
             <StatCard title="Participaciones por tipo">
-              {Object.keys(porTipo).length === 0 ? (
+              {dataTipo.length === 0 ? (
                 <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
               ) : (
-                Object.entries(porTipo)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([tipo, count]) => (
-                    <div key={tipo}>
-                      <Bar label={tipo} value={count} max={maxTipo} badge />
-                      <div className="text-xs text-text3 ml-28 -mt-1 mb-1">{TIPO_LABEL[tipo] || ''}</div>
-                    </div>
-                  ))
+                <ResponsiveContainer width="100%" height={dataTipo.length * 36 + 24}>
+                  <BarChart
+                    data={dataTipo}
+                    layout="vertical"
+                    margin={{ top: 0, right: 32, left: 48, bottom: 0 }}
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="tipo"
+                      width={44}
+                      tick={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fill: '#6B6860' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<TipoTooltip />} cursor={{ fill: '#EAF5EE', opacity: 0.6 }} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                      {dataTipo.map(({ tipo }) => (
+                        <Cell
+                          key={tipo}
+                          fill="#1C6B4A"
+                          fillOpacity={0.85}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </StatCard>
 
             {/* Por mes */}
             <StatCard title="Participaciones por mes">
-              {MESES.filter(m => porMes[m]).length === 0 ? (
+              {dataMes.length === 0 ? (
                 <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
               ) : (
-                MESES.filter(m => porMes[m]).map(mes => (
-                  <div key={mes}>
-                    <Bar label={mes} value={porMes[mes]} max={maxMes} />
-                    <div className="text-xs text-text3 ml-28 -mt-1 mb-1">
-                      {personasPorMes[mes]?.size || 0} personas distintas
-                    </div>
-                  </div>
-                ))
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={dataMes}
+                    margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                  >
+                    <XAxis
+                      dataKey="mesAbr"
+                      tick={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', fill: '#6B6860' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', fill: '#9B9890' }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<MesTooltip />} cursor={{ fill: '#EAF5EE', opacity: 0.6 }} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={32} fill="#1C6B4A" fillOpacity={0.85} />
+                  </BarChart>
+                </ResponsiveContainer>
               )}
               {mesesSinActividad.length > 0 && !filterMes && (
                 <div className="mt-3 pt-3 border-t border-border">
@@ -303,7 +373,7 @@ export default function Estadisticas() {
               {topPersonas.length === 0 ? (
                 <div className="text-sm text-text3 py-4 text-center">Sin datos</div>
               ) : topPersonas.map(([nombre, count]) => (
-                <Bar key={nombre} label={nombre} value={count} max={maxPersona} />
+                <CustomBar key={nombre} label={nombre} value={count} max={maxPersona} />
               ))}
             </StatCard>
 

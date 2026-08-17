@@ -548,6 +548,12 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Separado el flujo en dos fases: extracción/parseo de headers y primeras 5 filas (`handleFileSelect`) y ejecución con confirmación explícita (`confirmImport`).
   - Creado el componente auxiliar `HeadersWarning` para verificar columnas requeridas (`HEADERS_PART` y `HEADERS_PARTIC`) alertando si faltan campos obligatorios.
   - Reseteo automático de `e.target.value` al seleccionar archivos para permitir re-selección inmediata.
+- **Brief 11 — Gráficos interactivos en Estadísticas (17/08/2026):**
+  - Instalada la librería `recharts` en `participantes-app`.
+  - Reemplazadas las barras estáticas en `Estadisticas.jsx` por gráficos interactivos `BarChart` (`ResponsiveContainer`) para "Participaciones por tipo" (orientación horizontal) y "Participaciones por mes" (orientación vertical).
+  - Implementados los tooltips personalizados `TipoTooltip` (tipo, etiqueta descriptiva y conteo) y `MesTooltip` (mes, conteo y participantes únicos).
+  - Mapeados los colores y tipografías del design system (`accent` `#1C6B4A`, `accent-bg` `#EAF5EE`, `text2` `#6B6860`, `IBM Plex Mono`).
+  - Renombrado helper de barras para Top Personas a `CustomBar` y limpiadas variables no utilizadas.
 
 
 

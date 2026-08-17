@@ -54,22 +54,30 @@ export default function Personas() {
     return () => clearTimeout(timer)
   }, [searchVal])
 
-  const fetchPersonas = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
+  const fetchPersonas = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true)
+      setFetchError(null)
+    }
     try {
       const { data, error: err } = await supabase.from('personas').select('*').order('nombre')
       if (err) throw err
       setPersonas(data || [])
     } catch (err) {
       console.error('[fetchPersonas]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
+      if (isInitial) {
+        setFetchError(err?.message || 'Error al conectar con la base de datos')
+      } else {
+        toastError('Error al sincronizar personas: ' + (err?.message || 'Error de conexión'))
+      }
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [toastError])
 
-  useEffect(() => { fetchPersonas() }, [fetchPersonas])
+  useEffect(() => { fetchPersonas(true) }, [fetchPersonas])
 
   useEffect(() => {
     const canal = supabase.channel('personas-mgmt')
@@ -157,7 +165,7 @@ export default function Personas() {
       <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
       <p className="text-xs text-text3 font-mono">{fetchError}</p>
       <button
-        onClick={fetchPersonas}
+        onClick={() => fetchPersonas(true)}
         className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
       >
         Reintentar
@@ -264,25 +272,50 @@ export default function Personas() {
           <span className="font-mono text-xs text-text3">{personas.length} total</span>
         </div>
 
-        <div className="flex gap-2 mb-3 flex-wrap">
+        <div className="flex gap-2 mb-3 flex-wrap items-center">
+          {/* Búsqueda — sin cambios */}
           <input
             value={searchVal}
             onChange={e => setSearchVal(e.target.value)}
             placeholder="Buscar..."
             className="flex-1 px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-0"
           />
-          <select value={filterLista} onChange={e => setFilterLista(e.target.value)}
-            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none">
-            <option value="">Todas</option>
-            <option value="Mat">Mat</option>
-            <option value="Anc/SM">Anc/SM</option>
-          </select>
-          <select value={filterActivo} onChange={e => setFilterActivo(e.target.value)}
-            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none">
-            <option value="true">Activos</option>
-            <option value="false">Inactivos</option>
-            <option value="">Todos</option>
-          </select>
+
+          {/* Tag group: Lista */}
+          <div className="flex rounded-lg border border-border2 overflow-hidden shrink-0">
+            {[['', 'Todas'], ['Mat', 'Mat'], ['Anc/SM', 'Anc·SM']].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setFilterLista(val)}
+                className={`px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border2 last:border-r-0 ${
+                  filterLista === val
+                    ? 'bg-accent text-white'
+                    : 'bg-surface text-text2 hover:bg-bg'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tag group: Activo */}
+          <div className="flex rounded-lg border border-border2 overflow-hidden shrink-0">
+            {[['true', 'Activos'], ['false', 'Inactivos'], ['', 'Todos']].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setFilterActivo(val)}
+                className={`px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border2 last:border-r-0 ${
+                  filterActivo === val
+                    ? 'bg-accent text-white'
+                    : 'bg-surface text-text2 hover:bg-bg'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="max-h-96 overflow-y-auto flex flex-col gap-1">

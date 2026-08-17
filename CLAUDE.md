@@ -430,7 +430,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Registros — Paginación y Selector de registros por página** — Eliminado el límite truncado de 100 registros en la consulta para cargar la totalidad de participaciones del año. Añadida barra inferior de paginación (estilo Supabase Table Editor) con botones de navegación (← / →), indicador de página actual y total, selector de tamaño de página (25, 50, 100, 250, 500) con persistencia en `localStorage` (`registros_pageSize`) y contador dinámico de registros visibles/filtrados.
 - [ ] **Registros — Acciones masivas (Bulk actions)** — Incorporar checkboxes en la lista de registros para permitir eliminar o cambiar tipo a múltiples filas a la vez.
 - [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
-- [ ] **Personas — Filtros rápidos de estatus** — Añadir botones tipo tag ("Activos", "Bautizados", "Todos") sobre la lista para segmentar rápidamente el catálogo.
+- [X] **Personas — Filtros rápidos** — Reemplazados los selectores de lista (`Todas`, `Mat`, `Anc·SM`) y activo (`Activos`, `Inactivos`, `Todos`) por grupos de botones tag con selección visual activa (`bg-accent text-white`).
 - [ ] **Exportar / Importar — Carga interactiva Drag & Drop** — Habilitar la subida del archivo CSV/XLSX arrastrándolo a la caja de carga.
 - [ ] **Exportar / Importar — Vista previa y validación previa** — Mostrar una tabla con los primeros 5 renglones del CSV cargado antes de enviarlo a Supabase, validando la consistencia de tipos y columnas.
 - [ ] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`) y anillos de `focus` claros (`focus:ring-2 focus:ring-accent`) en inputs, selectores y botones de todas las vistas.
@@ -521,6 +521,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Ordenamiento determinista de registros por `id` descendente (`.order('id', { ascending: false })`) para mantener una secuencia limpia de mayor a menor sin mezclas en fechas duplicadas.
   - Implementada barra inferior de paginación inspirada en el Table Editor de Supabase: navegación entre páginas con botones `←` y `→`, indicador interactivo `Página X de Y`, selector de registros por página (`25`, `50`, `100`, `250`, `500`) con persistencia en `localStorage` (`registros_pageSize`) y rango estadístico en vivo (`Mostrando A–B de C registros`).
   - Reseteo automático de página a `1` al cambiar búsquedas o filtros de catálogo.
+- **Brief 06 — Filtros rápidos en Personas (16/08/2026):**
+  - Reemplazados los `<select>` de filtrado en `Personas.jsx` por grupos de botones tag segmentados con bordes redondeados (`overflow-hidden rounded-lg border border-border2`):
+    - Grupo Lista: `Todas` (`''`), `Mat` (`'Mat'`), `Anc·SM` (`'Anc/SM'`).
+    - Grupo Activo: `Activos` (`'true'`), `Inactivos` (`'false'`), `Todos` (`''`).
+  - Preservados los valores exactos de strings y la lógica de filtrado de `filtered` sin alterar estados ni handlers.
+  - Integrada la sincronización en segundo plano con `fetchPersonas(isInitial = false)` para evitar parpadeos con `<SkeletonList>` durante mutaciones o eventos de Realtime.
+
 
 
 

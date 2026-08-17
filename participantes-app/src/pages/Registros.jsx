@@ -183,16 +183,25 @@ export default function Registros() {
   const { toast, success, error: toastError } = useToast()
   const { confirm, confirmProps }             = useConfirm()
   const [search, setSearch]                   = useState('')
-  const [filterMes, setFilterMes]             = useState('')
-  const [filterLista, setFilterLista]         = useState('')
+  const [filterMes, setFilterMes]             = useState(() => localStorage.getItem('registros_filterMes')   ?? '')
+  const [filterLista, setFilterLista]         = useState(() => localStorage.getItem('registros_filterLista') ?? '')
+  const [page, setPage]                       = useState(1)
+  const [pageSize, setPageSize]               = useState(() => Number(localStorage.getItem('registros_pageSize')) || 50)
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
+  useEffect(() => { localStorage.setItem('registros_filterMes',   filterMes)   }, [filterMes])
+  useEffect(() => { localStorage.setItem('registros_filterLista', filterLista) }, [filterLista])
+  useEffect(() => { localStorage.setItem('registros_pageSize',    String(pageSize)) }, [pageSize])
+  useEffect(() => { setPage(1) }, [search, filterMes, filterLista, pageSize])
+
+  const fetchData = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true)
+      setFetchError(null)
+    }
     try {
       const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
         supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-        supabase.from('participaciones').select('*').order('fecha', { ascending: false }).limit(100),
+        supabase.from('participaciones').select('*').order('id', { ascending: false }),
       ])
       if (psErr) throw psErr
       if (rsErr) throw rsErr
@@ -200,17 +209,23 @@ export default function Registros() {
       setParticipaciones(rs || [])
     } catch (err) {
       console.error('[fetchData]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
+      if (isInitial) {
+        setFetchError(err?.message || 'Error al conectar con la base de datos')
+      } else {
+        toastError('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
+      }
     } finally {
-      setLoading(false)
+      if (isInitial) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [toastError])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(true) }, [fetchData])
 
   useEffect(() => {
     const canal = supabase.channel('registros-mgmt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, () => fetchData())
       .subscribe()
     return () => supabase.removeChannel(canal)
   }, [fetchData])
@@ -292,6 +307,14 @@ export default function Registros() {
     return true
   })
 
+  // Paginación
+  const totalRecords = filtered.length
+  const totalPages   = Math.max(1, Math.ceil(totalRecords / (pageSize || 1)))
+  const safePage     = Math.min(Math.max(1, page), totalPages)
+  const startIndex   = (safePage - 1) * pageSize
+  const endIndex     = Math.min(startIndex + pageSize, totalRecords)
+  const paginated    = filtered.slice(startIndex, endIndex)
+
   // Preview
   const previewMes = getMes(form.fecha)
 
@@ -300,7 +323,7 @@ export default function Registros() {
       <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
       <p className="text-xs text-text3 font-mono">{fetchError}</p>
       <button
-        onClick={fetchData}
+        onClick={() => fetchData(true)}
         className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
       >
         Reintentar
@@ -418,13 +441,17 @@ export default function Registros() {
       </div>
 
       {/* ── LISTA REGISTROS CON EDICIÓN INLINE ── */}
-      <div className="bg-surface border border-border rounded-xl p-5">
+      <div className="bg-surface border border-border rounded-xl p-5 flex flex-col">
         <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
-          <span className="text-sm font-medium text-text1">Registros recientes</span>
-          <span className="font-mono text-xs text-text3">{participaciones.length} total</span>
+          <span className="text-sm font-medium text-text1">Registros</span>
+          <span className="font-mono text-xs text-text3">
+            {filtered.length !== participaciones.length
+              ? `${filtered.length} filtrados (${participaciones.length} total)`
+              : `${participaciones.length} total`}
+          </span>
         </div>
 
-        <div className="flex gap-2 mb-3 flex-wrap">
+        <div className="flex gap-2 mb-3 flex-wrap items-center">
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -442,9 +469,18 @@ export default function Registros() {
             <option value="">Todos los meses</option>
             {MESES.map(m => <option key={m}>{m}</option>)}
           </select>
+          {(filterMes || filterLista) && (
+            <button
+              onClick={() => { setFilterMes(''); setFilterLista('') }}
+              className="px-2 py-1.5 text-xs border border-border2 rounded-lg text-text3 hover:text-danger hover:border-danger/30 transition-colors"
+              title="Limpiar filtros"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <div className="max-h-[480px] overflow-y-auto flex flex-col gap-1">
+        <div className="max-h-[480px] overflow-y-auto flex-1 flex flex-col gap-1">
           {loading ? (
             <SkeletonList rows={8} cols={3} />
           ) : filtered.length === 0 ? (
@@ -469,7 +505,7 @@ export default function Registros() {
                 No hay registros de participaciones guardados o ninguno coincide con la búsqueda.
               </p>
             </div>
-          ) : filtered.map(r => (
+          ) : paginated.map(r => (
             <div key={r.id}>
               {/* Fila del registro */}
               <div
@@ -510,6 +546,50 @@ export default function Registros() {
             </div>
           ))}
         </div>
+
+        {/* Barra de paginación estilo Supabase */}
+        {filtered.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-3 select-none">
+            {/* Controles de página */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Página anterior"
+              >
+                ←
+              </button>
+              <span className="text-xs text-text3 font-mono px-1">
+                Página <span className="font-medium text-text1">{safePage}</span> de {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Página siguiente"
+              >
+                →
+              </button>
+            </div>
+
+            {/* Selector de registros por página y contador */}
+            <div className="flex items-center gap-3 ml-auto flex-wrap">
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                className="px-2.5 py-1 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none font-mono cursor-pointer hover:border-accent/40"
+              >
+                {[25, 50, 100, 250, 500].map(n => (
+                  <option key={n} value={n}>{n} registros</option>
+                ))}
+              </select>
+              <span className="text-xs text-text3 font-mono">
+                {startIndex + 1}–{endIndex} de {totalRecords}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <Toast toast={toast} />

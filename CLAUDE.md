@@ -426,8 +426,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Nueva Vista Semanal (Lectura rápida del programa)** — Diseñar una vista/página de sólo lectura para mostrar la agenda de la semana actual. Definir si vive como pestaña de `VistaEditable` o sección en el sidebar, si muestra asignaciones pendientes, y el formato de visualización (lineal o calendario).
 - [ ] **Programa S-140 — Botón flotante "Generar S-140"** — Colocar el botón como un elemento flotante fijado en la parte inferior derecha, facilitando su acceso rápido sin depender de hacer scroll.
 - [ ] **Programa S-140 — Modo lectura vs edición** — Añadir un selector/toggle para alternar entre edición (con dropdowns y botones de acción) y lectura limpia (programa finalizado ideal para revisión visual rápida).
-- [X] **Programa S-140 — Feedback visual al confirmar** — Implementado estado local `flashing` (600ms) en `FilaParte` de `Programa.jsx` con transición verde sólido (`bg-accent text-white`), icono `✓` y `disabled={flashing}` durante la confirmación.
-- [ ] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` para no perderlo al navegar de página.
+- [X] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` (`registros_filterMes`, `registros_filterLista`) y botón ✕ para limpiar filtros activos.
+- [X] **Registros — Paginación y Selector de registros por página** — Eliminado el límite truncado de 100 registros en la consulta para cargar la totalidad de participaciones del año. Añadida barra inferior de paginación (estilo Supabase Table Editor) con botones de navegación (← / →), indicador de página actual y total, selector de tamaño de página (25, 50, 100, 250, 500) con persistencia en `localStorage` (`registros_pageSize`) y contador dinámico de registros visibles/filtrados.
 - [ ] **Registros — Acciones masivas (Bulk actions)** — Incorporar checkboxes en la lista de registros para permitir eliminar o cambiar tipo a múltiples filas a la vez.
 - [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
 - [ ] **Personas — Filtros rápidos de estatus** — Añadir botones tipo tag ("Activos", "Bautizados", "Todos") sobre la lista para segmentar rápidamente el catálogo.
@@ -511,6 +511,19 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Implementado parámetro `isInitial = false` en `fetchData` de `Programa.jsx` y `VistaEditable.jsx`, reservando los skeletons y loaders únicamente para la carga inicial o botón de reintento.
   - Elevada la persistencia de semanas desplegadas a `expandedWeeks` en `Programa.jsx`, permitiendo asignar, confirmar, reconfirmar y desconfirmar asignaciones manteniendo siempre las tarjetas de semana abiertas sin saltos de scroll ni parpadeos.
   - En `VistaEditable.jsx`, la tabla y modales (como `AncCellModal`) se mantienen montados durante guardados y actualizaciones en tiempo real.
+- **Brief 05 — Filtros persistentes en Registros (14/08/2026):**
+  - Implementada persistencia en `localStorage` para `filterMes` (`registros_filterMes`) y `filterLista` (`registros_filterLista`) en `Registros.jsx` con inicialización lazy (`useState(() => localStorage.getItem(...) ?? '')`) y sincronización automática vía `useEffect`.
+  - Añadido botón condicional `✕` ("Limpiar filtros") que resetea ambos selectores a vacío y limpia las entradas en `localStorage`.
+  - El campo de búsqueda `search` se mantiene no persistente por diseño para evitar confusión al regresar a la vista.
+  - Integrada la sincronización en segundo plano con `fetchData(isInitial = false)` para prevenir parpadeos con `<SkeletonList>` durante mutaciones y eventos de Realtime.
+- **Paginación y Selector de registros por página en Registros (14/08/2026):**
+  - Eliminado el límite truncado `.limit(100)` en `Registros.jsx`, permitiendo el acceso completo a los más de 230 registros de participaciones a lo largo del año.
+  - Ordenamiento determinista de registros por `id` descendente (`.order('id', { ascending: false })`) para mantener una secuencia limpia de mayor a menor sin mezclas en fechas duplicadas.
+  - Implementada barra inferior de paginación inspirada en el Table Editor de Supabase: navegación entre páginas con botones `←` y `→`, indicador interactivo `Página X de Y`, selector de registros por página (`25`, `50`, `100`, `250`, `500`) con persistencia en `localStorage` (`registros_pageSize`) y rango estadístico en vivo (`Mostrando A–B de C registros`).
+  - Reseteo automático de página a `1` al cambiar búsquedas o filtros de catálogo.
+
+
+
 
 
 

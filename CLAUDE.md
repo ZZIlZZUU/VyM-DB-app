@@ -527,6 +527,12 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     - Grupo Activo: `Activos` (`'true'`), `Inactivos` (`'false'`), `Todos` (`''`).
   - Preservados los valores exactos de strings y la lógica de filtrado de `filtered` sin alterar estados ni handlers.
   - Integrada la sincronización en segundo plano con `fetchPersonas(isInitial = false)` para evitar parpadeos con `<SkeletonList>` durante mutaciones o eventos de Realtime.
+- **Brief 07 — Bugs motor de sugerencias (16/08/2026):**
+  - Corregido el encabezado de archivo en `asignacionesSugeridas.js`.
+  - Implementada la alternancia T→A de damas (`SMT_EST`, `SMT_EXP`, `SMT_EXP_F`) según rol del mes previo (`T` $\rightarrow -30$, `A` $\rightarrow +20$, `!ultTipo` $\rightarrow +10$).
+  - Clarificada la regla de Lector EBC (`LEBC`): cualquier varón elegible (`Anc/SM` o `Mat`), limpiando comentarios obsoletos de bautismo.
+  - Limpieza de código: unificación de casos `TB` y `PE`, simplificación de comentarios en `LB` y `EBC_CON`, remoción del helper `yaEstaEnSemana` para uso inline directo, y actualización de JSDoc de `sugerirAyudante`.
+  - Actualización de suite de pruebas unitarias (`asignacionesSugeridas.test.js`): formalizado el test de `LEBC` y añadidos 3 tests para alternancia T→A, alcanzando 28 tests en verde al 100%.
 
 
 

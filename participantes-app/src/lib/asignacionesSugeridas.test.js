@@ -90,14 +90,12 @@ describe('filtrado de pool por tipo', () => {
     expect(estatus).toContain('Siervo Ministerial')
   })
 
-  it('LEBC — comportamiento actual: cualquier varón (documentar, no corregir)', () => {
-    // NOTA: el comentario del código dice "matriculados bautizados" pero el filtro
-    // actual es solo p.sexo === 'M', lo que incluye ancianos y SM.
-    // Este test documenta el comportamiento real, no el deseado.
+  it('LEBC — cualquier varón (Anc/SM o Mat)', () => {
     const result = sugerirCandidatos('LEBC', PERSONAS, SIN_HISTORIAL, 'Agosto')
     expect(result.every(p => p.sexo === 'M')).toBe(true)
-    // Ancianos también aparecen — eso es lo que hace hoy
     expect(result.some(p => p.lista === 'Anc/SM')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat')).toBe(true)
+    expect(result.length).toBe(7) // A01-A05, M01-M02
   })
 
 })
@@ -155,6 +153,33 @@ describe('reglas de rotación', () => {
     const idxA01 = result.findIndex(p => p.clave === 'A01')
     // A01 ya está asignado esta semana → debe aparecer después de los demás
     expect(idxA01).toBeGreaterThan(0)
+  })
+
+  it('dama que fue Titular (T) baja en ranking para ser Titular otra vez', () => {
+    const historial = [{ clave: 'M03', mes: 'Julio', tipo: 'T' }]
+    const result = sugerirCandidatos('SMT_EST', PERSONAS, historial, 'Agosto')
+    const idxM03 = result.findIndex(p => p.clave === 'M03')
+    const idxM04 = result.findIndex(p => p.clave === 'M04')
+    expect(idxM03).toBeGreaterThan(idxM04)
+  })
+
+  it('dama que fue Ayudante (A) sube en ranking para ser Titular', () => {
+    const historial = [
+      { clave: 'M03', mes: 'Julio', tipo: 'T' },
+      { clave: 'M04', mes: 'Julio', tipo: 'A' },
+    ]
+    const result = sugerirCandidatos('SMT_EST', PERSONAS, historial, 'Agosto')
+    const idxM04 = result.findIndex(p => p.clave === 'M04')
+    const idxM03 = result.findIndex(p => p.clave === 'M03')
+    expect(idxM04).toBeLessThan(idxM03)
+  })
+
+  it('SMT_EXP_F aplica la misma alternancia T→A que SMT_EST', () => {
+    const historial = [{ clave: 'M03', mes: 'Julio', tipo: 'T' }]
+    const result = sugerirCandidatos('SMT_EXP_F', PERSONAS, historial, 'Agosto')
+    const idxM03 = result.findIndex(p => p.clave === 'M03')
+    const idxM04 = result.findIndex(p => p.clave === 'M04')
+    expect(idxM03).toBeGreaterThan(idxM04)
   })
 
 })

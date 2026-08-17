@@ -1,5 +1,5 @@
 // ============================================================
-// asignacionSugerida.js
+// asignacionesSugeridas.js
 // Motor de sugerencias de asignación basado en reglas de rotación
 // ============================================================
 
@@ -42,8 +42,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
     return regs.length ? regs[regs.length - 1].tipo : null
   }
 
-  // Helper: penalización si ya está asignado esta semana
-  const yaEstaEnSemana = (clave) => yaAsignados.includes(clave)
+
 
   let pool = []
 
@@ -62,13 +61,8 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
       break
     }
 
-    // ── Tesoros de la Biblia (TB) ───────────────────────────
-    case 'TB': {
-      pool = personas.filter(p => p.lista === 'Anc/SM')
-      break
-    }
-
-    // ── Perlas Escondidas (PE) ──────────────────────────────
+    // ── Tesoros de la Biblia / Perlas Escondidas ─────────────
+    case 'TB':
     case 'PE': {
       pool = personas.filter(p => p.lista === 'Anc/SM')
       break
@@ -76,7 +70,6 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── Lectura de la Biblia (LB) ───────────────────────────
     case 'LB': {
-      // Varones matriculados (bautizados o no)
       pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
       break
     }
@@ -123,7 +116,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── Conductor EBC ────────────────────────────────────────
     case 'EBC_CON': {
-      // Ancianos preferente, SM si no hay anciano disponible
+      // Ancianos al frente del pool; SM también elegibles
       const ancianos = personas.filter(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')
       const sm       = personas.filter(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')
       pool = [...ancianos, ...sm]
@@ -132,7 +125,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── Lector EBC ───────────────────────────────────────────
     case 'LEBC': {
-      // Varones matriculados bautizados
+      // Varones (Anc/SM o Mat)
       pool = personas.filter(p =>
         p.sexo === 'M'
       )
@@ -150,7 +143,7 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
     const sexo  = p.sexo
 
     // Penalizar si ya está asignado esta semana
-    if (yaEstaEnSemana(p.clave)) score -= 50
+    if (yaAsignados.includes(p.clave)) score -= 50
 
     if (lista === 'Mat') {
       // REGLA: Matriculados no pueden participar 2 meses seguidos
@@ -159,9 +152,11 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
       // REGLA: Damas rotan T → A → T → A
       if (sexo === 'F') {
         const ultTipo = ultimoTipoMesAnt(p.clave)
-        if (tipo === 'SMT_EST' || tipo === 'SMT_EXP') {
-          // Sugerir la que no participó recientemente
-          if (!participoMesAnt(p.clave)) score += 20
+        if (tipo === 'SMT_EST' || tipo === 'SMT_EXP' || tipo === 'SMT_EXP_F') {
+          // Regla T→A: alternar rol cada mes
+          if (ultTipo === 'T') score -= 30   // fue titular → bajarla para que sea ayudante
+          if (ultTipo === 'A') score += 20   // fue ayudante → bonificarla para ser titular
+          if (!ultTipo)        score += 10   // nunca participó → bonificación leve
         }
       }
     }
@@ -188,8 +183,8 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 }
 
 /**
- * Para damas SMT: sugiere también la ayudante
- * La ayudante es una dama diferente a la estudiante
+ * Sugiere candidatos para el rol de ayudante SMT.
+ * Excluye al titular (claveEstudiante) del primer lugar vía yaAsignados.
  */
 export function sugerirAyudante(claveEstudiante, personas, historial, mes, yaAsignados = []) {
   return sugerirCandidatos(

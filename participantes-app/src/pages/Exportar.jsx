@@ -37,10 +37,39 @@ function escapeSql(str) {
   return String(str).replace(/'/g, "''")
 }
 
+const HEADERS_PART   = ['clave', 'lista', 'nombre', 'sexo', 'estatus', 'activo']
+const HEADERS_PARTIC = ['clave', 'tipo', 'fecha', 'mes', 'nombre', 'lista']
+
+function HeadersWarning({ type, headers }) {
+  const required = type === 'part' ? HEADERS_PART : HEADERS_PARTIC
+  const missing = required.filter(h => !headers.includes(h))
+
+  if (missing.length === 0) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-accent">
+        <span>✓</span>
+        <span>Columnas requeridas detectadas correctamente</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-2 text-xs text-danger bg-danger-bg border border-danger/20 rounded-lg px-3 py-2">
+      <span className="mt-0.5">⚠</span>
+      <span>
+        Faltan columnas requeridas:{' '}
+        <span className="font-mono font-medium">{missing.join(', ')}</span>
+        . La importación puede fallar.
+      </span>
+    </div>
+  )
+}
+
 export default function Exportar() {
   const [loading, setLoading] = useState('')
   const [mesInicio, setMesInicio] = useState('')
   const [mesFin, setMesFin] = useState('')
+  const [preview, setPreview] = useState(null)
   const { toast, success, warning, error: toastError } = useToast()
 
   // Helper para filtrar participaciones por rango de meses
@@ -139,9 +168,35 @@ export default function Exportar() {
     }
   }
 
-  // ── Importar participantes.csv ──
-  async function importPartCSV(e) {
+  async function handleFileSelect(e, type) {
     const file = e.target.files[0]
+    if (!file) return
+    e.target.value = '' // limpiar input para que onChange se dispare de nuevo si repiten el mismo archivo
+
+    const text = await file.text()
+    const lines = text.replace(/^\uFEFF/, '').split('\n').filter(Boolean)
+    const headers = parseCSVLine(lines[0])
+    const rows = lines.slice(1, 6).map(line => { // solo primeras 5 filas
+      const vals = parseCSVLine(line)
+      const obj = {}
+      headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').replace(/^"|"$/g, '').trim())
+      return obj
+    })
+
+    setPreview({ type, headers, rows, file })
+  }
+
+  async function confirmImport() {
+    if (!preview) return
+    const { type, file } = preview
+    setPreview(null)
+
+    if (type === 'part')   await importPartCSV(file)
+    if (type === 'partic') await importParticCSV(file)
+  }
+
+  // ── Importar participantes.csv ──
+  async function importPartCSV(file) {
     if (!file) return
     setLoading('import-part')
     const text = await file.text()
@@ -175,12 +230,10 @@ export default function Exportar() {
     } else {
       success(`${inserted} personas importadas / actualizadas`)
     }
-    e.target.value = ''
   }
 
   // ── Importar participaciones.csv ──
-  async function importParticCSV(e) {
-    const file = e.target.files[0]
+  async function importParticCSV(file) {
     if (!file) return
     setLoading('import-partic')
     const text = await file.text()
@@ -216,7 +269,6 @@ export default function Exportar() {
     } else {
       success(`${inserted} registros importados`)
     }
-    e.target.value = ''
   }
 
   const isLoading = (key) => loading === key
@@ -358,7 +410,7 @@ export default function Exportar() {
               <div className="text-sm text-text1 font-medium">participantes.csv</div>
               <div className="text-xs text-text3 mt-0.5">Si la clave ya existe, actualiza los datos (upsert)</div>
             </div>
-            <input type="file" id="importPart" accept=".csv" className="hidden" onChange={importPartCSV} />
+            <input type="file" id="importPart" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'part')} />
             <button onClick={() => document.getElementById('importPart').click()} disabled={!!loading}
               className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 whitespace-nowrap">
               {isLoading('import-part') ? 'Importando...' : '↑ Seleccionar archivo'}
@@ -369,7 +421,7 @@ export default function Exportar() {
               <div className="text-sm text-text1 font-medium">participaciones.csv</div>
               <div className="text-xs text-text3 mt-0.5">Agrega los registros del archivo a la base de datos</div>
             </div>
-            <input type="file" id="importPartic" accept=".csv" className="hidden" onChange={importParticCSV} />
+            <input type="file" id="importPartic" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'partic')} />
             <button onClick={() => document.getElementById('importPartic').click()} disabled={!!loading}
               className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 whitespace-nowrap">
               {isLoading('import-partic') ? 'Importando...' : '↑ Seleccionar archivo'}
@@ -404,6 +456,80 @@ CREATE TABLE participaciones (
   observaciones TEXT
 );`}</pre>
       </div>
+
+      {/* Vista previa CSV */}
+      {preview && (
+        <div className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-xl shadow-xl w-full max-w-2xl flex flex-col gap-4 p-5">
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div>
+                <div className="text-sm font-medium text-text1">
+                  Vista previa — {preview.type === 'part' ? 'participantes.csv' : 'participaciones.csv'}
+                </div>
+                <div className="text-xs text-text3 mt-0.5">
+                  {preview.rows.length} de las primeras filas · {preview.headers.length} columnas detectadas
+                </div>
+              </div>
+              <button
+                onClick={() => setPreview(null)}
+                className="text-text3 hover:text-danger text-sm px-2"
+                title="Cancelar"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Tabla de preview */}
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs font-mono">
+                <thead>
+                  <tr className="bg-bg border-b border-border">
+                    {preview.headers.map(h => (
+                      <th key={h} className="px-3 py-2 text-left text-text3 font-medium whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-surface' : 'bg-bg/40'}>
+                      {preview.headers.map(h => (
+                        <td key={h} className="px-3 py-1.5 text-text2 whitespace-nowrap max-w-[160px] truncate">
+                          {row[h] || <span className="text-text3 italic">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Validación de headers */}
+            <HeadersWarning type={preview.type} headers={preview.headers} />
+
+            {/* Acciones */}
+            <div className="flex gap-2 pt-1 border-t border-border">
+              <button
+                onClick={() => setPreview(null)}
+                className="flex-1 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={!!loading}
+                className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50"
+              >
+                {loading ? 'Importando...' : 'Confirmar importación →'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       <Toast toast={toast} />
     </div>

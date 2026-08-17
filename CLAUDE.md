@@ -538,6 +538,16 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Convertido `MatCellModal` en `VistaEditable.jsx` a vista de solo lectura (tipo badge, fecha y observaciones) con mensaje "Sin participación registrada este mes" cuando aplica, y botón de navegación directa "Ver en Programa →".
   - Eliminada función `handleMatSave` no utilizada en `VistaEditable.jsx`, preservando `handleDelete` y `handleAncAdd` para `AncCellModal`.
   - Reubicado el botón "Generar S-140" en `Programa.jsx` a un botón de acción flotante (FAB) fijo en la esquina inferior derecha (`fixed bottom-6 right-6 z-50 rounded-full`), accesible en todo momento durante el scroll de semanas.
+- **Brief 09 — Validación en tiempo real en Registros (17/08/2026):**
+  - Implementado estado derivado de validación (`validationErrors` y `hasErrors`) en render en `Registros.jsx` sin estados adicionales `useState`.
+  - Añadidos mensajes de feedback inline (`↑ Selecciona...`) con tipografía mono roja para Persona, Fecha (alternado dinámicamente con el preview `→ Mes`) y Tipo (visible tras seleccionar una persona).
+  - Bloqueado el botón "Guardar →" con `disabled={saving || hasErrors}`.
+  - Eliminada la guarda redundante con toast de error en `handleAddSave`.
+- **Brief 10 — Vista previa CSV antes de importar (17/08/2026):**
+  - Implementado modal de vista previa antes de ejecutar la importación de `participantes.csv` y `participaciones.csv` en `Exportar.jsx`.
+  - Separado el flujo en dos fases: extracción/parseo de headers y primeras 5 filas (`handleFileSelect`) y ejecución con confirmación explícita (`confirmImport`).
+  - Creado el componente auxiliar `HeadersWarning` para verificar columnas requeridas (`HEADERS_PART` y `HEADERS_PARTIC`) alertando si faltan campos obligatorios.
+  - Reseteo automático de `e.target.value` al seleccionar archivos para permitir re-selección inmediata.
 
 
 

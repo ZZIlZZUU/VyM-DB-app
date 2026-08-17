@@ -244,10 +244,6 @@ export default function Registros() {
   }
 
   async function handleAddSave() {
-    if (!form.clave || !form.fecha || !form.tipo) {
-      toastError('Completa persona, fecha y tipo')
-      return
-    }
     setSaving(true)
     const p = personaSeleccionada
     const mes = getMes(form.fecha)
@@ -318,6 +314,13 @@ export default function Registros() {
   // Preview
   const previewMes = getMes(form.fecha)
 
+  const validationErrors = {
+    clave: !form.clave ? 'Selecciona una persona' : null,
+    fecha: !form.fecha ? 'Selecciona una fecha' : null,
+    tipo:  form.clave && !form.tipo ? 'Selecciona un tipo de participación' : null,
+  }
+  const hasErrors = Object.values(validationErrors).some(Boolean)
+
   if (fetchError) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
       <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
@@ -358,6 +361,11 @@ export default function Registros() {
                 </optgroup>
               ))}
             </select>
+            {validationErrors.clave && (
+              <span className="text-[10px] text-danger font-mono mt-0.5 inline-block">
+                ↑ {validationErrors.clave}
+              </span>
+            )}
           </div>
 
           {/* Info persona */}
@@ -380,16 +388,28 @@ export default function Registros() {
               onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
               className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
             />
-            {previewMes && (
-              <span className="text-xs text-text3 font-mono mt-1 inline-block">→ {previewMes}</span>
-            )}
+            {previewMes
+              ? <span className="text-[10px] text-text3 font-mono mt-0.5 inline-block">→ {previewMes}</span>
+              : validationErrors.fecha && (
+                  <span className="text-[10px] text-danger font-mono mt-0.5 inline-block">
+                    ↑ {validationErrors.fecha}
+                  </span>
+                )
+            }
           </div>
 
           {/* Tipo */}
           <div>
             <label className="block font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo de participación</label>
             {tiposPermitidos.length > 0 ? (
-              <TipoChips tipos={tiposPermitidos} selected={form.tipo} onSelect={t => setForm(f => ({ ...f, tipo: t }))} />
+              <>
+                <TipoChips tipos={tiposPermitidos} selected={form.tipo} onSelect={t => setForm(f => ({ ...f, tipo: t }))} />
+                {validationErrors.tipo && (
+                  <span className="text-[10px] text-danger font-mono mt-1 inline-block">
+                    ↑ {validationErrors.tipo}
+                  </span>
+                )}
+              </>
             ) : (
               <div className="text-xs text-text3 mt-1">Selecciona una persona primero</div>
             )}
@@ -432,7 +452,7 @@ export default function Registros() {
 
           <button
             onClick={handleAddSave}
-            disabled={saving}
+            disabled={saving || hasErrors}
             className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50"
           >
             {saving ? 'Guardando...' : 'Guardar →'}

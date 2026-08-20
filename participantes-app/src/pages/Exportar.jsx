@@ -290,17 +290,17 @@ export default function Exportar() {
               </div>
             </div>
             <button onClick={() => exportPartCSV()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50 whitespace-nowrap">
+              className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
               {isLoading('part-all') ? 'Descargando...' : '↓ Descargar todo'}
             </button>
           </div>
           <div className="flex gap-2 border-t border-border pt-3">
             <button onClick={() => exportPartCSV('Mat')} disabled={!!loading}
-              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('part-Mat') ? '...' : '↓ Solo Matriculados'}
             </button>
             <button onClick={() => exportPartCSV('Anc/SM')} disabled={!!loading}
-              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('part-Anc/SM') ? '...' : '↓ Solo Anc/SM'}
             </button>
           </div>
@@ -329,7 +329,7 @@ export default function Exportar() {
             <select
               value={mesInicio}
               onChange={e => setMesInicio(e.target.value)}
-              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none"
+              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none focus:border-accent"
             >
               <option value="">Mes inicial (todos)</option>
               {MESES.map(m => <option key={m}>{m}</option>)}
@@ -338,7 +338,7 @@ export default function Exportar() {
             <select
               value={mesFin}
               onChange={e => setMesFin(e.target.value)}
-              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none"
+              className="px-2 py-1 text-xs border border-border2 rounded-lg bg-surface text-text1 outline-none focus:border-accent"
             >
               <option value="">Mes final (todos)</option>
               {MESES.map(m => <option key={m}>{m}</option>)}
@@ -353,17 +353,17 @@ export default function Exportar() {
               </div>
             </div>
             <button onClick={() => exportParticCSV()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50 whitespace-nowrap">
+              className="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
               {isLoading('partic-all') ? 'Descargando...' : '↓ Descargar todo'}
             </button>
           </div>
           <div className="flex gap-2 border-t border-border pt-3">
             <button onClick={() => exportParticCSV('Mat')} disabled={!!loading}
-              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('partic-Mat') ? '...' : '↓ Solo Matriculados'}
             </button>
             <button onClick={() => exportParticCSV('Anc/SM')} disabled={!!loading}
-              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('partic-Anc/SM') ? '...' : '↓ Solo Anc/SM'}
             </button>
           </div>
@@ -382,7 +382,7 @@ export default function Exportar() {
               <div className="text-xs text-text3 mt-0.5">Sentencias listas para PostgreSQL / Supabase</div>
             </div>
             <button onClick={exportSQL} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('sql') ? 'Copiando...' : '⎘ Copiar SQL'}
             </button>
           </div>
@@ -392,7 +392,7 @@ export default function Exportar() {
               <div className="text-xs text-text3 mt-0.5">Array completo para scripts de automatización</div>
             </div>
             <button onClick={exportJSON} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading('json') ? 'Copiando...' : '⎘ Copiar JSON'}
             </button>
           </div>
@@ -412,7 +412,7 @@ export default function Exportar() {
             </div>
             <input type="file" id="importPart" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'part')} />
             <button onClick={() => document.getElementById('importPart').click()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 whitespace-nowrap">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
               {isLoading('import-part') ? 'Importando...' : '↑ Seleccionar archivo'}
             </button>
           </div>
@@ -423,7 +423,7 @@ export default function Exportar() {
             </div>
             <input type="file" id="importPartic" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'partic')} />
             <button onClick={() => document.getElementById('importPartic').click()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 whitespace-nowrap">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
               {isLoading('import-partic') ? 'Importando...' : '↑ Seleccionar archivo'}
             </button>
           </div>
@@ -521,7 +521,7 @@ CREATE TABLE participaciones (
               <button
                 onClick={confirmImport}
                 disabled={!!loading}
-                className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50"
+                className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Importando...' : 'Confirmar importación →'}
               </button>

@@ -183,7 +183,7 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
           </button>
           <button
             onClick={handleIrAPrograma}
-            className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800"
+            className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             Ver en Programa →
           </button>
@@ -282,7 +282,7 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
         <button
           onClick={handleAdd}
           disabled={saving || !nuevoTipo}
-          className="px-4 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50"
+          className="px-4 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Guardando...' : '+ Agregar'}
         </button>

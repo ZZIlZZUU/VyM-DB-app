@@ -130,7 +130,7 @@ export default function SetPassword() {
               <button
                 type="submit"
                 disabled={loading || Boolean(successMsg)}
-                className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Guardando...' : 'Guardar contraseña'}
               </button>

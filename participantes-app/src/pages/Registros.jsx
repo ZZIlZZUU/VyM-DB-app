@@ -160,7 +160,7 @@ function RowForm({ registro, personas, onSave, onDelete, onCancel }) {
             type="button"
             onClick={handleSaveSubmit}
             disabled={saving || !fecha || !tipo}
-            className="px-3 py-1 text-xs bg-accent text-white font-medium rounded-lg hover:bg-green-800 disabled:opacity-50 transition-none"
+            className="px-3 py-1 text-xs bg-accent text-white font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Actualizar →'}
           </button>
@@ -453,7 +453,7 @@ export default function Registros() {
           <button
             onClick={handleAddSave}
             disabled={saving || hasErrors}
-            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50"
+            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar →'}
           </button>
@@ -575,7 +575,7 @@ export default function Registros() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Página anterior"
               >
                 ←
@@ -586,7 +586,7 @@ export default function Registros() {
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="px-2.5 py-1 border border-border2 rounded-lg text-xs font-medium text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Página siguiente"
               >
                 →

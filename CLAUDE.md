@@ -358,7 +358,7 @@ Variables de color custom definidas en `tailwind.config.js`:
 ```
 bg, surface, border, border2
 text1, text2, text3
-accent (#1C6B4A verde), accent-bg
+accent (#1C6B4A verde), accent-hover (#155236), accent-bg
 blue, blue-bg
 amber, amber-bg
 purple, purple-bg
@@ -366,6 +366,13 @@ teal, teal-bg
 rose, rose-bg
 danger (#A32020), danger-bg
 ```
+
+### Convenciones y estados de UI (Estándar oficial — Brief 13)
+
+- **Botón primario:** `bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed`
+- **Botón secundario / outline:** `border border-border2 text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed`
+- **Inputs y selects:** `border border-border2 bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed`
+- **Transiciones:** `index.css` define transiciones base de 100ms para `a, button, input, select, textarea`. No usar `transition-none` en botones interactivos de acción.
 
 ### Animaciones definidas en `index.css`
 
@@ -433,7 +440,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Personas — Filtros rápidos** — Reemplazados los selectores de lista (`Todas`, `Mat`, `Anc·SM`) y activo (`Activos`, `Inactivos`, `Todos`) por grupos de botones tag con selección visual activa (`bg-accent text-white`).
 - [ ] **Exportar / Importar — Carga interactiva Drag & Drop** — Habilitar la subida del archivo CSV/XLSX arrastrándolo a la caja de carga.
 - [ ] **Exportar / Importar — Vista previa y validación previa** — Mostrar una tabla con los primeros 5 renglones del CSV cargado antes de enviarlo a Supabase, validando la consistencia de tipos y columnas.
-- [ ] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`) y anillos de `focus` claros (`focus:ring-2 focus:ring-accent`) en inputs, selectores y botones de todas las vistas.
+- [X] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`), hover con token oficial (`accent-hover: #155236`), y foco (`focus:border-accent`) en inputs, selectores y botones de todas las vistas.
 - [ ] **Accesibilidad (a11y)** — Asegurar contraste suficiente en textos pequeños (conforme a las directrices WCAG AA) e incorporar atributos `aria-label` en iconos y botones sin etiquetas textuales legibles.
 
 ### 🔵 Prioridad Baja (Futuro y Optimizaciones)
@@ -557,6 +564,12 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - **Brief 12 — Múltiples asignaciones por celda en VistaEditable (tabla Mat) (17/08/2026):**
   - Adaptada la celda mensual de la tabla de Matriculados en `VistaEditable.jsx` al patrón apilado multi-registro `día + badge` (`registros.filter` ordenado por fecha) homologando el comportamiento con la tabla de Anc/SM.
   - Actualizado `MatCellModal` para iterar y mostrar todas las participaciones (`recs[]`) del mes seleccionado con su respectivo tipo, fecha y observaciones.
+- **Brief 13 — Homogeneización de la UI (20/08/2026):**
+  - Añadido el token `'accent-hover': '#155236'` en `tailwind.config.js` y reemplazadas todas las ocurrencias hardcodeadas de `hover:bg-green-800` por `hover:bg-accent-hover` en 9 componentes y vistas (`Usuarios`, `Registros`, `Personas`, `Programa`, `SetPassword`, `VistaEditable`, `Login`, `Exportar`, `PerfilDrawer`).
+  - Homogeneizado el par `disabled:opacity-50 disabled:cursor-not-allowed` en todos los botones e inputs interactivos de la aplicación.
+  - Añadido `focus:border-accent` a todos los `<select>` de la aplicación (`Estadisticas`, `VistaSql`, `Exportar`, `Usuarios`).
+  - Retirado `transition-none` del botón de actualización en `Registros.jsx` y unificada la opacidad de paginación a `disabled:opacity-50`.
+  - Establecidas las directrices de estados de UI como estándar oficial del proyecto para futuros desarrollos.
 
 
 

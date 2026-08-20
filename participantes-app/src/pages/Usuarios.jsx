@@ -275,7 +275,7 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
           <button
             type="submit"
             disabled={inviting}
-            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {inviting ? 'Invitando...' : 'Enviar invitación →'}
           </button>
@@ -336,7 +336,7 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
                           <button
                             onClick={() => handleSaveNombre(u)}
                             disabled={savingName}
-                            className="text-[10px] bg-accent text-white px-2 py-0.5 rounded hover:bg-green-800"
+                            className="text-[10px] bg-accent text-white px-2 py-0.5 rounded hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             ✓
                           </button>
@@ -374,7 +374,7 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
                     <select
                       value={u.rol || 'editor'}
                       onChange={e => handleRoleChange(u, e.target.value)}
-                      className={`text-[10px] font-mono font-medium px-2 py-1 rounded border outline-none cursor-pointer ${
+                      className={`text-[10px] font-mono font-medium px-2 py-1 rounded border outline-none cursor-pointer focus:border-accent ${
                         isAdmin
                           ? 'bg-purple-bg text-purple border-purple/30'
                           : 'bg-blue-bg text-blue border-blue/30'

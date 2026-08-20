@@ -652,7 +652,7 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
                   ? 'bg-amber text-white hover:bg-amber-600 shadow-sm'
                   : pct === 100 && totalPartes > 0
                   ? 'bg-accent-bg text-accent border border-accent/30 hover:bg-accent/20'
-                  : 'bg-accent text-white hover:bg-green-800'
+                  : 'bg-accent text-white hover:bg-accent-hover'
               }`}
             >
               {hayReconfirmaciones
@@ -1154,7 +1154,7 @@ export default function Programa() {
           <button
             onClick={() => document.getElementById('epubInput').click()}
             disabled={uploading}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-green-800 disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {uploading ? 'Procesando...' : '↑ Subir EPUB mwb'}
           </button>
@@ -1188,7 +1188,7 @@ export default function Programa() {
               </p>
               <button
                 onClick={() => document.getElementById('epubInput').click()}
-                className="px-4.5 py-2 text-xs font-semibold bg-accent hover:bg-green-800 text-white rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm hover:shadow"
+                className="px-4.5 py-2 text-xs font-semibold bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm hover:shadow"
               >
                 <span>📤</span> Subir archivo EPUB mwb
               </button>
@@ -1270,7 +1270,7 @@ export default function Programa() {
           px-4 py-3
           bg-accent text-white text-sm font-medium
           rounded-full shadow-lg
-          hover:bg-green-800
+          hover:bg-accent-hover
           disabled:opacity-40 disabled:cursor-not-allowed
           transition-opacity duration-150
         "

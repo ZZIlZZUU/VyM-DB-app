@@ -235,13 +235,13 @@ export default function Estadisticas() {
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap items-center">
         <select value={filterLista} onChange={e => setFilterLista(e.target.value)}
-          className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+          className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
           <option value="">Todas las listas</option>
           <option value="Mat">Matriculados</option>
           <option value="Anc/SM">Ancianos y SM</option>
         </select>
         <select value={filterMes} onChange={e => setFilterMes(e.target.value)}
-          className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+          className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
           <option value="">Todos los meses</option>
           {MESES.map(m => <option key={m}>{m}</option>)}
         </select>

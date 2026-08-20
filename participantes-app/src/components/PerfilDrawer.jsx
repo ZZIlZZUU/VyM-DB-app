@@ -353,7 +353,7 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                 <button
                   type="submit"
                   disabled={savingPerfil}
-                  className="bg-accent text-white text-xs font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+                  className="bg-accent text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {savingPerfil ? 'Guardando...' : 'Guardar nombre'}
                 </button>
@@ -488,7 +488,7 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                             type="button"
                             onClick={handleForgotCurrentPassword}
                             disabled={resetLoading}
-                            className="text-[11px] text-text3 hover:text-accent underline transition-colors disabled:opacity-50"
+                            className="text-[11px] text-text3 hover:text-accent underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {resetLoading ? 'Enviando correo...' : '¿Olvidaste tu contraseña actual?'}
                           </button>
@@ -572,7 +572,7 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                     className={`text-xs font-medium py-2.5 rounded-lg transition-all shadow-sm ${
                       allDone
                         ? 'bg-blue text-white hover:bg-blue-600'
-                        : 'bg-accent text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed'
+                        : 'bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed'
                     }`}
                   >
                     {savingPassword ? 'Verificando y actualizando...' : allDone ? 'Confirmar y guardar nueva contraseña' : 'Actualizar contraseña'}
@@ -615,7 +615,7 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                 <button
                   type="submit"
                   disabled={savingEmail || !newEmail || !emailPassword}
-                  className="bg-surface border border-border2 text-text1 hover:bg-bg text-xs font-medium py-2 rounded-lg disabled:opacity-50 transition-colors"
+                  className="bg-surface border border-border2 text-text1 hover:bg-bg text-xs font-medium py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {savingEmail ? 'Verificando y enviando...' : 'Solicitar cambio de correo'}
                 </button>

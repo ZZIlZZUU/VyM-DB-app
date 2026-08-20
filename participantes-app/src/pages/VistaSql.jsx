@@ -161,20 +161,20 @@ export default function VistaSql() {
             <input value={pSearch} onChange={e => setPSearch(e.target.value)} placeholder="Buscar nombre o clave..."
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44" />
             <select value={pLista} onChange={e => setPLista(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todas las listas</option>
               <option value="Mat">Matriculados</option>
               <option value="Anc/SM">Ancianos / SM</option>
             </select>
             <select value={pEstatus} onChange={e => setPEstatus(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todos los estatus</option>
               <option>Matriculado</option><option>Matriculada</option>
               <option>Matriculado bautizado</option><option>Matriculada bautizada</option>
               <option>Anciano</option><option>Siervo Ministerial</option>
             </select>
             <select value={pActivo} onChange={e => setPActivo(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Activos e inactivos</option>
               <option value="true">Solo activos</option>
               <option value="false">Solo inactivos</option>
@@ -253,18 +253,18 @@ export default function VistaSql() {
             <input value={rSearch} onChange={e => setRSearch(e.target.value)} placeholder="Buscar nombre o clave..."
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44" />
             <select value={rLista} onChange={e => setRLista(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todas las listas</option>
               <option value="Mat">Matriculados</option>
               <option value="Anc/SM">Ancianos / SM</option>
             </select>
             <select value={rMes} onChange={e => setRMes(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todos los meses</option>
               {MESES.map(m => <option key={m}>{m}</option>)}
             </select>
             <select value={rTipo} onChange={e => setRTipo(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none">
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todos los tipos</option>
               {['T','A','X','LB','SMT_DSC','P','TB','PE','EBC','VC','NC', 'LEBC', 'ORACION_C'].map(t => <option key={t}>{t}</option>)}
             </select>

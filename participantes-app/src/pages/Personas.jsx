@@ -198,7 +198,7 @@ export default function Personas() {
                 value={form.lista}
                 onChange={e => setForm(f => ({ ...f, lista: e.target.value }))}
                 disabled={!!editClave}
-                className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50"
+                className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="Mat">Matriculados</option>
                 <option value="Anc/SM">Ancianos / SM</option>
@@ -237,7 +237,7 @@ export default function Personas() {
                 value={form.sexo}
                 onChange={e => setForm(f => ({ ...f, sexo: e.target.value }))}
                 disabled={form.lista === 'Anc/SM'}
-                className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50"
+                className="w-full px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="F">F — Femenino</option>
                 <option value="M">M — Masculino</option>
@@ -258,7 +258,7 @@ export default function Personas() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50"
+            className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : editClave ? 'Actualizar →' : 'Agregar →'}
           </button>

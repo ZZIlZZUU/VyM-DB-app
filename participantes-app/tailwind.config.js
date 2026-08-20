@@ -16,6 +16,7 @@ export default {
         text2: '#6B6860',
         text3: '#9B9890',
         accent: '#1C6B4A',
+        'accent-hover': '#155236',
         'accent-bg': '#EAF5EE',
         blue: '#1A5BAB',
         'blue-bg': '#EBF2FC',

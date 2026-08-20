@@ -127,7 +127,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-1 bg-accent text-white text-sm font-medium py-2 rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Verificando...' : 'Entrar'}
             </button>
@@ -137,7 +137,7 @@ export default function Login() {
                 type="button"
                 onClick={handleResetPassword}
                 disabled={resetLoading}
-                className="text-xs text-text3 hover:text-accent underline transition-colors disabled:opacity-50"
+                className="text-xs text-text3 hover:text-accent underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {resetLoading ? 'Enviando correo...' : '¿Olvidaste tu contraseña?'}
               </button>

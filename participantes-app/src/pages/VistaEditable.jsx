@@ -143,7 +143,9 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
   if (!persona) return null
 
   const mes = MESES[mesIdx]
-  const rec = registros.find(r => r.clave === persona.clave && r.mes === mes)
+  const recs = registros
+    .filter(r => r.clave === persona.clave && r.mes === mes)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
 
   function handleIrAPrograma() {
     onClose()
@@ -154,30 +156,23 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
     <Modal open={open} onClose={onClose} title={`${persona.nombre} — ${mes}`}>
       <div className="flex flex-col gap-4">
 
-        {rec ? (
-          <>
-            <div>
-              <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo</div>
-              <Badge tipo={rec.tipo} />
-            </div>
-            {rec.fecha && (
-              <div>
-                <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Fecha</div>
-                <div className="text-sm text-text1">{rec.fecha}</div>
-              </div>
-            )}
-            {rec.observaciones && (
-              <div>
-                <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Observaciones</div>
-                <div className="text-sm text-text2">{rec.observaciones}</div>
-              </div>
-            )}
-          </>
-        ) : (
+        {recs.length === 0 ? (
           <div className="text-sm text-text3 text-center py-4">
             Sin participación registrada este mes
           </div>
-        )}
+        ) : recs.map(r => (
+          <div key={r.id} className="flex flex-col gap-2 pb-3 border-b border-border last:border-0 last:pb-0">
+            <div className="flex items-center gap-3">
+              <Badge tipo={r.tipo} />
+              {r.fecha && (
+                <span className="font-mono text-xs text-text2">{r.fecha}</span>
+              )}
+            </div>
+            {r.observaciones && (
+              <div className="text-xs text-text3">{r.observaciones}</div>
+            )}
+          </div>
+        ))}
 
         <div className="flex gap-2 mt-1">
           <button
@@ -559,15 +554,30 @@ export default function VistaEditable({ onNavigate }) {
                         </div>
                       </td>
                       {MESES.map((mes, mi) => {
-                        const rec = registros.find(r => r.clave === p.clave && r.mes === mes)
-                        const cellHeat = heatMap && rec ? 'bg-green-100' : ''
+                        const recs = registros
+                          .filter(r => r.clave === p.clave && r.mes === mes)
+                          .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                        const cellHeat = heatMap && recs.length ? 'bg-green-100' : ''
                         return (
-                          <td key={mes} className={`py-2 text-center ${cellHeat}`}>
-                            <Badge
-                              tipo={rec?.tipo}
-                              onClick={() => setMatModal({ open: true, persona: p, mesIdx: mi })}
-                              title={rec?.observaciones || 'Click para editar'}
-                            />
+                          <td
+                            key={mes}
+                            className={`py-1.5 text-center cursor-pointer hover:bg-bg/50 ${cellHeat}`}
+                            onClick={() => setMatModal({ open: true, persona: p, mesIdx: mi })}
+                          >
+                            {recs.length === 0 ? (
+                              <span className="text-border2 text-xs">·</span>
+                            ) : (
+                              <div className="flex flex-col items-center gap-0.5">
+                                {recs.map(r => (
+                                  <div key={r.id} className="flex items-center gap-1">
+                                    <span className="font-mono text-xs text-text3">{assignmentDayOfMonth(r.fecha)}</span>
+                                    <span className={`inline-flex items-center justify-center min-w-7 h-4 px-1 rounded text-xs font-medium font-mono ${BADGE_CLASS[r.tipo] || ''}`}>
+                                      {r.tipo}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </td>
                         )
                       })}

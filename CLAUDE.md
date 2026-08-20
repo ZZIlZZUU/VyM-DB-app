@@ -554,6 +554,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Implementados los tooltips personalizados `TipoTooltip` (tipo, etiqueta descriptiva y conteo) y `MesTooltip` (mes, conteo y participantes únicos).
   - Mapeados los colores y tipografías del design system (`accent` `#1C6B4A`, `accent-bg` `#EAF5EE`, `text2` `#6B6860`, `IBM Plex Mono`).
   - Renombrado helper de barras para Top Personas a `CustomBar` y limpiadas variables no utilizadas.
+- **Brief 12 — Múltiples asignaciones por celda en VistaEditable (tabla Mat) (17/08/2026):**
+  - Adaptada la celda mensual de la tabla de Matriculados en `VistaEditable.jsx` al patrón apilado multi-registro `día + badge` (`registros.filter` ordenado por fecha) homologando el comportamiento con la tabla de Anc/SM.
+  - Actualizado `MatCellModal` para iterar y mostrar todas las participaciones (`recs[]`) del mes seleccionado con su respectivo tipo, fecha y observaciones.
 
 
 

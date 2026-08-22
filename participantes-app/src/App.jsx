@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { useConfirm } from './hooks/useConfirm'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import ConfirmDialog from './components/ConfirmDialog'
 import Breadcrumb from './components/Breadcrumb'
 import PerfilDrawer from './components/PerfilDrawer'
+import CommandPalette from './components/CommandPalette'
 import VistaEditable  from './pages/VistaEditable'
 import VistaSql       from './pages/VistaSql'
 import Personas       from './pages/Personas'
@@ -62,6 +64,7 @@ export default function App() {
   const [stats, setStats]                 = useState({ personas: 0, registros: 0, mesActual: 0, mes: '' })
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [perfilOpen, setPerfilOpen]       = useState(false)
+  const [paletteOpen, setPaletteOpen]     = useState(false)
   const [headerVisible, setHeaderVisible] = useState(true)
   const [anioEnCurso, setAnioEnCurso]     = useState('2026')
   const [semanasPendientes, setSemanasPendientes] = useState(0)
@@ -75,20 +78,32 @@ export default function App() {
   })
   const { confirm, confirmProps } = useConfirm()
 
+  useKeyboardShortcuts({
+    onOpenPalette: () => setPaletteOpen(true),
+    onNavigate:    (v) => { setView(v); setMobileOpen(false) },
+    onOpenPerfil:  () => setPerfilOpen(true),
+  })
+
   useEffect(() => {
     localStorage.setItem('sidebarOpen', open)
   }, [open])
 
-  // ESC cierra el drawer móvil si está abierto
+  // ESC cierra la paleta o el drawer móvil si están abiertos
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === 'Escape' && mobileOpen) {
-        setMobileOpen(false)
+      if (e.key === 'Escape') {
+        if (paletteOpen) {
+          setPaletteOpen(false)
+          return
+        }
+        if (mobileOpen) {
+          setMobileOpen(false)
+        }
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [mobileOpen])
+  }, [mobileOpen, paletteOpen])
 
   // Resize limpia el drawer si la ventana pasa a desktop (>= 768px)
   useEffect(() => {
@@ -481,9 +496,21 @@ export default function App() {
               <div className="text-xs text-text3 font-mono mt-0.5 truncate hidden sm:block">{TOPBAR_SUB[view]}</div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 select-none flex-shrink-0" title={`Estado Realtime: ${rtCfg.label}`}>
-            <span className={`w-2 h-2 rounded-full ${rtCfg.color} ${rtCfg.pulse ? 'animate-pulse' : ''}`} />
-            <span className="text-[10px] text-text3 hidden sm:inline">{rtCfg.label}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1 border border-border2 rounded-lg text-xs text-text3 hover:text-text1 hover:bg-bg transition-colors cursor-pointer"
+              title="Abrir paleta de comandos (Ctrl+K)"
+            >
+              <span>⌕</span>
+              <span>Buscar</span>
+              <kbd className="border border-border2 rounded px-1 font-mono text-[10px] bg-bg">⌘K</kbd>
+            </button>
+
+            <div className="flex items-center gap-1.5 select-none flex-shrink-0 pl-1" title={`Estado Realtime: ${rtCfg.label}`}>
+              <span className={`w-2 h-2 rounded-full ${rtCfg.color} ${rtCfg.pulse ? 'animate-pulse' : ''}`} />
+              <span className="text-[10px] text-text3 hidden sm:inline">{rtCfg.label}</span>
+            </div>
           </div>
         </div>
 
@@ -503,6 +530,16 @@ export default function App() {
         rol={rol}
         onLogout={handleLogout}
         onUserUpdated={fetchStats}
+      />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        NAV={NAV}
+        rol={rol}
+        onNavigate={(v) => { setView(v); setMobileOpen(false) }}
+        onOpenPerfil={() => setPerfilOpen(true)}
+        onLogout={handleLogout}
       />
     </div>
   )

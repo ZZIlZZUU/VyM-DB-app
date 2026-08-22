@@ -426,7 +426,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Manejo de errores de red en fetches** — Capturar fallas de conexión de red en todos los métodos de consulta `fetchData` para evitar páginas en blanco y mostrar un mensaje de error explícito (diferenciando "tabla vacía" de "error de conexión").
 
 ### 🟡 Prioridad Media (Experiencia de Usuario e Interfaz)
-- [ ] **Atajos de teclado globales** — Implementar combinaciones básicas como `Ctrl+K` / `Cmd+K` para una paleta de comandos rápida, `?` para ver atajos disponibles, y la tecla `N` para crear un nuevo registro o persona de manera contextual.
+- [X] **Atajos de teclado globales** — Implementada la paleta de comandos flotante `Ctrl+K` / `Cmd+K` (`CommandPalette.jsx`) con búsqueda, navegación por teclado (`↑`/`↓`/`Enter`/`Escape`) y comandos agrupados, junto a secuencias directas de navegación estilo GitHub (`G` + tecla de destino) mediante el hook `useKeyboardShortcuts.js`.
 - [ ] **Vista Editable — Sticky headers** — Fijar de forma permanente la columna izquierda de personas y la fila superior de meses para no perder la referencia al hacer scroll horizontal o vertical.
 - [ ] **Vista Editable — Múltiples asignaciones de Matriculados en la misma celda** — Permitir visualizar de forma compacta (ej: `T²` o badges apilados pequeños) cuando una persona tiene más de una participación en el mismo mes.
 - [ ] **Vista Editable — Rediseño del modal de Matriculados (solo lectura)** — Dado que las asignaciones se hacen en Programa S-140, modificar el modal de celda para que sea puramente informativo, incluyendo un enlace directo para navegar al programa semanal respectivo.
@@ -450,6 +450,15 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
 - [X] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
 - [ ] **Conversión a PWA (Progressive Web App)** — Configurar `vite-plugin-pwa` para permitir la instalación de la aplicación en el dispositivo móvil como si fuera nativa, permitiendo acceso offline a los datos locales.
+
+---
+
+## Pulir y Expandir
+
+*Regla de protocolo: En esta sección se concentran integraciones ya realizadas a las que se les pueden añadir más características para enriquecer la experiencia de usuario. Únicamente se incorporan elementos a esta sección cuando el usuario lo indique explícitamente con la instrucción **"Pasa a pulir"**, acompañada de las instrucciones o sugerencias para abordar en una ocasión posterior.*
+
+- [ ] **Atajos y Paleta de Comandos (`CommandPalette` / `useKeyboardShortcuts`)**:
+  - *Sugerencia / Directriz:* Agregar más atajos a la paleta de comandos como opciones de configuración (ej. atajos para alternar tema claro/oscuro, acciones rápidas contextuales como nuevo registro `N`, exportación rápida, filtros inmediatos) y sugerir más características interactivas para potenciar su utilidad.
 
 ---
 
@@ -590,6 +599,10 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Refactorizada la función `processFile` en `Exportar.jsx` para procesar archivos `File` provenientes tanto del `<input type="file">` nativo como del evento `drop`.
   - Enueltas las dos filas de importación (`participantes.csv` y `participaciones.csv`) en zonas reactivas de drop con feedback visual inmediato (`border-2 border-dashed border-accent bg-accent-bg` y etiqueta "Suelta aquí").
   - Mantenido el funcionamiento normal del botón tradicional "↑ Seleccionar archivo" y la validación de extensiones no permitidas.
+- **Brief 17 — Atajos de teclado globales (21/08/2026):**
+  - Creado el hook `useKeyboardShortcuts` (`src/hooks/useKeyboardShortcuts.js`) con detección segura de campos de escritura (`isTyping`), disparo de paleta (`Ctrl+K` / `Cmd+K`) y secuencias directas de navegación estilo GitHub (`G` + tecla).
+  - Creado el componente flotante `CommandPalette` (`src/components/CommandPalette.jsx`) con auto-foco, filtrado reactivo de comandos (generados a partir del array `NAV` respetando permisos de rol y comandos de acción), navegación por flechas y selección sincronizada con mouse.
+  - Integrado el botón de acceso rápido con badge `⌘K` en el topbar de `App.jsx` y ampliado el listener de `Escape` para cerrar la paleta prioritariamente.
 
 
 

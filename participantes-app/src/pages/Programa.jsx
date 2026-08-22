@@ -348,7 +348,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
   )
 }
 
-function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar, clavePresidente }) {
+function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsignados, onAsignar, onConfirmar, clavePresidente, modoLectura }) {
   const [flashing, setFlashing] = useState(false)
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
@@ -365,26 +365,30 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
 
   const necesitaReconfirmar = principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
 
-    // Slot vacío — no renderizar nada asignable
+  // Slot vacío — no renderizar nada asignable
   if (parte.tipo_asignacion === 'SMT_VACIO') {
     return (
-      <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
+      <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start ${
+        modoLectura ? 'grid-cols-[auto_1fr_1fr]' : 'grid-cols-[auto_1fr_180px_120px]'
+      }`}>
         <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0" />
         <div>
           <div className="text-sm text-text3 italic">Sin cuarta asignación</div>
           <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-bg text-text3">SMT</span>
         </div>
         <div />
-        <div />
+        {!modoLectura && <div />}
       </div>
     )
   }
 
-    // CONCLU y ORACION — read-only, siempre refleja al Presidente (visual only, no se guarda en BD)
+  // CONCLU y ORACION — read-only, siempre refleja al Presidente (visual only, no se guarda en BD)
   if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'ORACION') {
     const nombrePresidente = personas.find(p => p.clave === clavePresidente)?.nombre || '—'
     return (
-      <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
+      <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start ${
+        modoLectura ? 'grid-cols-[auto_1fr_1fr]' : 'grid-cols-[auto_1fr_180px_120px]'
+      }`}>
         <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0 whitespace-nowrap">
           {parte.hora_inicio || ''}
         </div>
@@ -396,16 +400,26 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
             </span>
           </div>
         </div>
-        <div className="px-2 py-1 text-xs text-text2 italic bg-bg border border-border2 rounded-lg">
-          {clavePresidente ? nombrePresidente : '— Asignar presidente primero —'}
-        </div>
-        <div />
+        {modoLectura ? (
+          <div className="flex flex-col gap-0.5">
+            <span className={clavePresidente ? 'text-sm font-medium text-text1' : 'text-xs text-text3'}>
+              {clavePresidente ? nombrePresidente : '— Asignar presidente primero'}
+            </span>
+          </div>
+        ) : (
+          <div className="px-2 py-1 text-xs text-text2 italic bg-bg border border-border2 rounded-lg">
+            {clavePresidente ? nombrePresidente : '— Asignar presidente primero —'}
+          </div>
+        )}
+        {!modoLectura && <div />}
       </div>
     )
   }
 
   return (
-    <div className="grid gap-2 py-2 border-b border-border last:border-0 items-start grid-cols-[auto_1fr_180px_120px]">
+    <div className={`grid gap-2 py-2 border-b border-border last:border-0 items-start ${
+      modoLectura ? 'grid-cols-[auto_1fr_1fr]' : 'grid-cols-[auto_1fr_180px_120px]'
+    }`}>
       {/* Hora */}
       <div className="text-xs font-mono text-text3 w-20 pt-1 shrink-0 whitespace-nowrap">
         {parte.hora_inicio || ''}
@@ -424,98 +438,133 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
         </div>
       </div>
 
-      {/* Selector principal + ayudante */}
-      {parte.seccion !== 'APERTURA' && parte.seccion !== 'CIERRE' && (
-        <div className="flex flex-col gap-1">
-          <PersonaSelector
-            tipo={parte.tipo_asignacion}
-            value={principal?.clave}
-            onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
-            personas={personas}
-            historial={historial}
-            mes={mes}
-            yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
-            disabled={false}
-          />
-          {parte.requiere_ayudante && (() => {
-            // Para SMT_EXP: el ayudante debe ser del mismo sexo que el principal
-            const tipoAyu = parte.tipo_asignacion === 'SMT_EXP'
-              ? (personas.find(p => p.clave === principal?.clave)?.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F')
-              : parte.tipo_asignacion
-            return (
+      {/* Asignación: Modo Lectura vs Modo Edición */}
+      {modoLectura ? (
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className={principal?.clave ? 'text-sm font-medium text-text1' : 'text-xs text-text3'}>
+              {principal?.clave
+                ? personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave
+                : '— Sin asignar'}
+            </span>
+            {principal?.clave && (
+              principal?.confirmado && !necesitaReconfirmar ? (
+                <span className="text-accent text-xs font-bold" title="Confirmado">✓</span>
+              ) : necesitaReconfirmar ? (
+                <span className="text-amber text-xs font-bold" title="Requiere reconfirmar">↻</span>
+              ) : (
+                <span className="text-text3 text-xs" title="Sin confirmar">·</span>
+              )
+            )}
+          </div>
+          {parte.requiere_ayudante && (
+            ayudante?.clave ? (
+              <span className="text-xs text-text2">
+                ↳ {personas.find(p => p.clave === ayudante.clave)?.nombre ?? ayudante.clave}
+              </span>
+            ) : principal?.clave ? (
+              <span className="text-xs text-text3 italic">
+                ↳ Sin ayudante
+              </span>
+            ) : null
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Selector principal + ayudante */}
+          {parte.seccion !== 'APERTURA' && parte.seccion !== 'CIERRE' && (
+            <div className="flex flex-col gap-1">
               <PersonaSelector
-                tipo={tipoAyu}
-                value={ayudante?.clave}
-                onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+                tipo={parte.tipo_asignacion}
+                value={principal?.clave}
+                onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
                 personas={personas}
                 historial={historial}
                 mes={mes}
-                yaAsignados={[
-                  ...semanaAsignados.filter(c => c !== ayudante?.clave),
-                  principal?.clave,
-                ].filter(Boolean)}
-                disabled={!principal?.clave}
+                yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
+                disabled={false}
               />
-            )
-          })()}
-        </div>
+              {parte.requiere_ayudante && (() => {
+                // Para SMT_EXP: el ayudante debe ser del mismo sexo que el principal
+                const tipoAyu = parte.tipo_asignacion === 'SMT_EXP'
+                  ? (personas.find(p => p.clave === principal?.clave)?.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F')
+                  : parte.tipo_asignacion
+                return (
+                  <PersonaSelector
+                    tipo={tipoAyu}
+                    value={ayudante?.clave}
+                    onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+                    personas={personas}
+                    historial={historial}
+                    mes={mes}
+                    yaAsignados={[
+                      ...semanaAsignados.filter(c => c !== ayudante?.clave),
+                      principal?.clave,
+                    ].filter(Boolean)}
+                    disabled={!principal?.clave}
+                  />
+                )
+              })()}
+            </div>
+          )}
+
+          {parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE' ? (
+            <PersonaSelector
+              tipo={parte.tipo_asignacion}
+              value={principal?.clave}
+              onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
+              personas={personas}
+              historial={historial}
+              mes={mes}
+              yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
+            />
+          ) : null}
+
+          {/* Estado confirmado */}
+          <div className="flex items-center justify-end">
+            {principal?.clave && (
+              <button
+                onClick={async () => {
+                  setFlashing(true)
+                  await onConfirmar(parte.id, principal, ayudante)
+                  setTimeout(() => setFlashing(false), 600)
+                }}
+                disabled={flashing}
+                className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+                  flashing
+                    ? 'bg-accent text-white border-accent'
+                    : necesitaReconfirmar
+                    ? 'bg-amber/15 text-amber border-amber/40 hover:bg-amber hover:text-white'
+                    : principal?.confirmado
+                    ? 'bg-accent-bg text-accent border-accent/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                    : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'
+                }`}
+                title={
+                  necesitaReconfirmar
+                    ? 'Se cambiaron participantes en esta asignación. Haz clic para reconfirmar.'
+                    : principal?.confirmado
+                    ? 'Asignación confirmada. Haz clic para desconfirmar.'
+                    : 'Haz clic para confirmar esta asignación.'
+                }
+              >
+                {flashing
+                  ? '✓'
+                  : necesitaReconfirmar
+                  ? '↻ Reconfirmar'
+                  : principal?.confirmado
+                  ? '✓ Confirmado'
+                  : 'Confirmar'}
+              </button>
+            )}
+          </div>
+        </>
       )}
-
-      {parte.seccion === 'APERTURA' || parte.seccion === 'CIERRE' ? (
-        <PersonaSelector
-          tipo={parte.tipo_asignacion}
-          value={principal?.clave}
-          onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
-          personas={personas}
-          historial={historial}
-          mes={mes}
-          yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
-        />
-      ) : null}
-
-      {/* Estado confirmado */}
-      <div className="flex items-center justify-end">
-        {principal?.clave && (
-          <button
-            onClick={async () => {
-              setFlashing(true)
-              await onConfirmar(parte.id, principal, ayudante)
-              setTimeout(() => setFlashing(false), 600)
-            }}
-            disabled={flashing}
-            className={`text-xs px-2 py-1 rounded-lg border transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
-              flashing
-                ? 'bg-accent text-white border-accent'
-                : necesitaReconfirmar
-                ? 'bg-amber/15 text-amber border-amber/40 hover:bg-amber hover:text-white'
-                : principal?.confirmado
-                ? 'bg-accent-bg text-accent border-accent/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
-                : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'
-            }`}
-            title={
-              necesitaReconfirmar
-                ? 'Se cambiaron participantes en esta asignación. Haz clic para reconfirmar.'
-                : principal?.confirmado
-                ? 'Asignación confirmada. Haz clic para desconfirmar.'
-                : 'Haz clic para confirmar esta asignación.'
-            }
-          >
-            {flashing
-              ? '✓'
-              : necesitaReconfirmar
-              ? '↻ Reconfirmar'
-              : principal?.confirmado
-              ? '✓ Confirmado'
-              : 'Confirmar'}
-          </button>
-        )}
-      </div>
     </div>
   )
 }
 
 // ── Tarjeta de semana ─────────────────────────────────────────
-function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAsignar, onConfirmar, onConfirmarTodo, expandida, onToggleExpand }) {
+function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAsignar, onConfirmar, onConfirmarTodo, expandida, onToggleExpand, modoLectura }) {
   const mes = semana.mes
 
   // Claves ya asignadas en esta semana (para evitar dobles)
@@ -637,31 +686,34 @@ function TarjetaSemana({ semana, partes, asignaciones, personas, historial, onAs
                     semanaAsignados={semanaAsignados}
                     onAsignar={onAsignar}
                     onConfirmar={onConfirmar}
-                    clavePresidente={clavePresidente} 
+                    clavePresidente={clavePresidente}
+                    modoLectura={modoLectura}
                   />
                 ))}
               </div>
             )
           })}
 
-          <div className="flex justify-end mt-4 pt-3 border-t border-border gap-2">
-            <button
-              onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                hayReconfirmaciones
-                  ? 'bg-amber text-white hover:bg-amber-600 shadow-sm'
+          {!modoLectura && (
+            <div className="flex justify-end mt-4 pt-3 border-t border-border gap-2">
+              <button
+                onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                  hayReconfirmaciones
+                    ? 'bg-amber text-white hover:bg-amber-600 shadow-sm'
+                    : pct === 100 && totalPartes > 0
+                    ? 'bg-accent-bg text-accent border border-accent/30 hover:bg-accent/20'
+                    : 'bg-accent text-white hover:bg-accent-hover'
+                }`}
+              >
+                {hayReconfirmaciones
+                  ? '↻ Actualizar confirmación →'
                   : pct === 100 && totalPartes > 0
-                  ? 'bg-accent-bg text-accent border border-accent/30 hover:bg-accent/20'
-                  : 'bg-accent text-white hover:bg-accent-hover'
-              }`}
-            >
-              {hayReconfirmaciones
-                ? '↻ Actualizar confirmación →'
-                : pct === 100 && totalPartes > 0
-                ? '✓ Todo confirmado'
-                : 'Confirmar todo →'}
-            </button>
-          </div>
+                  ? '✓ Todo confirmado'
+                  : 'Confirmar todo →'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -681,8 +733,21 @@ export default function Programa() {
   const [vistaTab, setVistaTab]         = useState('semanas')
   const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
   const [expandedWeeks, setExpandedWeeks] = useState({})
+  const [modoLectura, setModoLectura]   = useState(() => {
+    try {
+      return localStorage.getItem('programa_modoLectura') === 'true'
+    } catch {
+      return false
+    }
+  })
   const { toast, showToast, success, error: toastError } = useToast()
   const { confirm, confirmProps } = useConfirm()
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('programa_modoLectura', String(modoLectura))
+    } catch {}
+  }, [modoLectura])
 
   const handleToggleExpand = (semanaId) => {
     setExpandedWeeks(prev => ({ ...prev, [semanaId]: !prev[semanaId] }))
@@ -1143,22 +1208,44 @@ export default function Programa() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            id="epubInput"
-            accept=".epub"
-            className="hidden"
-            onChange={handleEPUB}
-          />
+        {/* Toggle Modo Lectura / Edición */}
+        <div className="flex border border-border2 rounded-lg overflow-hidden text-xs">
           <button
-            onClick={() => document.getElementById('epubInput').click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setModoLectura(false)}
+            className={`px-3 py-1.5 font-medium transition-colors ${
+              !modoLectura ? 'bg-accent text-white' : 'text-text2 hover:bg-bg'
+            }`}
           >
-            {uploading ? 'Procesando...' : '↑ Subir EPUB mwb'}
+            ✏️ Edición
+          </button>
+          <button
+            onClick={() => setModoLectura(true)}
+            className={`px-3 py-1.5 font-medium border-l border-border2 transition-colors ${
+              modoLectura ? 'bg-accent text-white' : 'text-text2 hover:bg-bg'
+            }`}
+          >
+            👁 Lectura
           </button>
         </div>
+
+        {!modoLectura && (
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              id="epubInput"
+              accept=".epub"
+              className="hidden"
+              onChange={handleEPUB}
+            />
+            <button
+              onClick={() => document.getElementById('epubInput').click()}
+              disabled={uploading}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? 'Procesando...' : '↑ Subir EPUB mwb'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Vista por semanas */}
@@ -1210,6 +1297,7 @@ export default function Programa() {
                   onConfirmarTodo={handleConfirmarTodo}
                   expandida={!!expandedWeeks[s.id]}
                   onToggleExpand={() => handleToggleExpand(s.id)}
+                  modoLectura={modoLectura}
                 />
               )
             })

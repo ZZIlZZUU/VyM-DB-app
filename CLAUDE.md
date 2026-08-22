@@ -431,11 +431,11 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Vista Editable — Múltiples asignaciones de Matriculados en la misma celda** — Permitir visualizar de forma compacta (ej: `T²` o badges apilados pequeños) cuando una persona tiene más de una participación en el mismo mes.
 - [ ] **Vista Editable — Rediseño del modal de Matriculados (solo lectura)** — Dado que las asignaciones se hacen en Programa S-140, modificar el modal de celda para que sea puramente informativo, incluyendo un enlace directo para navegar al programa semanal respectivo.
 - [ ] **Nueva Vista Semanal (Lectura rápida del programa)** — Diseñar una vista/página de sólo lectura para mostrar la agenda de la semana actual. Definir si vive como pestaña de `VistaEditable` o sección en el sidebar, si muestra asignaciones pendientes, y el formato de visualización (lineal o calendario).
-- [ ] **Programa S-140 — Botón flotante "Generar S-140"** — Colocar el botón como un elemento flotante fijado en la parte inferior derecha, facilitando su acceso rápido sin depender de hacer scroll.
-- [ ] **Programa S-140 — Modo lectura vs edición** — Añadir un selector/toggle para alternar entre edición (con dropdowns y botones de acción) y lectura limpia (programa finalizado ideal para revisión visual rápida).
+- [X] **Programa S-140 — Botón flotante "Generar S-140"** — Colocado como un botón de acción flotante (FAB) fijo en la esquina inferior derecha (`fixed bottom-6 right-6 z-50 rounded-full`), accesible en todo momento sin depender de scroll.
+- [X] **Programa S-140 — Modo lectura vs edición** — Añadido selector/toggle en la cabecera para alternar entre edición (con dropdowns y confirmación) y lectura limpia (programa finalizado en texto plano con badges sutiles, persistente en `localStorage`).
 - [X] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` (`registros_filterMes`, `registros_filterLista`) y botón ✕ para limpiar filtros activos.
 - [X] **Registros — Paginación y Selector de registros por página** — Eliminado el límite truncado de 100 registros en la consulta para cargar la totalidad de participaciones del año. Añadida barra inferior de paginación (estilo Supabase Table Editor) con botones de navegación (← / →), indicador de página actual y total, selector de tamaño de página (25, 50, 100, 250, 500) con persistencia en `localStorage` (`registros_pageSize`) y contador dinámico de registros visibles/filtrados.
-- [ ] **Registros — Acciones masivas (Bulk actions)** — Incorporar checkboxes en la lista de registros para permitir eliminar o cambiar tipo a múltiples filas a la vez.
+- [X] **Registros — Acciones masivas (Bulk actions)** — Incorporado modo de selección múltiple en `Registros.jsx` con checkboxes por fila, selección masiva de todos los registros filtrados (`indeterminate`), y barra de acciones contextuales para eliminación en bloque y cambio de tipo masivo con validación de roles y confirmación única.
 - [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
 - [X] **Personas — Filtros rápidos** — Reemplazados los selectores de lista (`Todas`, `Mat`, `Anc·SM`) y activo (`Activos`, `Inactivos`, `Todos`) por grupos de botones tag con selección visual activa (`bg-accent text-white`).
 - [ ] **Exportar / Importar — Carga interactiva Drag & Drop** — Habilitar la subida del archivo CSV/XLSX arrastrándolo a la caja de carga.
@@ -570,6 +570,22 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Añadido `focus:border-accent` a todos los `<select>` de la aplicación (`Estadisticas`, `VistaSql`, `Exportar`, `Usuarios`).
   - Retirado `transition-none` del botón de actualización en `Registros.jsx` y unificada la opacidad de paginación a `disabled:opacity-50`.
   - Establecidas las directrices de estados de UI como estándar oficial del proyecto para futuros desarrollos.
+- **Brief 14 — Modo lectura vs edición en Programa S-140 (21/08/2026):**
+  - Implementado toggle segmentado (`✏️ Edición` / `👁 Lectura`) en los controles superiores de `Programa.jsx` con persistencia en `localStorage` (`programa_modoLectura`).
+  - En modo lectura:
+    - Ocultado el botón de subida `↑ Subir EPUB mwb` del header.
+    - Adaptadas las filas `FilaParte` a grilla limpia de 3 columnas (`grid-cols-[auto_1fr_1fr]`).
+    - Nombres de asignados renderizados en texto plano (`text-sm font-medium text-text1`), ayudantes con `↳`, vacíos con `— Sin asignar` y badges sutiles de confirmación (`✓`/`↻`/`·`).
+    - Ocultados los dropdowns interactivos `PersonaSelector`, botones de confirmación individuales y el botón footer "Confirmar todo →" en `TarjetaSemana`.
+    - Mantenido el botón flotante (FAB) "Generar S-140", barra de progreso y tab Resumen disponibles en ambos modos.
+- **Brief 15 — Bulk actions en Registros (21/08/2026):**
+  - Añadido botón toggle `☐ Seleccionar` / `✕ Cancelar` en la cabecera de la lista de `Registros.jsx`.
+  - Implementado checkbox maestro con soporte para estado indeterminado (`indeterminate`) que permite seleccionar o deseleccionar todos los registros filtrados (`filtered`).
+  - Añadido checkbox interactivo por fila y alternancia de selección al hacer click en la fila completa (bloqueando la edición inline durante el modo selección).
+  - Creada la barra contextual de acciones masivas (`bg-accent-bg border border-accent/30`):
+    - **Eliminación masiva**: diálogo único `ConfirmDialog` y borrado en lote vía `.delete().in('id', ids)`.
+    - **Cambio de tipo masivo**: diálogo único `ConfirmDialog`, filtrado de compatibilidad según el rol de cada persona vía `getTipos(persona)`, actualización en lote vía `.update().in('id', validosIds)` y notificación con detalle de registros modificados y omitidos.
+  - Limpieza automática de la selección al cambiar filtros de búsqueda, mes o lista.
 
 
 

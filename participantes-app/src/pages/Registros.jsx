@@ -187,11 +187,15 @@ export default function Registros() {
   const [filterLista, setFilterLista]         = useState(() => localStorage.getItem('registros_filterLista') ?? '')
   const [page, setPage]                       = useState(1)
   const [pageSize, setPageSize]               = useState(() => Number(localStorage.getItem('registros_pageSize')) || 50)
+  const [modoSeleccion, setModoSeleccion]     = useState(false)
+  const [seleccionados, setSeleccionados]     = useState(new Set())
+  const [bulkTipo, setBulkTipo]               = useState('')
 
   useEffect(() => { localStorage.setItem('registros_filterMes',   filterMes)   }, [filterMes])
   useEffect(() => { localStorage.setItem('registros_filterLista', filterLista) }, [filterLista])
   useEffect(() => { localStorage.setItem('registros_pageSize',    String(pageSize)) }, [pageSize])
   useEffect(() => { setPage(1) }, [search, filterMes, filterLista, pageSize])
+  useEffect(() => { setSeleccionados(new Set()) }, [search, filterMes, filterLista])
 
   const fetchData = useCallback(async (isInitial = false) => {
     if (isInitial) {
@@ -293,6 +297,58 @@ export default function Registros() {
     await supabase.from('participaciones').delete().eq('id', id)
     success('Registro eliminado')
     if (editId === id) setEditId(null)
+  }
+
+  async function handleBulkEliminar() {
+    const ids = [...seleccionados]
+    if (ids.length === 0) return
+    const ok = await confirm({
+      title: `¿Eliminar ${ids.length} registro${ids.length !== 1 ? 's' : ''}?`,
+      message: 'Esta acción no se puede deshacer.',
+      danger: true,
+    })
+    if (!ok) return
+    await supabase.from('participaciones').delete().in('id', ids)
+    success(`${ids.length} registro${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`)
+    setSeleccionados(new Set())
+    setModoSeleccion(false)
+  }
+
+  async function handleBulkCambiarTipo() {
+    const ids = [...seleccionados]
+    if (ids.length === 0 || !bulkTipo) return
+    const ok = await confirm({
+      title: `¿Cambiar tipo de ${ids.length} registro${ids.length !== 1 ? 's' : ''} a "${bulkTipo}"?`,
+      message: 'Los registros donde el tipo no sea válido para la persona serán omitidos.',
+    })
+    if (!ok) return
+
+    // Filtrar los ids donde el tipo sea válido para esa persona
+    const registrosSeleccionados = participaciones.filter(r => ids.includes(r.id))
+    const validos = registrosSeleccionados.filter(r => {
+      const persona = personas.find(p => p.clave === r.clave)
+      return getTipos(persona).includes(bulkTipo)
+    })
+    const omitidos = ids.length - validos.length
+
+    if (validos.length === 0) {
+      toastError('Ningún registro seleccionado admite ese tipo de participación')
+      return
+    }
+
+    const peso = PESO_MAP[bulkTipo] || 1
+    await supabase
+      .from('participaciones')
+      .update({ tipo: bulkTipo, peso })
+      .in('id', validos.map(r => r.id))
+
+    const msg = omitidos > 0
+      ? `Tipo actualizado en ${validos.length} registro${validos.length !== 1 ? 's' : ''} (${omitidos} omitido${omitidos !== 1 ? 's' : ''} por tipo inválido)`
+      : `Tipo actualizado en ${validos.length} registro${validos.length !== 1 ? 's' : ''}`
+    success(msg)
+    setSeleccionados(new Set())
+    setBulkTipo('')
+    setModoSeleccion(false)
   }
 
   // Filtros lista
@@ -462,13 +518,54 @@ export default function Registros() {
 
       {/* ── LISTA REGISTROS CON EDICIÓN INLINE ── */}
       <div className="bg-surface border border-border rounded-xl p-5 flex flex-col">
-        <div className="flex items-center justify-between mb-3 pb-3 border-b border-border">
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-border gap-2">
           <span className="text-sm font-medium text-text1">Registros</span>
-          <span className="font-mono text-xs text-text3">
-            {filtered.length !== participaciones.length
-              ? `${filtered.length} filtrados (${participaciones.length} total)`
-              : `${participaciones.length} total`}
-          </span>
+          <div className="flex items-center gap-3">
+            {modoSeleccion ? (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && seleccionados.size === filtered.length}
+                  ref={el => {
+                    if (el) el.indeterminate = seleccionados.size > 0 && seleccionados.size < filtered.length
+                  }}
+                  onChange={e => {
+                    if (e.target.checked) setSeleccionados(new Set(filtered.map(r => r.id)))
+                    else setSeleccionados(new Set())
+                  }}
+                  className="w-3.5 h-3.5 accent-accent flex-shrink-0 cursor-pointer"
+                />
+                <span className="font-mono text-xs text-text2">
+                  {seleccionados.size > 0
+                    ? `${seleccionados.size} seleccionados`
+                    : 'Seleccionar todos'}
+                </span>
+              </label>
+            ) : (
+              <span className="font-mono text-xs text-text3">
+                {filtered.length !== participaciones.length
+                  ? `${filtered.length} filtrados (${participaciones.length} total)`
+                  : `${participaciones.length} total`}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setModoSeleccion(v => !v)
+                setSeleccionados(new Set())
+                setBulkTipo('')
+                setEditId(null)
+              }}
+              className={`px-2.5 py-1 text-xs border rounded-lg transition-colors font-medium ${
+                modoSeleccion
+                  ? 'bg-accent text-white border-accent'
+                  : 'border-border2 text-text2 hover:bg-bg'
+              }`}
+            >
+              {modoSeleccion ? '✕ Cancelar' : '☐ Seleccionar'}
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-3 flex-wrap items-center">
@@ -479,13 +576,13 @@ export default function Registros() {
             className="flex-1 px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-0"
           />
           <select value={filterLista} onChange={e => setFilterLista(e.target.value)}
-            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none">
+            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none focus:border-accent">
             <option value="">Todas</option>
             <option value="Mat">Mat</option>
             <option value="Anc/SM">Anc/SM</option>
           </select>
           <select value={filterMes} onChange={e => setFilterMes(e.target.value)}
-            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none">
+            className="px-2 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text2 outline-none focus:border-accent">
             <option value="">Todos los meses</option>
             {MESES.map(m => <option key={m}>{m}</option>)}
           </select>
@@ -499,6 +596,46 @@ export default function Registros() {
             </button>
           )}
         </div>
+
+        {/* Barra de bulk actions */}
+        {modoSeleccion && seleccionados.size > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-accent-bg border border-accent/30 rounded-lg text-xs flex-wrap mb-3 animate-fade-in">
+            <span className="font-medium text-accent flex-shrink-0">
+              {seleccionados.size} registro{seleccionados.size !== 1 ? 's' : ''} seleccionado{seleccionados.size !== 1 ? 's' : ''}
+            </span>
+
+            {/* Cambiar tipo */}
+            <div className="flex items-center gap-1 ml-auto flex-wrap">
+              <select
+                value={bulkTipo}
+                onChange={e => setBulkTipo(e.target.value)}
+                className="px-2 py-1 border border-border2 rounded-lg bg-surface text-text2 outline-none focus:border-accent text-xs"
+              >
+                <option value="">— Cambiar tipo —</option>
+                {Object.entries(TIPO_LABEL).map(([k, v]) => (
+                  <option key={k} value={k}>{k} · {v}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleBulkCambiarTipo}
+                disabled={!bulkTipo}
+                className="px-2.5 py-1 border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Aplicar
+              </button>
+            </div>
+
+            {/* Eliminar */}
+            <button
+              type="button"
+              onClick={handleBulkEliminar}
+              className="px-2.5 py-1 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors"
+            >
+              Eliminar ({seleccionados.size})
+            </button>
+          </div>
+        )}
 
         <div className="max-h-[480px] overflow-y-auto flex-1 flex flex-col gap-1">
           {loading ? (
@@ -530,39 +667,71 @@ export default function Registros() {
               {/* Fila del registro */}
               <div
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-none
-                  ${editId === r.id
+                  ${modoSeleccion && seleccionados.has(r.id)
+                    ? 'border-accent/40 bg-accent-bg/40'
+                    : editId === r.id
                     ? 'border-accent bg-accent-bg rounded-b-none'
                     : 'border-transparent hover:border-border hover:bg-bg'}`}
-                onClick={() => setEditId(editId === r.id ? null : r.id)}
+                onClick={() => {
+                  if (modoSeleccion) {
+                    setSeleccionados(prev => {
+                      const next = new Set(prev)
+                      next.has(r.id) ? next.delete(r.id) : next.add(r.id)
+                      return next
+                    })
+                  } else {
+                    setEditId(editId === r.id ? null : r.id)
+                  }
+                }}
               >
+                {modoSeleccion && (
+                  <input
+                    type="checkbox"
+                    checked={seleccionados.has(r.id)}
+                    onChange={e => {
+                      e.stopPropagation()
+                      setSeleccionados(prev => {
+                        const next = new Set(prev)
+                        next.has(r.id) ? next.delete(r.id) : next.add(r.id)
+                        return next
+                      })
+                    }}
+                    onClick={e => e.stopPropagation()}
+                    className="w-3.5 h-3.5 accent-accent flex-shrink-0 cursor-pointer"
+                  />
+                )}
                 <span className="font-mono text-xs text-text3 w-8 flex-shrink-0">#{r.id}</span>
                 <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-mono font-medium flex-shrink-0 ${BADGE_CLASS[r.tipo] || 'bg-bg text-text2'}`}>
                   {r.tipo}
                 </span>
                 <span className="flex-1 text-sm text-text1 truncate">{r.nombre}</span>
                 <span className="font-mono text-xs text-text3 flex-shrink-0">{r.fecha}</span>
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
-                  className="text-text3 hover:text-danger text-xs px-1 flex-shrink-0"
-                  title="Eliminar registro"
-                >✕</button>
+                {!modoSeleccion && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
+                    className="text-text3 hover:text-danger text-xs px-1 flex-shrink-0"
+                    title="Eliminar registro"
+                  >✕</button>
+                )}
               </div>
 
               {/* Panel inline expandible */}
-              <div
-                className="overflow-hidden transition-all duration-200 ease-in-out border border-t-0 border-accent rounded-b-lg bg-surface"
-                style={{ maxHeight: editId === r.id ? '320px' : '0px', opacity: editId === r.id ? 1 : 0 }}
-              >
-                <RowForm
-                  key={r.id}
-                  registro={r}
-                  personas={personas}
-                  onSave={handleInlineSave}
-                  onDelete={handleDelete}
-                  onCancel={() => setEditId(null)}
-                />
-              </div>
+              {!modoSeleccion && (
+                <div
+                  className="overflow-hidden transition-all duration-200 ease-in-out border border-t-0 border-accent rounded-b-lg bg-surface"
+                  style={{ maxHeight: editId === r.id ? '320px' : '0px', opacity: editId === r.id ? 1 : 0 }}
+                >
+                  <RowForm
+                    key={r.id}
+                    registro={r}
+                    personas={personas}
+                    onSave={handleInlineSave}
+                    onDelete={handleDelete}
+                    onCancel={() => setEditId(null)}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

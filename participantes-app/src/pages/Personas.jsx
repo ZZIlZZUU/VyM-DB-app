@@ -353,7 +353,7 @@ export default function Personas() {
                 ${!p.activo ? 'opacity-50' : ''}`}
             >
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0
-                ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                ${p.sexo === 'F' ? 'bg-purple-bg text-purple' : 'bg-blue-bg text-blue'}`}>
                 {initials(p.nombre)}
               </div>
               <span className="font-mono text-xs text-text3 w-12 shrink-0">{p.clave}</span>

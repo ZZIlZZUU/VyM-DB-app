@@ -75,7 +75,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
             onClick={onConfirm}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 rounded-lg text-sm md:text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150 min-h-[44px] md:min-h-0
               ${danger
-                ? 'hover:bg-[#06402B] hover:border-[#06402B]'
+                ? 'hover:bg-accent-hover hover:border-accent-hover'
                 : 'hover:bg-accent hover:border-accent'
               }`}
           >

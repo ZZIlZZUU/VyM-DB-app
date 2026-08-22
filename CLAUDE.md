@@ -444,7 +444,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ### 🔵 Prioridad Baja (Futuro y Optimizaciones)
 - [ ] **Gráficos en Estadísticas** — Integrar visualizaciones de barras horizontales (por tipo), pastel (Mat vs Anc/SM) y líneas (timeline) usando la librería `recharts`.
-- [ ] **Configuración de tema y persistencia** — Crear un toggle de tema claro/oscuro que guarde la preferencia en `configuracion` de usuario o en el almacenamiento local.
+- [X] **Configuración de tema y persistencia** — Implementado modo oscuro integral (`darkMode: 'class'`) con CSS custom properties semánticas en `:root` y `html.dark`, hook `useTheme` con persistencia en `localStorage` y sincronización con `prefers-color-scheme`, toggle interactivo (`◑` / `☀`) en sidebar (expandido y colapsado) y reemplazo de colores hardcoded por tokens del design system.
 - [ ] **Onboarding / Tour de primer uso** — Crear un tour interactivo para nuevos usuarios administradores y un panel lateral deslizable de ayuda rápida.
 - [ ] **Exportación a PDF** — Agregar un botón en la futura Vista Semanal para exportar/imprimir el itinerario en PDF optimizado para impresión física.
 - [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
@@ -608,6 +608,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Añadido `aria-label` descriptivo y `title` a botones de eliminación de registros, semanas, celdas y participaciones en `Programa.jsx`, `Registros.jsx`, `VistaEditable.jsx` y `VistaSql.jsx`.
   - Añadido `aria-label` a inputs de búsqueda en `VistaSql.jsx`, `HistorialCambios.jsx`, `Personas.jsx`, `Registros.jsx` y `VistaEditable.jsx`.
   - Incorporado `aria-hidden="true"` en todos los SVGs decorativos de empty states en `Programa.jsx`, `Registros.jsx`, `HistorialCambios.jsx`, `Estadisticas.jsx` y `Personas.jsx`.
+- **Brief 19 — Tema oscuro (dark mode) (21/08/2026):**
+  - Habilitada la estrategia `darkMode: 'class'` en `tailwind.config.js` y convertidos todos los tokens de color a variables CSS `var(--color-*)`.
+  - Definida la paleta completa en `src/index.css` con variables CSS para `:root` (claro) y `html.dark` (oscuro), `color-scheme` y scrollbars adaptables.
+  - Creado el hook `useTheme` (`src/hooks/useTheme.js`) con soporte para sincronización con preferencias del sistema (`prefers-color-scheme`) y persistencia en `localStorage`.
+  - Integrado botón toggle (`◑` / `☀`) en el footer del sidebar de `App.jsx` tanto en estado expandido como colapsado.
+  - Reemplazados todos los colores hardcoded por tokens en `Registros.jsx`, `VistaSql.jsx`, `Estadisticas.jsx`, `Programa.jsx`, `VistaEditable.jsx`, `Personas.jsx` y `ConfirmDialog.jsx`.
+  - Calibrada la paleta de modo oscuro con tonos más sobrios y orgánicos (`--color-accent: #247A53`, `--color-accent-hover: #1D6444`) eliminando brillos excesivos/neón en botones y componentes activos.
 
 
 

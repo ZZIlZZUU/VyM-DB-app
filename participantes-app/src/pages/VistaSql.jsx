@@ -14,8 +14,8 @@ const BADGE_CLASS = {
   PE:'bg-rose-bg            text-rose',
   EBC:'bg-orange-100        text-orange-700', 
   LEBC: 'bg-maroon/20       text-maroon', 
-  VC:'bg-green-100          text-green-800', 
-  NC:'bg-red-100            text-red-800',
+  VC:'bg-teal-bg            text-teal', 
+  NC:'bg-danger-bg          text-danger',
   ORACION_C: 'bg-bg text-text2 border-border2',
 }
 

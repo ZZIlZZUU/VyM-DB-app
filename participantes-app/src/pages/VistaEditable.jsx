@@ -44,8 +44,8 @@ const BADGE_CLASS = {
   PE:'bg-rose-bg            text-rose',
   EBC:'bg-orange-100        text-orange-700', 
   LEBC: 'bg-maroon/20       text-maroon', 
-  VC:'bg-green-100          text-green-800', 
-  NC:'bg-red-100            text-red-800',
+  VC:'bg-teal-bg            text-teal', 
+  NC:'bg-danger-bg          text-danger',
   ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
@@ -54,10 +54,10 @@ function heatColor(count, max) {
   if (!count || !max) return ''
   const ratio = count / max
   if (ratio <= 0)    return ''
-  if (ratio <= 0.25) return 'bg-green-100'
-  if (ratio <= 0.5)  return 'bg-green-200'
-  if (ratio <= 0.75) return 'bg-green-300'
-  return 'bg-green-400'
+  if (ratio <= 0.25) return 'bg-teal-bg'
+  if (ratio <= 0.5)  return 'bg-teal/20'
+  if (ratio <= 0.75) return 'bg-teal/30'
+  return 'bg-teal/40'
 }
 
 function getTiposPermitidos(persona) {
@@ -466,7 +466,7 @@ export default function VistaEditable({ onNavigate }) {
             onClick={() => setHeatMap(h => !h)}
             className={`relative w-9 h-5 rounded-full transition-colors ${heatMap ? 'bg-accent' : 'bg-border2'}`}
           >
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${heatMap ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            <div className={`absolute top-0.5 w-4 h-4 bg-surface rounded-full shadow transition-transform ${heatMap ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </div>
         </label>
       </div>
@@ -547,7 +547,7 @@ export default function VistaEditable({ onNavigate }) {
                     <tr key={p.clave} className={`border-b border-border last:border-0 hover:bg-bg/50 ${heatBg}`}>
                       <td className={`sticky left-0 z-30 border-r border-border px-3 py-2 shadow-[6px_0_14px_-6px_rgba(28,27,25,0.12)] ${nameCellBg}`}>
                         <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${p.sexo === 'F' ? 'bg-purple-bg text-purple' : 'bg-blue-bg text-blue'}`}>
                             {initials(p.nombre)}
                           </div>
                           <div>
@@ -560,7 +560,7 @@ export default function VistaEditable({ onNavigate }) {
                         const recs = registros
                           .filter(r => r.clave === p.clave && r.mes === mes)
                           .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                        const cellHeat = heatMap && recs.length ? 'bg-green-100' : ''
+                        const cellHeat = heatMap && recs.length ? 'bg-teal-bg' : ''
                         return (
                           <td
                             key={mes}

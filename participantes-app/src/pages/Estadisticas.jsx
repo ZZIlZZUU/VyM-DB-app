@@ -33,8 +33,8 @@ const BADGE_CLASS = {
   PE:'bg-rose-bg            text-rose',
   EBC:'bg-orange-100        text-orange-700', 
   LEBC: 'bg-maroon/20       text-maroon', 
-  VC:'bg-green-100          text-green-800', 
-  NC:'bg-red-100            text-red-800',
+  VC:'bg-teal-bg            text-teal', 
+  NC:'bg-danger-bg          text-danger',
   ORACION_C: 'bg-bg text-text2 border-border2',
 }
 
@@ -390,7 +390,7 @@ export default function Estadisticas() {
                   {sinRegs.map(p => (
                     <div key={p.clave} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
-                        ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                        ${p.sexo === 'F' ? 'bg-purple-bg text-purple' : 'bg-blue-bg text-blue'}`}>
                         {p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()}
                       </div>
                       <span className="font-mono text-xs text-text3 w-12 flex-shrink-0">{p.clave}</span>
@@ -419,7 +419,7 @@ export default function Estadisticas() {
                   {pocaActividad.map(p => (
                     <div key={p.clave} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0
-                        ${p.sexo === 'F' ? 'bg-purple-100 text-purple' : 'bg-blue-bg text-blue'}`}>
+                        ${p.sexo === 'F' ? 'bg-purple-bg text-purple' : 'bg-blue-bg text-blue'}`}>
                         {p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase()}
                       </div>
                       <span className="font-mono text-xs text-text3 w-12 flex-shrink-0">{p.clave}</span>

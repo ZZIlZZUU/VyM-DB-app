@@ -49,8 +49,8 @@ const TIPO_COLOR = {
   SMT_EXP:'bg-accent-bg text-accent',
   SMT_DSC:'bg-amber-bg text-amber', 
   SMT_AYU:'bg-blue-bg text-blue',
-  VC:'bg-green-100 text-green-800', 
-  NC:'bg-red-100 text-red-800',
+  VC:'bg-teal-bg text-teal', 
+  NC:'bg-danger-bg text-danger',
   EBC_CON:'bg-orange-100 text-orange-700', 
   LEBC: 'bg-maroon/15 text-maroon',
   SMT_VACIO:'bg-bg text-text3',
@@ -536,7 +536,7 @@ function FilaParte({ parte, asignaciones, personas, historial, mes, semanaAsigna
                     : necesitaReconfirmar
                     ? 'bg-amber/15 text-amber border-amber/40 hover:bg-amber hover:text-white'
                     : principal?.confirmado
-                    ? 'bg-accent-bg text-accent border-accent/30 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                    ? 'bg-accent-bg text-accent border-accent/30 hover:bg-danger-bg hover:text-danger hover:border-danger/30'
                     : 'bg-bg text-text3 border-border2 hover:border-accent hover:text-accent'
                 }`}
                 title={

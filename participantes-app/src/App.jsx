@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { useConfirm } from './hooks/useConfirm'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useTheme } from './hooks/useTheme'
 import ConfirmDialog from './components/ConfirmDialog'
 import Breadcrumb from './components/Breadcrumb'
 import PerfilDrawer from './components/PerfilDrawer'
@@ -56,6 +57,7 @@ function getInitials(nombre, email) {
 }
 
 export default function App() {
+  const { theme, toggle: toggleTheme }    = useTheme()
   const [view, setView]                   = useState('editable')
   const [user, setUser]                   = useState(null)
   const [userName, setUserName]           = useState('')
@@ -454,6 +456,15 @@ export default function App() {
               </button>
 
               <button
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                className="p-1.5 rounded-lg text-text3 hover:text-text1 hover:bg-bg transition-colors flex-shrink-0 cursor-pointer"
+              >
+                {theme === 'dark' ? '☀' : '◑'}
+              </button>
+
+              <button
                 onClick={handleLogout}
                 title="Cerrar sesión"
                 className="p-1.5 rounded-lg text-text3 hover:text-danger hover:bg-bg transition-colors flex-shrink-0"
@@ -462,13 +473,24 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setPerfilOpen(true)}
-              title={`Perfil: ${userName || user?.email}`}
-              className="w-8 h-8 rounded-full bg-accent-bg text-accent font-semibold flex items-center justify-center text-xs border border-accent/20 hover:border-accent transition-colors"
-            >
-              {getInitials(userName, user?.email)}
-            </button>
+            <>
+              <button
+                onClick={() => setPerfilOpen(true)}
+                title={`Perfil: ${userName || user?.email}`}
+                aria-label={`Perfil: ${userName || user?.email}`}
+                className="w-8 h-8 rounded-full bg-accent-bg text-accent font-semibold flex items-center justify-center text-xs border border-accent/20 hover:border-accent transition-colors"
+              >
+                {getInitials(userName, user?.email)}
+              </button>
+              <button
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-bg transition-colors cursor-pointer"
+              >
+                {theme === 'dark' ? '☀' : '◑'}
+              </button>
+            </>
           )}
         </div>
       </aside>

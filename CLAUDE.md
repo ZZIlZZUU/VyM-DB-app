@@ -437,9 +437,8 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Registros — Paginación y Selector de registros por página** — Eliminado el límite truncado de 100 registros en la consulta para cargar la totalidad de participaciones del año. Añadida barra inferior de paginación (estilo Supabase Table Editor) con botones de navegación (← / →), indicador de página actual y total, selector de tamaño de página (25, 50, 100, 250, 500) con persistencia en `localStorage` (`registros_pageSize`) y contador dinámico de registros visibles/filtrados.
 - [X] **Registros — Acciones masivas (Bulk actions)** — Incorporado modo de selección múltiple en `Registros.jsx` con checkboxes por fila, selección masiva de todos los registros filtrados (`indeterminate`), y barra de acciones contextuales para eliminación en bloque y cambio de tipo masivo con validación de roles y confirmación única.
 - [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
-- [X] **Personas — Filtros rápidos** — Reemplazados los selectores de lista (`Todas`, `Mat`, `Anc·SM`) y activo (`Activos`, `Inactivos`, `Todos`) por grupos de botones tag con selección visual activa (`bg-accent text-white`).
-- [ ] **Exportar / Importar — Carga interactiva Drag & Drop** — Habilitar la subida del archivo CSV/XLSX arrastrándolo a la caja de carga.
-- [ ] **Exportar / Importar — Vista previa y validación previa** — Mostrar una tabla con los primeros 5 renglones del CSV cargado antes de enviarlo a Supabase, validando la consistencia de tipos y columnas.
+- [X] **Exportar / Importar — Carga interactiva Drag & Drop** — Creado el hook `useDragDrop` para habilitar el arrastre y soltado de archivos `.csv` en las zonas de importación con validación de extensión y feedback visual (`border-dashed border-accent bg-accent-bg`).
+- [X] **Exportar / Importar — Vista previa y validación previa** — Modal de previsualización que muestra las primeras 5 filas del archivo CSV antes de procesarlo en la base de datos, validando la presencia de columnas requeridas (`HeadersWarning`).
 - [X] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`), hover con token oficial (`accent-hover: #155236`), y foco (`focus:border-accent`) en inputs, selectores y botones de todas las vistas.
 - [ ] **Accesibilidad (a11y)** — Asegurar contraste suficiente en textos pequeños (conforme a las directrices WCAG AA) e incorporar atributos `aria-label` en iconos y botones sin etiquetas textuales legibles.
 
@@ -586,6 +585,11 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     - **Eliminación masiva**: diálogo único `ConfirmDialog` y borrado en lote vía `.delete().in('id', ids)`.
     - **Cambio de tipo masivo**: diálogo único `ConfirmDialog`, filtrado de compatibilidad según el rol de cada persona vía `getTipos(persona)`, actualización en lote vía `.update().in('id', validosIds)` y notificación con detalle de registros modificados y omitidos.
   - Limpieza automática de la selección al cambiar filtros de búsqueda, mes o lista.
+- **Brief 16 — Drag & Drop en Importar CSV (21/08/2026):**
+  - Creado el hook reutilizable `useDragDrop` (`src/hooks/useDragDrop.js`) que maneja `dragEnter`, `dragLeave`, `dragOver`, `drop`, estado `isDragging` y validación de extensión (`.csv`).
+  - Refactorizada la función `processFile` en `Exportar.jsx` para procesar archivos `File` provenientes tanto del `<input type="file">` nativo como del evento `drop`.
+  - Enueltas las dos filas de importación (`participantes.csv` y `participaciones.csv`) en zonas reactivas de drop con feedback visual inmediato (`border-2 border-dashed border-accent bg-accent-bg` y etiqueta "Suelta aquí").
+  - Mantenido el funcionamiento normal del botón tradicional "↑ Seleccionar archivo" y la validación de extensiones no permitidas.
 
 
 

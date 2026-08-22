@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
+import { useDragDrop } from '../hooks/useDragDrop'
 import Toast from '../components/Toast'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -71,6 +72,16 @@ export default function Exportar() {
   const [mesFin, setMesFin] = useState('')
   const [preview, setPreview] = useState(null)
   const { toast, success, warning, error: toastError } = useToast()
+
+  const {
+    isDragging: isDraggingPart,
+    dropProps: dropPropsPart
+  } = useDragDrop(file => processFile(file, 'part'))
+
+  const {
+    isDragging: isDraggingPartic,
+    dropProps: dropPropsPartic
+  } = useDragDrop(file => processFile(file, 'partic'))
 
   // Helper para filtrar participaciones por rango de meses
   function filtrarPorMeses(rows) {
@@ -168,11 +179,7 @@ export default function Exportar() {
     }
   }
 
-  async function handleFileSelect(e, type) {
-    const file = e.target.files[0]
-    if (!file) return
-    e.target.value = '' // limpiar input para que onChange se dispare de nuevo si repiten el mismo archivo
-
+  async function processFile(file, type) {
     const text = await file.text()
     const lines = text.replace(/^\uFEFF/, '').split('\n').filter(Boolean)
     const headers = parseCSVLine(lines[0])
@@ -184,6 +191,13 @@ export default function Exportar() {
     })
 
     setPreview({ type, headers, rows, file })
+  }
+
+  async function handleFileSelect(e, type) {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = '' // limpiar input para que onChange se dispare de nuevo si repiten el mismo archivo
+    await processFile(file, type)
   }
 
   async function confirmImport() {
@@ -401,29 +415,76 @@ export default function Exportar() {
 
       {/* Importar */}
       <div className="bg-surface border border-border rounded-xl p-5">
-        <div className="text-sm font-medium text-text1 mb-4 pb-3 border-b border-border">
-          Importar CSV
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border flex-wrap gap-1">
+          <span className="text-sm font-medium text-text1">Importar CSV</span>
+          <span className="text-xs text-text3">Arrastra y suelta tus archivos o usa el selector</span>
         </div>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <div className="text-sm text-text1 font-medium">participantes.csv</div>
-              <div className="text-xs text-text3 mt-0.5">Si la clave ya existe, actualiza los datos (upsert)</div>
+          <div
+            {...dropPropsPart}
+            className={`flex items-center gap-3 rounded-xl p-3.5 border border-dashed transition-all ${
+              isDraggingPart
+                ? 'border-accent bg-accent-bg scale-[1.01]'
+                : 'border-border2 bg-bg/30 hover:border-border hover:bg-bg/60'
+            }`}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text1 font-medium">participantes.csv</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text3">
+                  Upsert
+                </span>
+              </div>
+              <div className="text-xs text-text3 mt-1">
+                {isDraggingPart ? (
+                  <span className="text-accent font-medium">Suelta el archivo aquí para previsualizar</span>
+                ) : (
+                  <span>Arrastra tu archivo <code className="font-mono text-[11px] bg-bg px-1 py-0.5 rounded text-text2">.csv</code> aquí o haz clic en el botón</span>
+                )}
+              </div>
             </div>
+            {isDraggingPart && (
+              <span className="text-xs text-accent font-medium whitespace-nowrap flex-shrink-0 bg-surface px-2.5 py-1 rounded-lg border border-accent/30 animate-pulse">
+                Suelta aquí
+              </span>
+            )}
             <input type="file" id="importPart" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'part')} />
             <button onClick={() => document.getElementById('importPart').click()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap bg-surface transition-colors">
               {isLoading('import-part') ? 'Importando...' : '↑ Seleccionar archivo'}
             </button>
           </div>
-          <div className="flex items-center gap-3 border-t border-border pt-3">
-            <div className="flex-1">
-              <div className="text-sm text-text1 font-medium">participaciones.csv</div>
-              <div className="text-xs text-text3 mt-0.5">Agrega los registros del archivo a la base de datos</div>
+          <div
+            {...dropPropsPartic}
+            className={`flex items-center gap-3 rounded-xl p-3.5 border border-dashed transition-all ${
+              isDraggingPartic
+                ? 'border-accent bg-accent-bg scale-[1.01]'
+                : 'border-border2 bg-bg/30 hover:border-border hover:bg-bg/60'
+            }`}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text1 font-medium">participaciones.csv</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-text3">
+                  Insert
+                </span>
+              </div>
+              <div className="text-xs text-text3 mt-1">
+                {isDraggingPartic ? (
+                  <span className="text-accent font-medium">Suelta el archivo aquí para previsualizar</span>
+                ) : (
+                  <span>Arrastra tu archivo <code className="font-mono text-[11px] bg-bg px-1 py-0.5 rounded text-text2">.csv</code> aquí o haz clic en el botón</span>
+                )}
+              </div>
             </div>
+            {isDraggingPartic && (
+              <span className="text-xs text-accent font-medium whitespace-nowrap flex-shrink-0 bg-surface px-2.5 py-1 rounded-lg border border-accent/30 animate-pulse">
+                Suelta aquí
+              </span>
+            )}
             <input type="file" id="importPartic" accept=".csv" className="hidden" onChange={e => handleFileSelect(e, 'partic')} />
             <button onClick={() => document.getElementById('importPartic').click()} disabled={!!loading}
-              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+              className="px-3 py-1.5 text-xs border border-border2 rounded-lg text-text2 hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap bg-surface transition-colors">
               {isLoading('import-partic') ? 'Importando...' : '↑ Seleccionar archivo'}
             </button>
           </div>

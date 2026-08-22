@@ -258,6 +258,7 @@ export default function Estadisticas() {
         <div className="bg-surface border border-border rounded-xl py-12 px-6 text-center flex flex-col items-center justify-center min-h-[340px] animate-fade-in shadow-sm">
           <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center border border-accent/10 mb-4">
             <svg
+              aria-hidden="true"
               className="w-8 h-8 text-accent/60 stroke-current fill-none"
               viewBox="0 0 24 24"
               strokeWidth="1.5"

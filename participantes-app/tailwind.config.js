@@ -14,7 +14,7 @@ export default {
         border2: '#C8C4BC',
         text1: '#1C1B19',
         text2: '#6B6860',
-        text3: '#9B9890',
+        text3: '#807D75',
         accent: '#1C6B4A',
         'accent-hover': '#155236',
         'accent-bg': '#EAF5EE',

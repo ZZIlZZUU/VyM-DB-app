@@ -1255,6 +1255,7 @@ export default function Programa() {
             <div className="bg-surface border border-border rounded-xl py-12 px-6 text-center flex flex-col items-center justify-center min-h-[340px] animate-fade-in shadow-sm">
               <div className="w-20 h-20 rounded-full bg-accent/5 flex items-center justify-center border border-accent/15 mb-4 group hover:scale-105 transition-transform duration-300">
                 <svg
+                  aria-hidden="true"
                   className="w-10 h-10 text-accent stroke-current fill-accent/10"
                   viewBox="0 0 24 24"
                   strokeWidth="1.25"
@@ -1336,8 +1337,12 @@ export default function Programa() {
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <button onClick={() => handleEliminarSemana(s.id)}
-                        className="text-xs text-text3 hover:text-danger px-1">✕</button>
+                      <button
+                        onClick={() => handleEliminarSemana(s.id)}
+                        aria-label="Eliminar semana"
+                        title="Eliminar semana"
+                        className="text-xs text-text3 hover:text-danger px-1"
+                      >✕</button>
                     </td>
                   </tr>
                 )

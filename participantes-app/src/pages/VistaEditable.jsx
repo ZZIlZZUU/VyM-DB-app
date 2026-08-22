@@ -244,6 +244,8 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
               <span className="flex-1 text-xs text-text2 italic truncate">{r.observaciones || ''}</span>
               <button
                 onClick={async () => { setSaving(true); await onDelete(r.id); setSaving(false) }}
+                aria-label="Eliminar asignación"
+                title="Eliminar asignación"
                 className="text-text3 hover:text-danger text-xs px-1"
               >✕</button>
             </div>
@@ -478,6 +480,7 @@ export default function VistaEditable({ onNavigate }) {
               value={searchMat}
               onChange={e => setSearchMat(e.target.value)}
               placeholder="Buscar nombre..."
+              aria-label="Buscar persona en tabla Matriculados"
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
             />
             <select
@@ -611,6 +614,7 @@ export default function VistaEditable({ onNavigate }) {
               value={searchAnc}
               onChange={e => setSearchAnc(e.target.value)}
               placeholder="Buscar nombre..."
+              aria-label="Buscar persona en tabla Ancianos y Siervos Ministeriales"
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
             />
             <select

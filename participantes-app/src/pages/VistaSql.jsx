@@ -158,8 +158,13 @@ export default function VistaSql() {
       {tab === 'personas' && (
         <>
           <div className="flex gap-2 mb-3 flex-wrap items-center">
-            <input value={pSearch} onChange={e => setPSearch(e.target.value)} placeholder="Buscar nombre o clave..."
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44" />
+            <input
+              value={pSearch}
+              onChange={e => setPSearch(e.target.value)}
+              placeholder="Buscar nombre o clave..."
+              aria-label="Buscar persona por nombre o clave"
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
+            />
             <select value={pLista} onChange={e => setPLista(e.target.value)}
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todas las listas</option>
@@ -250,8 +255,13 @@ export default function VistaSql() {
       {tab === 'participaciones' && (
         <>
           <div className="flex gap-2 mb-3 flex-wrap items-center">
-            <input value={rSearch} onChange={e => setRSearch(e.target.value)} placeholder="Buscar nombre o clave..."
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44" />
+            <input
+              value={rSearch}
+              onChange={e => setRSearch(e.target.value)}
+              placeholder="Buscar nombre o clave..."
+              aria-label="Buscar participación por nombre o clave"
+              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
+            />
             <select value={rLista} onChange={e => setRLista(e.target.value)}
               className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none focus:border-accent">
               <option value="">Todas las listas</option>
@@ -314,7 +324,8 @@ export default function VistaSql() {
                         <button
                           onClick={() => deleteParticipacion(r.id)}
                           className="text-xs text-text3 hover:text-danger px-1.5 py-0.5 rounded hover:bg-danger-bg"
-                          title="Eliminar"
+                          aria-label="Eliminar participación"
+                          title="Eliminar participación"
                         >✕</button>
                       </td>
                     </tr>

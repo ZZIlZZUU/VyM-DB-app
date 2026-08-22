@@ -131,6 +131,7 @@ export default function HistorialCambios() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por usuario, tabla o detalles..."
+          aria-label="Buscar en historial de cambios"
           className="w-full pl-9 pr-4 py-2 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent"
         />
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text3 text-sm select-none">
@@ -149,6 +150,7 @@ export default function HistorialCambios() {
             {/* SVG Ilustración Empty State */}
             <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center border border-accent/10">
               <svg
+                aria-hidden="true"
                 className="w-8 h-8 text-accent/60 stroke-current fill-none"
                 viewBox="0 0 24 24"
                 strokeWidth="1.5"

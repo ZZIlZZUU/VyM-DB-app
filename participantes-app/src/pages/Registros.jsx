@@ -573,6 +573,7 @@ export default function Registros() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar..."
+            aria-label="Buscar registros"
             className="flex-1 px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-0"
           />
           <select value={filterLista} onChange={e => setFilterLista(e.target.value)}
@@ -644,6 +645,7 @@ export default function Registros() {
             <div className="py-12 px-4 text-center max-w-xs mx-auto flex flex-col items-center gap-3 animate-fade-in">
               <div className="w-16 h-16 rounded-full bg-accent/5 flex items-center justify-center border border-accent/10">
                 <svg
+                  aria-hidden="true"
                   className="w-8 h-8 text-accent/60 stroke-current fill-none"
                   viewBox="0 0 24 24"
                   strokeWidth="1.5"
@@ -711,6 +713,7 @@ export default function Registros() {
                     type="button"
                     onClick={e => { e.stopPropagation(); handleDelete(r.id) }}
                     className="text-text3 hover:text-danger text-xs px-1 flex-shrink-0"
+                    aria-label="Eliminar registro"
                     title="Eliminar registro"
                   >✕</button>
                 )}

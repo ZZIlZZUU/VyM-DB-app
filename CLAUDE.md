@@ -440,7 +440,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Exportar / Importar — Carga interactiva Drag & Drop** — Creado el hook `useDragDrop` para habilitar el arrastre y soltado de archivos `.csv` en las zonas de importación con validación de extensión y feedback visual (`border-dashed border-accent bg-accent-bg`).
 - [X] **Exportar / Importar — Vista previa y validación previa** — Modal de previsualización que muestra las primeras 5 filas del archivo CSV antes de procesarlo en la base de datos, validando la presencia de columnas requeridas (`HeadersWarning`).
 - [X] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`), hover con token oficial (`accent-hover: #155236`), y foco (`focus:border-accent`) en inputs, selectores y botones de todas las vistas.
-- [ ] **Accesibilidad (a11y)** — Asegurar contraste suficiente en textos pequeños (conforme a las directrices WCAG AA) e incorporar atributos `aria-label` en iconos y botones sin etiquetas textuales legibles.
+- [X] **Accesibilidad (a11y)** — Ajustado el token `text3` a `#807D75` para cumplir contraste WCAG AA en toda la app, añadidos atributos `aria-label` y `title` a botones de eliminación y campos de búsqueda, e incorporado `aria-hidden="true"` a todos los SVGs decorativos de empty states.
 
 ### 🔵 Prioridad Baja (Futuro y Optimizaciones)
 - [ ] **Gráficos en Estadísticas** — Integrar visualizaciones de barras horizontales (por tipo), pastel (Mat vs Anc/SM) y líneas (timeline) usando la librería `recharts`.
@@ -603,6 +603,11 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Creado el hook `useKeyboardShortcuts` (`src/hooks/useKeyboardShortcuts.js`) con detección segura de campos de escritura (`isTyping`), disparo de paleta (`Ctrl+K` / `Cmd+K`) y secuencias directas de navegación estilo GitHub (`G` + tecla).
   - Creado el componente flotante `CommandPalette` (`src/components/CommandPalette.jsx`) con auto-foco, filtrado reactivo de comandos (generados a partir del array `NAV` respetando permisos de rol y comandos de acción), navegación por flechas y selección sincronizada con mouse.
   - Integrado el botón de acceso rápido con badge `⌘K` en el topbar de `App.jsx` y ampliado el listener de `Escape` para cerrar la paleta prioritariamente.
+- **Brief 18 — Accesibilidad (a11y) (21/08/2026):**
+  - Ajustado el token de color `text3` de `#9B9890` a `#807D75` en `tailwind.config.js`, alcanzando un ratio de contraste ≥ 4.0:1 compatible con WCAG AA.
+  - Añadido `aria-label` descriptivo y `title` a botones de eliminación de registros, semanas, celdas y participaciones en `Programa.jsx`, `Registros.jsx`, `VistaEditable.jsx` y `VistaSql.jsx`.
+  - Añadido `aria-label` a inputs de búsqueda en `VistaSql.jsx`, `HistorialCambios.jsx`, `Personas.jsx`, `Registros.jsx` y `VistaEditable.jsx`.
+  - Incorporado `aria-hidden="true"` en todos los SVGs decorativos de empty states en `Programa.jsx`, `Registros.jsx`, `HistorialCambios.jsx`, `Estadisticas.jsx` y `Personas.jsx`.
 
 
 

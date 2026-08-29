@@ -1,18 +1,17 @@
 import { useEffect, useRef } from 'react'
+import { AlertCircle, HelpCircle } from 'lucide-react'
+import { Button } from './ui/Button'
 
-// ConfirmDialog — reemplaza window.confirm() con personalidad
-// Props:
-//   open      boolean
-//   title     string
-//   message   string
-//   onConfirm () => void
-//   onCancel  () => void
-//   danger    boolean — si true, el botón confirmar usa rojo en vez de verde
-
-export default function ConfirmDialog({ open, title, message, onConfirm, onCancel, danger = false }) {
+export default function ConfirmDialog({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  danger = false,
+}) {
   const confirmRef = useRef(null)
 
-  // Enfocar el botón de confirmar al abrir
   useEffect(() => {
     if (open) {
       setTimeout(() => {
@@ -21,7 +20,6 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
     }
   }, [open])
 
-  // ESC → cancelar / Enter → confirmar
   useEffect(() => {
     if (!open) return
     function handleKey(e) {
@@ -36,7 +34,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
         onConfirm()
       }
     }
-    window.addEventListener('keydown', handleKey, true) // Usar capture mode para interceptar el Enter antes que otros elementos
+    window.addEventListener('keydown', handleKey, true)
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [open, onConfirm, onCancel])
 
@@ -44,47 +42,57 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-xs z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in select-none"
       onClick={e => e.target === e.currentTarget && onCancel()}
     >
-      <div className="bg-surface border border-border2 rounded-t-2xl rounded-b-none border-b-0 md:rounded-xl md:border-b shadow-2xl w-full max-w-full md:max-w-sm animate-slide-up md:animate-scale-in">
-
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <div className="text-base md:text-sm font-medium text-text1">{title}</div>
-          {message && (
-            <div className="text-xs text-text2 mt-1 leading-relaxed">{message}</div>
-          )}
+      <div className="bg-surface border border-zinc-200 dark:border-zinc-800 rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-full sm:max-w-md animate-slide-up sm:animate-scale-in overflow-hidden">
+        {/* Content */}
+        <div className="p-5 flex gap-4">
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+              danger
+                ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700'
+            }`}
+          >
+            {danger ? (
+              <AlertCircle className="w-5 h-5" />
+            ) : (
+              <HelpCircle className="w-5 h-5" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-text1 leading-tight">{title}</h3>
+            {message && (
+              <p className="text-xs text-text2 mt-1.5 leading-relaxed">{message}</p>
+            )}
+          </div>
         </div>
 
-        {/* Botones */}
-        <div className="flex gap-2 px-5 pb-6 md:pb-5 pt-2">
-
-          {/* Cancelar — blanco normal, rojo hover */}
-          <button
+        {/* Buttons Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={onCancel}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 rounded-lg border border-border2 text-sm md:text-xs font-medium text-text2 bg-surface hover:bg-danger-bg hover:text-danger hover:border-danger transition-colors duration-150 min-h-[44px] md:min-h-0"
           >
-            <kbd className="hidden md:inline-block font-mono text-[10px] bg-bg border border-border2 rounded px-1 py-0.5 leading-none">ESC</kbd>
+            <kbd className="hidden sm:inline-block font-mono text-[9px] bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded px-1 py-0.2 mr-1">
+              ESC
+            </kbd>
             Cancelar
-          </button>
+          </Button>
 
-          {/* Confirmar — negro normal, verde oscuro/verde hover según `danger` */}
-          <button
+          <Button
             ref={confirmRef}
+            variant={danger ? 'danger' : 'default'}
+            size="sm"
             onClick={onConfirm}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 md:py-2 rounded-lg text-sm md:text-xs font-medium text-surface bg-text1 border border-text1 transition-colors duration-150 min-h-[44px] md:min-h-0
-              ${danger
-                ? 'hover:bg-accent-hover hover:border-accent-hover'
-                : 'hover:bg-accent hover:border-accent'
-              }`}
           >
             Confirmar
-            <kbd className="hidden md:inline-flex font-mono text-[10px] bg-white/20 border border-white/30 rounded px-1 py-0.5 leading-none items-center gap-0.5">
-              Enter <span className="text-[8px]">↵</span>
+            <kbd className="hidden sm:inline-flex font-mono text-[9px] bg-white/20 border border-white/30 rounded px-1 py-0.2 ml-1">
+              ↵
             </kbd>
-          </button>
-
+          </Button>
         </div>
       </div>
     </div>

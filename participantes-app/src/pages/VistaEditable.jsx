@@ -1,63 +1,84 @@
 import { useState, useEffect, useCallback } from 'react'
+import {
+  Search,
+  Flame,
+  Calendar,
+  Trash2,
+  ArrowRight,
+  Plus,
+  X,
+  RotateCcw,
+  Sparkles,
+  Info,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
 
+import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
+import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
+import { Dialog } from '../components/ui/Dialog'
+import { Tooltip } from '../components/ui/Tooltip'
+
 // ─── Constantes ───────────────────────────────────────────────
 const MESES = [
-  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
-const MES_ABBR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-const MES_CODE = ['01','02','03','04','05','06','07','08','09','10','11','12']
+const MES_ABBR = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+const MES_CODE = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
-const TIPOS_MAT_F  = ['T','A']
-const TIPOS_MAT_M  = ['T','A','X','LB','SMT_DSC','LEBC', 'ORACION_C']
-const TIPOS_SM     = ['T','A','X','LB','SMT_DSC','P','TB','PE','EBC', 'LEBC', 'ORACION_C']
-const TIPOS_ANC    = ['T','A','X','LB','SMT_DSC','P','TB','PE','EBC','VC','NC', 'LEBC', 'ORACION_C']
+const TIPOS_MAT_F = ['T', 'A']
+const TIPOS_MAT_M = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'LEBC', 'ORACION_C']
+const TIPOS_SM = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'P', 'TB', 'PE', 'EBC', 'LEBC', 'ORACION_C']
+const TIPOS_ANC = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'P', 'TB', 'PE', 'EBC', 'VC', 'NC', 'LEBC', 'ORACION_C']
 
 const TIPO_LABEL = {
-  T:'Titular', 
-  A:'Asistente', 
-  X:'Participación', 
-  LB:'Lectura Biblica', 
-  P:'Presidente', 
-  TB:'Tesoros', 
-  PE:'Perlas', 
-  SMT_DSC: 'Discurso', 
-  EBC:'Est. Bíblico', 
-  LEBC: 'Lector EBC', 
-  VC:'Vida Cristiana', 
-  NC:'Nec. Congr.', 
-  ORACION_C: 'Oración conclusión',
+  T: 'Titular',
+  A: 'Asistente',
+  X: 'Participación',
+  LB: 'Lectura Bíblica',
+  P: 'Presidente',
+  TB: 'Tesoros',
+  PE: 'Perlas',
+  SMT_DSC: 'Discurso',
+  EBC: 'Est. Bíblico',
+  LEBC: 'Lector EBC',
+  VC: 'Vida Cristiana',
+  NC: 'Nec. Congr.',
+  ORACION_C: 'Oración',
 }
-const PESO_MAP = { T:2, A:1, X:1, LB:1, SMT_DSC:1, P:1, TB:1, PE:1, EBC:1, LEBC:1, VC:1, NC:1, ORACION_C:0 }
-
-const BADGE_CLASS = {
-  T:'bg-accent-bg           text-accent', 
-  A:'bg-blue-bg             text-blue', 
-  X:'bg-amber-bg            text-amber', 
-  LB:'bg-cyan-bg            text-cyan', 
-  SMT_DSC: 'bg-yellow-100   text-yellow-800', 
-  P:'bg-purple-bg           text-purple', 
-  TB:'bg-teal-bg            text-teal', 
-  PE:'bg-rose-bg            text-rose',
-  EBC:'bg-orange-100        text-orange-700', 
-  LEBC: 'bg-maroon/20       text-maroon', 
-  VC:'bg-teal-bg            text-teal', 
-  NC:'bg-danger-bg          text-danger',
-  ORACION_C: 'bg-bg text-text2 border-border2',
+const PESO_MAP = {
+  T: 2, A: 1, X: 1, LB: 1, SMT_DSC: 1, P: 1, TB: 1, PE: 1, EBC: 1, LEBC: 1, VC: 1, NC: 1, ORACION_C: 0,
 }
 
-// Intensidad del mapa de calor por cantidad de registros
+const BADGE_STYLES = {
+  T: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
+  A: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
+  X: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
+  LB: 'bg-cyan-50 text-cyan-800 border-cyan-200/80 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/40',
+  SMT_DSC: 'bg-yellow-50 text-yellow-800 border-yellow-200/80 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-800/40',
+  P: 'bg-purple-50 text-purple-800 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
+  TB: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
+  PE: 'bg-rose-50 text-rose-800 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40',
+  EBC: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
+  LEBC: 'bg-pink-50 text-pink-800 border-pink-200/80 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/40',
+  VC: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
+  NC: 'bg-red-50 text-red-800 border-red-200/80 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40',
+  ORACION_C: 'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-800/70 dark:text-zinc-300 dark:border-zinc-700/60',
+}
+
+// Intensidad elegante del mapa de calor
 function heatColor(count, max) {
   if (!count || !max) return ''
   const ratio = count / max
-  if (ratio <= 0)    return ''
-  if (ratio <= 0.25) return 'bg-teal-bg'
-  if (ratio <= 0.5)  return 'bg-teal/20'
-  if (ratio <= 0.75) return 'bg-teal/30'
-  return 'bg-teal/40'
+  if (ratio <= 0) return ''
+  if (ratio <= 0.25) return 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.05]'
+  if (ratio <= 0.5) return 'bg-emerald-500/[0.08] dark:bg-emerald-500/[0.09]'
+  if (ratio <= 0.75) return 'bg-emerald-500/[0.13] dark:bg-emerald-500/[0.14]'
+  return 'bg-emerald-500/[0.20] dark:bg-emerald-500/[0.22]'
 }
 
 function getTiposPermitidos(persona) {
@@ -67,73 +88,77 @@ function getTiposPermitidos(persona) {
 }
 
 function initials(nombre) {
-  return (nombre || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+  return (nombre || '')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 }
 
-/** Primeros 10 chars YYYY-MM-DD de una fecha ISO o timestamp (para inputs type="date"). */
 function toYyyyMmDd(fecha) {
   if (fecha == null || fecha === '') return ''
   const m = String(fecha).trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
   return m ? `${m[1]}-${m[2]}-${m[3]}` : ''
 }
 
-/** Dia del mes (1-31); no usar slice(8) con strings tipo 2026-03-15T00:00:00. */
 function assignmentDayOfMonth(fecha) {
   const ymd = toYyyyMmDd(fecha)
   if (!ymd) return ''
   return String(parseInt(ymd.slice(8, 10), 10))
 }
 
-// ─── Badge ────────────────────────────────────────────────────
-function Badge({ tipo, onClick, title }) {
-  if (!tipo) return (
-    <span
-      onClick={onClick}
-      title={title || 'Click para editar'}
-      className="inline-flex items-center justify-center w-7 h-5 text-border2 text-xs cursor-pointer hover:text-text3"
-    >·</span>
-  )
+// ─── Componente Badge de Tipo de Asignación ───────────────────
+function TypeBadge({ tipo, onClick, title, className = '' }) {
+  if (!tipo) {
+    return (
+      <span
+        onClick={onClick}
+        title={title || 'Click para ver/editar'}
+        className="inline-flex items-center justify-center w-6 h-4 text-zinc-300 dark:text-zinc-700 text-[10px] cursor-pointer hover:text-text3 transition-colors"
+      >
+        ·
+      </span>
+    )
+  }
+  const style = BADGE_STYLES[tipo] || 'bg-zinc-100 dark:bg-zinc-800 text-text2 border-zinc-200 dark:border-zinc-700'
+
   return (
     <span
       onClick={onClick}
       title={title}
-      className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-medium font-mono cursor-pointer hover:opacity-75 ${BADGE_CLASS[tipo] || 'bg-bg text-text2'}`}
-    >{tipo}</span>
+      className={`inline-flex items-center justify-center min-w-5 h-4 px-1 rounded text-[10px] font-semibold font-mono border select-none cursor-pointer transition-all duration-100 hover:scale-105 active:scale-95 ${style} ${className}`}
+    >
+      {tipo}
+    </span>
   )
 }
 
-// ─── Chips de tipo ────────────────────────────────────────────
+// ─── Selector de Chips de Tipo ────────────────────────────────
 function TipoChips({ tipos, selected, onSelect }) {
   return (
     <div className="flex flex-wrap gap-1.5 mt-1">
-      {tipos.map(t => (
-        <button
-          key={t}
-          type="button"
-          onClick={() => onSelect(t === selected ? '' : t)}
-          className={`px-2 py-0.5 rounded text-xs font-mono font-medium border-2 transition-none
-            ${BADGE_CLASS[t] || 'bg-bg text-text2'}
-            ${selected === t ? 'border-current opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}
-        >
-          {t} <span className="font-sans font-light text-xs">{TIPO_LABEL[t]}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
+      {tipos.map(t => {
+        const style = BADGE_STYLES[t] || 'bg-zinc-100 dark:bg-zinc-800 text-text2'
+        const isSelected = selected === t
 
-// ─── Modal base ───────────────────────────────────────────────
-function Modal({ open, onClose, title, children, wide }) {
-  if (!open) return null
-  return (
-    <div
-      className="fixed inset-0 bg-black/25 z-50 flex items-center justify-center p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className={`bg-surface border border-border2 rounded-xl p-5 shadow-xl ${wide ? 'w-full max-w-lg' : 'w-full max-w-sm'}`}>
-        <div className="text-sm font-medium text-text1 mb-4 pb-3 border-b border-border">{title}</div>
-        {children}
-      </div>
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onSelect(isSelected ? '' : t)}
+            className={`px-2 py-1 rounded-lg text-xs font-mono font-medium border transition-all cursor-pointer ${
+              isSelected
+                ? `${style} ring-1 ring-emerald-500/40 font-bold shadow-2xs`
+                : 'bg-zinc-100/60 dark:bg-zinc-900/60 text-text3 border-zinc-200/80 dark:border-zinc-800 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+          >
+            {t} <span className="font-sans font-normal text-[11px] opacity-80">{TIPO_LABEL[t]}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -153,53 +178,64 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`${persona.nombre} — ${mes}`}>
-      <div className="flex flex-col gap-4">
-
+    <Dialog
+      isOpen={open}
+      onClose={onClose}
+      title={`${persona.nombre} — ${mes}`}
+      description="Historial de participaciones registradas en este mes."
+      size="sm"
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
+          <Button
+            variant="accent"
+            size="sm"
+            iconRight={ArrowRight}
+            onClick={handleIrAPrograma}
+          >
+            Ver en Programa
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3 py-1">
         {recs.length === 0 ? (
-          <div className="text-sm text-text3 text-center py-4">
-            Sin participación registrada este mes
+          <div className="text-center py-6 text-xs text-text3">
+            Sin participación registrada en este mes.
           </div>
-        ) : recs.map(r => (
-          <div key={r.id} className="flex flex-col gap-2 pb-3 border-b border-border last:border-0 last:pb-0">
-            <div className="flex items-center gap-3">
-              <Badge tipo={r.tipo} />
+        ) : (
+          recs.map(r => (
+            <div
+              key={r.id}
+              className="p-3 rounded-lg bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-2.5">
+                <TypeBadge tipo={r.tipo} />
+                <span className="text-xs font-medium text-text1">
+                  {TIPO_LABEL[r.tipo] || r.tipo}
+                </span>
+              </div>
               {r.fecha && (
-                <span className="font-mono text-xs text-text2">{r.fecha}</span>
+                <span className="font-mono text-xs text-text3 bg-surface dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60">
+                  {r.fecha}
+                </span>
               )}
             </div>
-            {r.observaciones && (
-              <div className="text-xs text-text3">{r.observaciones}</div>
-            )}
-          </div>
-        ))}
-
-        <div className="flex gap-2 mt-1">
-          <button
-            onClick={onClose}
-            className="flex-1 px-3 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg"
-          >
-            Cerrar
-          </button>
-          <button
-            onClick={handleIrAPrograma}
-            className="flex-1 px-3 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
-          >
-            Ver en Programa →
-          </button>
-        </div>
-
+          ))
+        )}
       </div>
-    </Modal>
+    </Dialog>
   )
 }
 
 // ─── Modal Ancianos/SM ────────────────────────────────────────
 function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDelete }) {
   const tipos = getTiposPermitidos(persona)
-  const [nuevoTipo, setNuevoTipo]   = useState('')
+  const [nuevoTipo, setNuevoTipo] = useState('')
   const [nuevaFecha, setNuevaFecha] = useState('')
-  const [nuevaObs, setNuevaObs]     = useState('')
+  const [nuevaObs, setNuevaObs] = useState('')
   const [saving, setSaving] = useState(false)
 
   const recsDelMes = registros
@@ -223,169 +259,217 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
   }
 
   if (!persona) return null
-  return (
-    <Modal open={open} onClose={onClose} title={`${persona.nombre} — ${MESES[mesIdx]}`} wide>
-      {/* Lista de asignaciones existentes */}
-      <div className="mb-4 max-h-48 overflow-y-auto">
-        {recsDelMes.length === 0 ? (
-          <div className="text-xs text-text3 py-2">Sin asignaciones este mes.</div>
-        ) : (
-          recsDelMes.map(r => (
-            <div key={r.id} className="flex items-center gap-2 py-2 border-b border-border last:border-0">
-              <span
-                className="font-mono text-xs text-text3 w-10 shrink-0 text-right"
-                title={r.fecha != null ? String(r.fecha) : undefined}
-              >
-                {assignmentDayOfMonth(r.fecha) || '—'}
-              </span>
-              <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1.5 rounded text-xs font-medium font-mono ${BADGE_CLASS[r.tipo] || ''}`}>
-                {r.tipo}
-              </span>
-              <span className="flex-1 text-xs text-text2 italic truncate">{r.observaciones || ''}</span>
-              <button
-                onClick={async () => { setSaving(true); await onDelete(r.id); setSaving(false) }}
-                aria-label="Eliminar asignación"
-                title="Eliminar asignación"
-                className="text-text3 hover:text-danger text-xs px-1"
-              >✕</button>
-            </div>
-          ))
-        )}
-      </div>
 
-      {/* Nueva asignación */}
-      <div className="border-t border-border pt-4">
-        <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-2">Nueva asignación</div>
-        <div className="grid grid-cols-2 gap-3 mb-2">
-          <div>
-            <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Fecha</div>
-            <input
-              type="date"
-              value={nuevaFecha}
-              onChange={e => setNuevaFecha(e.target.value)}
-              className="w-full px-3 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent"
-            />
+  return (
+    <Dialog
+      isOpen={open}
+      onClose={onClose}
+      title={`${persona.nombre} — ${MESES[mesIdx]}`}
+      description="Consulta y administra asignaciones directas para este mes."
+      size="md"
+      footer={
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Cerrar
+        </Button>
+      }
+    >
+      <div className="space-y-4 py-1">
+        {/* Asignaciones existentes */}
+        <div>
+          <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block mb-2">
+            Asignaciones actuales ({recsDelMes.length})
+          </span>
+          <div className="space-y-1.5 max-h-44 overflow-y-auto">
+            {recsDelMes.length === 0 ? (
+              <div className="p-3 text-center text-xs text-text3 rounded-lg bg-zinc-50/60 dark:bg-zinc-900/40 border border-zinc-200/60 dark:border-zinc-800/60">
+                Sin asignaciones registradas en {MESES[mesIdx]}.
+              </div>
+            ) : (
+              recsDelMes.map(r => (
+                <div
+                  key={r.id}
+                  className="p-2.5 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-mono text-[11px] text-text3 w-8 text-right shrink-0">
+                      Día {assignmentDayOfMonth(r.fecha) || '—'}
+                    </span>
+                    <TypeBadge tipo={r.tipo} />
+                    <span className="font-medium text-text1 truncate">
+                      {TIPO_LABEL[r.tipo] || r.tipo}
+                    </span>
+                    {r.observaciones && (
+                      <span className="text-text3 italic truncate hidden sm:inline">
+                        — {r.observaciones}
+                      </span>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="iconXs"
+                    onClick={async () => {
+                      setSaving(true)
+                      await onDelete(r.id)
+                      setSaving(false)
+                    }}
+                    aria-label="Eliminar asignación"
+                    className="text-text3 hover:text-red-500 dark:hover:text-red-400 shrink-0 ml-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
+        </div>
+
+        {/* Formulario para nueva asignación */}
+        <div className="p-3.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 space-y-3">
+          <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 uppercase tracking-wider block">
+            Agregar nueva asignación
+          </span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-text2 mb-1">
+                Fecha
+              </label>
+              <Input
+                type="date"
+                value={nuevaFecha}
+                onChange={e => setNuevaFecha(e.target.value)}
+                size="sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text2 mb-1">
+                Observaciones
+              </label>
+              <Input
+                type="text"
+                value={nuevaObs}
+                onChange={e => setNuevaObs(e.target.value)}
+                placeholder="Opcional..."
+                size="sm"
+              />
+            </div>
+          </div>
+
           <div>
-            <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Tipo</div>
+            <label className="block text-xs font-medium text-text2 mb-1">
+              Tipo de asignación *
+            </label>
             <TipoChips tipos={tipos} selected={nuevoTipo} onSelect={setNuevoTipo} />
           </div>
-        </div>
-        <div className="mb-3">
-          <div className="font-mono text-xs text-text3 uppercase tracking-wider mb-1">Observaciones</div>
-          <input
-            type="text"
-            value={nuevaObs}
-            onChange={e => setNuevaObs(e.target.value)}
-            placeholder="Opcional..."
-            className="w-full px-3 py-1.5 border border-border2 rounded-lg text-xs bg-surface text-text1 outline-none focus:border-accent"
-          />
-        </div>
-        <button
-          onClick={handleAdd}
-          disabled={saving || !nuevoTipo}
-          className="px-4 py-1.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Guardando...' : '+ Agregar'}
-        </button>
-      </div>
 
-      <div className="mt-4 flex justify-end">
-        <button onClick={onClose} className="px-4 py-1.5 text-sm border border-border2 rounded-lg text-text2 hover:bg-bg">
-          Cerrar
-        </button>
+          <div className="pt-1 flex justify-end">
+            <Button
+              variant="accent"
+              size="sm"
+              icon={Plus}
+              loading={saving}
+              disabled={!nuevoTipo}
+              onClick={handleAdd}
+            >
+              Agregar al mes
+            </Button>
+          </div>
+        </div>
       </div>
-    </Modal>
+    </Dialog>
   )
 }
 
-// ─── Componente principal ─────────────────────────────────────
+// ─── Componente Principal ─────────────────────────────────────
 export default function VistaEditable({ onNavigate }) {
-  const { toast, success, error } = useToast()
-  const [tab, setTab]               = useState('mat')
-  const [personas, setPersonas]     = useState([])
-  const [registros, setRegistros]   = useState([])
-  const [loading, setLoading]       = useState(true)
+  const { toast, success, error: toastError } = useToast()
+  const [tab, setTab] = useState('mat')
+  const [personas, setPersonas] = useState([])
+  const [registros, setRegistros] = useState([])
+  const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
-  const [heatMap, setHeatMap]       = useState(false)
-  const [searchMat, setSearchMat]   = useState('')
-  const [sexoFil, setSexoFil]       = useState('')
+  const [heatMap, setHeatMap] = useState(false)
+
+  // Filtros Matriculados
+  const [searchMat, setSearchMat] = useState('')
+  const [sexoFil, setSexoFil] = useState('')
   const [estatusFil, setEstatusFil] = useState('')
-  const [searchAnc, setSearchAnc]   = useState('')
+
+  // Filtros Ancianos
+  const [searchAnc, setSearchAnc] = useState('')
   const [ancEstatusFil, setAncEstatusFil] = useState('')
 
-  // Modal Matriculados
+  // Modales
   const [matModal, setMatModal] = useState({ open: false, persona: null, mesIdx: 0 })
-  // Modal Ancianos
   const [ancModal, setAncModal] = useState({ open: false, persona: null, mesIdx: 0 })
 
-  // Scroll horizontal en tablas (fade junto a columna nombre)
-  const [matScrollLeft, setMatScrollLeft] = useState(0)
-  const [ancScrollLeft, setAncScrollLeft] = useState(0)
-
-  // ── Fetch datos ──
-  const fetchData = useCallback(async (isInitial = false) => {
-    if (isInitial) {
-      setLoading(true)
-      setFetchError(null)
-    }
-    try {
-      const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
-        supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-        supabase.from('participaciones').select('*').order('fecha'),
-      ])
-      if (psErr) throw psErr
-      if (rsErr) throw rsErr
-      setPersonas(ps || [])
-      setRegistros(rs || [])
-    } catch (err) {
-      console.error('[fetchData]', err)
+  const fetchData = useCallback(
+    async (isInitial = false) => {
       if (isInitial) {
-        setFetchError(err?.message || 'Error al conectar con la base de datos')
-      } else {
-        error('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
+        setLoading(true)
+        setFetchError(null)
       }
-    } finally {
-      if (isInitial) {
-        setLoading(false)
+      try {
+        const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
+          supabase.from('personas').select('*').eq('activo', true).order('nombre'),
+          supabase.from('participaciones').select('*').order('fecha'),
+        ])
+        if (psErr) throw psErr
+        if (rsErr) throw rsErr
+        setPersonas(ps || [])
+        setRegistros(rs || [])
+      } catch (err) {
+        console.error('[fetchData]', err)
+        if (isInitial) {
+          setFetchError(err?.message || 'Error al conectar con la base de datos')
+        } else {
+          toastError('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
+        }
+      } finally {
+        if (isInitial) {
+          setLoading(false)
+        }
       }
-    }
-  }, [error])
+    },
+    [toastError]
+  )
 
-  useEffect(() => { fetchData(true) }, [fetchData])
+  useEffect(() => {
+    fetchData(true)
+  }, [fetchData])
 
-  // Realtime — actualiza sin recargar
   useEffect(() => {
     const canal = supabase
-      .channel('participaciones-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personas' }, () => fetchData())
+      .channel('participaciones-matrix-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, () =>
+        fetchData()
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'personas' }, () =>
+        fetchData()
+      )
       .subscribe()
     return () => supabase.removeChannel(canal)
   }, [fetchData])
 
-  // ── Cálculo mapa de calor ──
+  // Cálculo para mapa de calor
   const maxRegistros = (() => {
     const conteos = personas.map(p => registros.filter(r => r.clave === p.clave).length)
     return Math.max(...conteos, 1)
   })()
 
-
-
-  // ── Eliminar registro ──
   async function handleDelete(id) {
     try {
       const { error: err } = await supabase.from('participaciones').delete().eq('id', id)
       if (err) throw err
-      success('Participación eliminada correctamente')
+      success('Participación eliminada')
       await fetchData()
     } catch (err) {
       console.error(err)
-      error('Error al eliminar: ' + (err.message || 'Error de red'))
+      toastError('Error al eliminar: ' + (err.message || 'Error de red'))
     }
   }
 
-  // ── Agregar asignación Ancianos ──
   async function handleAncAdd({ persona, mesIdx, tipo, fecha, obs }) {
     try {
       const { error: err } = await supabase.from('participaciones').insert({
@@ -399,18 +483,24 @@ export default function VistaEditable({ onNavigate }) {
         observaciones: obs || null,
       })
       if (err) throw err
-      success('Participación registrada correctamente')
+      success('Participación registrada')
       await fetchData()
     } catch (err) {
       console.error(err)
-      error('Error al agregar: ' + (err.message || 'Error de red'))
+      toastError('Error al agregar: ' + (err.message || 'Error de red'))
     }
   }
 
-  // ── Filtros ──
+  // Filtrado de participantes
   const matPersonas = personas.filter(p => {
     if (p.lista !== 'Mat') return false
-    if (searchMat && !p.nombre.toLowerCase().includes(searchMat.toLowerCase())) return false
+    if (
+      searchMat &&
+      !p.nombre.toLowerCase().includes(searchMat.toLowerCase()) &&
+      !p.clave.toLowerCase().includes(searchMat.toLowerCase())
+    ) {
+      return false
+    }
     if (sexoFil && p.sexo !== sexoFil) return false
     if (estatusFil && p.estatus !== estatusFil) return false
     return true
@@ -418,165 +508,267 @@ export default function VistaEditable({ onNavigate }) {
 
   const ancPersonas = personas.filter(p => {
     if (p.lista !== 'Anc/SM') return false
-    if (searchAnc && !p.nombre.toLowerCase().includes(searchAnc.toLowerCase())) return false
+    if (
+      searchAnc &&
+      !p.nombre.toLowerCase().includes(searchAnc.toLowerCase()) &&
+      !p.clave.toLowerCase().includes(searchAnc.toLowerCase())
+    ) {
+      return false
+    }
     if (ancEstatusFil && p.estatus !== ancEstatusFil) return false
     return true
   })
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64 text-text3 font-mono text-sm">
-      Cargando datos...
-    </div>
-  )
-
-  if (fetchError) return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 bg-surface border border-border rounded-xl p-5">
-      <p className="text-sm text-danger font-medium">Error al cargar los datos</p>
-      <p className="text-xs text-text3 font-mono">{fetchError}</p>
-      <button
-        onClick={() => fetchData(true)}
-        className="px-4 py-1.5 text-xs font-medium border border-border2 rounded-lg hover:bg-bg text-text1"
-      >
-        Reintentar
-      </button>
-    </div>
-  )
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl max-w-lg mx-auto text-center space-y-4">
+        <h3 className="text-base font-semibold text-text1">Error de carga</h3>
+        <p className="text-xs text-text3 font-mono">{fetchError}</p>
+        <Button variant="outline" size="sm" icon={RotateCcw} onClick={() => fetchData(true)}>
+          Reintentar
+        </Button>
+      </div>
+    )
+  }
 
   return (
-    <div>
-      {/* Tabs + controles globales */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex border-b border-border">
-          {[['mat', 'Matriculados'], ['anc', 'Ancianos y SM']].map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`px-4 py-2 text-sm border-b-2 -mb-px transition-none
-                ${tab === id
-                  ? 'text-accent border-accent font-medium'
-                  : 'text-text3 border-transparent hover:text-text2'}`}
-            >{label}</button>
-          ))}
+    <div className="space-y-5">
+      {/* ── HEADER Y TABS DE LA PÁGINA ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-semibold tracking-tight text-text1">
+              Vista editable
+            </h1>
+            <Badge variant="neutral" size="sm">
+              {personas.length} activos
+            </Badge>
+          </div>
+          <p className="text-xs text-text2 mt-0.5">
+            Matriz interactiva anual de participaciones por mes.
+          </p>
         </div>
 
-        {/* Switch mapa de calor */}
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xs text-text3 font-mono">Mapa de calor</span>
-          <div
-            onClick={() => setHeatMap(h => !h)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${heatMap ? 'bg-accent' : 'bg-border2'}`}
-          >
-            <div className={`absolute top-0.5 w-4 h-4 bg-surface rounded-full shadow transition-transform ${heatMap ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        {/* Pestañas de Lista y Switch Mapa de Calor */}
+        <div className="flex items-center gap-3">
+          {/* Segmented Tab Control */}
+          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+            <button
+              type="button"
+              onClick={() => setTab('mat')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                tab === 'mat'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              Matriculados ({matPersonas.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('anc')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                tab === 'anc'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              Ancianos y SM ({ancPersonas.length})
+            </button>
           </div>
-        </label>
+
+          {/* Toggle Mapa de Calor */}
+          <button
+            type="button"
+            onClick={() => setHeatMap(h => !h)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none ${
+              heatMap
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60'
+                : 'bg-surface/80 dark:bg-zinc-900/40 text-text3 border-zinc-200/80 dark:border-zinc-800/80 hover:text-text1'
+            }`}
+          >
+            <Flame className={`w-3.5 h-3.5 ${heatMap ? 'text-emerald-600 dark:text-emerald-400' : 'text-text3'}`} />
+            <span className="hidden md:inline">Mapa de calor</span>
+          </button>
+        </div>
       </div>
 
-      {/* ── PESTAÑA MATRICULADOS ── */}
-      {tab === 'mat' && (
-        <>
-          {/* Filtros */}
-          <div className="flex gap-2 mb-3 flex-wrap">
-            <input
-              value={searchMat}
-              onChange={e => setSearchMat(e.target.value)}
-              placeholder="Buscar nombre..."
-              aria-label="Buscar persona en tabla Matriculados"
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
-            />
-            <select
-              value={sexoFil}
-              onChange={e => setSexoFil(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none"
+      {/* ── BARRA DE HERRAMIENTAS Y FILTROS ── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
+        {/* Buscador */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Input
+            value={tab === 'mat' ? searchMat : searchAnc}
+            onChange={e => (tab === 'mat' ? setSearchMat(e.target.value) : setSearchAnc(e.target.value))}
+            placeholder={`Buscar en ${tab === 'mat' ? 'Matriculados' : 'Ancianos'}...`}
+            icon={Search}
+            size="sm"
+            className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-400 dark:focus:border-zinc-600"
+          />
+          {(tab === 'mat' ? searchMat : searchAnc) && (
+            <button
+              type="button"
+              onClick={() => (tab === 'mat' ? setSearchMat('') : setSearchAnc(''))}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 p-0.5 rounded cursor-pointer"
             >
-              <option value="">Todos</option>
-              <option value="M">Masculino</option>
-              <option value="F">Femenino</option>
-            </select>
-            <select
-              value={estatusFil}
-              onChange={e => setEstatusFil(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none"
-            >
-              <option value="">Todos los estatus</option>
-              <option>Matriculado</option>
-              <option>Matriculada</option>
-              <option>Matriculado bautizado</option>
-              <option>Matriculada bautizada</option>
-            </select>
-            {/* Leyenda */}
-            <div className="ml-auto flex items-center gap-3">
-              {['T','A','X'].map(t => (
-                <div key={t} className="flex items-center gap-1">
-                  <span className={`inline-flex items-center justify-center w-7 h-5 rounded text-xs font-medium font-mono ${BADGE_CLASS[t]}`}>{t}</span>
-                  <span className="text-xs text-text3">{TIPO_LABEL[t]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
-          {/* Tabla: el fade va en el padre (no scrollea en X); el scroll solo en el hijo para que el gradiente quede fijo en el borde derecho de la columna nombre */}
-          <div className="relative isolate overflow-hidden rounded-xl border border-border bg-surface">
-            <div
-              className="relative z-0 overflow-auto"
-              onScroll={e => setMatScrollLeft(e.currentTarget.scrollLeft)}
-            >
-            <table className="w-full border-collapse min-w-max">
-              <thead className="sticky top-0 z-30">
+        {/* Filtros específicos por pestaña */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          {tab === 'mat' ? (
+            <>
+              <div className="w-32 shrink-0">
+                <Select
+                  value={sexoFil}
+                  onChange={e => setSexoFil(e.target.value)}
+                  size="sm"
+                >
+                  <option value="">Todos los sexos</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                </Select>
+              </div>
+              <div className="w-44 shrink-0">
+                <Select
+                  value={estatusFil}
+                  onChange={e => setEstatusFil(e.target.value)}
+                  size="sm"
+                >
+                  <option value="">Todos los estatus</option>
+                  <option>Matriculado</option>
+                  <option>Matriculada</option>
+                  <option>Matriculado bautizado</option>
+                  <option>Matriculada bautizada</option>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <div className="w-48 shrink-0">
+              <Select
+                value={ancEstatusFil}
+                onChange={e => setAncEstatusFil(e.target.value)}
+                size="sm"
+              >
+                <option value="">Todos los estatus</option>
+                <option>Anciano</option>
+                <option>Siervo Ministerial</option>
+              </Select>
+            </div>
+          )}
+
+          {/* Leyenda rápida */}
+          <div className="hidden lg:flex items-center gap-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-800 text-xs">
+            {(tab === 'mat' ? ['T', 'A', 'X'] : ['P', 'TB', 'PE', 'EBC', 'VC', 'NC', 'X']).map(t => (
+              <Tooltip key={t} content={TIPO_LABEL[t]} side="bottom">
+                <TypeBadge tipo={t} />
+              </Tooltip>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── CUADRÍCULA SPREADSHEET / MATRIX ── */}
+      <div className="relative isolate rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface overflow-hidden shadow-2xs">
+        <div className="overflow-x-auto max-h-[calc(100vh-210px)]">
+          <table className="w-full text-left text-xs border-collapse min-w-full table-fixed">
+            <thead className="sticky top-0 z-30 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-xs border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
+              <tr>
+                <th className="sticky left-0 top-0 z-40 w-64 min-w-[220px] px-3.5 py-2.5 font-mono text-[10px] uppercase tracking-wider bg-zinc-50/95 dark:bg-zinc-900/95 border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
+                  Participante
+                </th>
+                {MES_ABBR.map(m => (
+                  <th
+                    key={m}
+                    className="px-1.5 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider"
+                  >
+                    {m}
+                  </th>
+                ))}
+                <th className="w-16 min-w-14 px-2 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider bg-zinc-50/95 dark:bg-zinc-900/95 border-l border-zinc-200/80 dark:border-zinc-800/80">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              {(tab === 'mat' ? matPersonas : ancPersonas).length === 0 ? (
                 <tr>
-                  <th className="sticky left-0 top-0 z-40 min-w-44 bg-bg px-3 py-2 text-left text-xs font-medium text-text3 font-mono tracking-wider border-b border-border shadow-[6px_0_14px_-6px_rgba(28,27,25,0.12)]">
-                    Nombre
-                  </th>
-                  {MES_ABBR.map(m => (
-                    <th key={m} className="sticky top-0 z-30 min-w-14 bg-bg px-2 py-2 text-center text-xs font-medium text-text3 font-mono tracking-wider border-b border-border">
-                      {m}
-                    </th>
-                  ))}
-                  <th className="sticky top-0 z-30 bg-bg px-2 py-2 text-center text-xs font-medium text-text3 font-mono border-b border-border">
-                    Tot
-                  </th>
+                  <td colSpan={14} className="py-16 text-center text-xs text-text3">
+                    No se encontraron participantes activos con los filtros seleccionados.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {matPersonas.length === 0 ? (
-                  <tr><td colSpan={14} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
-                ) : matPersonas.map(p => {
+              ) : (
+                (tab === 'mat' ? matPersonas : ancPersonas).map(p => {
                   const total = registros.filter(r => r.clave === p.clave).length
                   const heatBg = heatMap ? heatColor(total, maxRegistros) : ''
-                  const nameCellBg = heatBg || 'bg-surface'
+                  const isFemenino = p.sexo === 'F'
+
                   return (
-                    <tr key={p.clave} className={`border-b border-border last:border-0 hover:bg-bg/50 ${heatBg}`}>
-                      <td className={`sticky left-0 z-30 border-r border-border px-3 py-2 shadow-[6px_0_14px_-6px_rgba(28,27,25,0.12)] ${nameCellBg}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${p.sexo === 'F' ? 'bg-purple-bg text-purple' : 'bg-blue-bg text-blue'}`}>
+                    <tr
+                      key={p.clave}
+                      className={`hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors duration-100 ${heatBg}`}
+                    >
+                      {/* Columna Participante (Sticky Left) */}
+                      <td
+                        className={`sticky left-0 z-20 px-3.5 py-2 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-surface shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${heatBg}`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 border ${
+                              isFemenino
+                                ? 'bg-purple-500/10 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40'
+                                : 'bg-blue-500/10 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40'
+                            }`}
+                          >
                             {initials(p.nombre)}
                           </div>
-                          <div>
-                            <div className="text-sm text-text1">{p.nombre}</div>
-                            <div className="font-mono text-xs text-text3">{p.clave} · {p.estatus}</div>
+                          <div className="min-w-0 flex flex-col">
+                            <span className="font-medium text-text1 text-xs truncate">
+                              {p.nombre}
+                            </span>
+                            <span className="font-mono text-[10px] text-text3 truncate">
+                              {p.clave} · {p.estatus}
+                            </span>
                           </div>
                         </div>
                       </td>
+
+                      {/* Columnas de los 12 Meses */}
                       {MESES.map((mes, mi) => {
                         const recs = registros
                           .filter(r => r.clave === p.clave && r.mes === mes)
                           .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                        const cellHeat = heatMap && recs.length ? 'bg-teal-bg' : ''
+
                         return (
                           <td
                             key={mes}
-                            className={`py-1.5 text-center cursor-pointer hover:bg-bg/50 ${cellHeat}`}
-                            onClick={() => setMatModal({ open: true, persona: p, mesIdx: mi })}
+                            onClick={() =>
+                              tab === 'mat'
+                                ? setMatModal({ open: true, persona: p, mesIdx: mi })
+                                : setAncModal({ open: true, persona: p, mesIdx: mi })
+                            }
+                            className="px-1 py-1.5 text-center cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-zinc-700/40 transition-colors"
                           >
                             {recs.length === 0 ? (
-                              <span className="text-border2 text-xs">·</span>
+                              <span className="text-zinc-300 dark:text-zinc-700 text-xs font-mono select-none">
+                                ·
+                              </span>
                             ) : (
-                              <div className="flex flex-col items-center gap-0.5">
+                              <div className="flex flex-col items-center justify-center gap-1">
                                 {recs.map(r => (
-                                  <div key={r.id} className="flex items-center gap-1">
-                                    <span className="font-mono text-xs text-text3">{assignmentDayOfMonth(r.fecha)}</span>
-                                    <span className={`inline-flex items-center justify-center min-w-7 h-4 px-1 rounded text-xs font-medium font-mono ${BADGE_CLASS[r.tipo] || ''}`}>
-                                      {r.tipo}
+                                  <div
+                                    key={r.id}
+                                    className="inline-flex items-center gap-1 leading-none"
+                                  >
+                                    <span className="font-mono text-[10px] text-text3">
+                                      {assignmentDayOfMonth(r.fecha)}
                                     </span>
+                                    <TypeBadge
+                                      tipo={r.tipo}
+                                      title={`${r.tipo}: ${TIPO_LABEL[r.tipo] || ''} (${r.fecha || mes})`}
+                                    />
                                   </div>
                                 ))}
                               </div>
@@ -584,150 +776,29 @@ export default function VistaEditable({ onNavigate }) {
                           </td>
                         )
                       })}
-                      <td className="px-2 py-2 text-center">
-                        <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-mono font-medium bg-bg text-text2">
+
+                      {/* Columna Total */}
+                      <td className="px-2 py-2 text-center border-l border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/20">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-mono font-semibold ${
+                            total > 0
+                              ? 'bg-zinc-100 dark:bg-zinc-800 text-text1 border border-zinc-200/60 dark:border-zinc-700/60'
+                              : 'text-text3'
+                          }`}
+                        >
                           {total || '—'}
                         </span>
                       </td>
                     </tr>
                   )
-                })}
-              </tbody>
-            </table>
-            </div>
-            {matScrollLeft > 6 && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-44 z-20 w-12 bg-linear-to-r from-surface from-15% to-transparent to-100%"
-              />
-            )}
-          </div>
-        </>
-      )}
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      {/* ── PESTAÑA ANCIANOS/SM ── */}
-      {tab === 'anc' && (
-        <>
-          {/* Filtros */}
-          <div className="flex gap-2 mb-3 flex-wrap">
-            <input
-              value={searchAnc}
-              onChange={e => setSearchAnc(e.target.value)}
-              placeholder="Buscar nombre..."
-              aria-label="Buscar persona en tabla Ancianos y Siervos Ministeriales"
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text1 outline-none focus:border-accent min-w-44"
-            />
-            <select
-              value={ancEstatusFil}
-              onChange={e => setAncEstatusFil(e.target.value)}
-              className="px-3 py-1.5 border border-border2 rounded-lg text-sm bg-surface text-text2 outline-none"
-            >
-              <option value="">Todos</option>
-              <option>Anciano</option>
-              <option>Siervo Ministerial</option>
-            </select>
-            {/* Leyenda */}
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
-              {['P','TB','PE','EBC','VC','NC','X'].map(t => (
-                <div key={t} className="flex items-center gap-1">
-                  <span className={`inline-flex items-center justify-center min-w-7 h-5 px-1 rounded text-xs font-medium font-mono ${BADGE_CLASS[t]}`}>{t}</span>
-                  <span className="text-xs text-text3 hidden lg:inline">{TIPO_LABEL[t]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative isolate overflow-hidden rounded-xl border border-border bg-surface">
-            <div
-              className="relative z-0 overflow-auto"
-              onScroll={e => setAncScrollLeft(e.currentTarget.scrollLeft)}
-            >
-            <table className="w-full border-collapse min-w-max">
-              <thead className="sticky top-0 z-30">
-                <tr>
-                  <th className="sticky left-0 top-0 z-40 min-w-44 bg-bg px-3 py-2 text-left text-xs font-medium text-text3 font-mono tracking-wider border-b border-border shadow-[6px_0_14px_-6px_rgba(28,27,25,0.12)]">
-                    Nombre
-                  </th>
-                  {MES_ABBR.map(m => (
-                    <th key={m} className="sticky top-0 z-30 min-w-24 bg-bg px-2 py-2 text-center text-xs font-medium text-text3 font-mono tracking-wider border-b border-border">
-                      {m}
-                    </th>
-                  ))}
-                  <th className="sticky top-0 z-30 bg-bg px-2 py-2 text-center text-xs font-medium text-text3 font-mono border-b border-border">
-                    Tot
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {ancPersonas.length === 0 ? (
-                  <tr><td colSpan={14} className="text-center py-8 text-sm text-text3">Sin resultados</td></tr>
-                ) : ancPersonas.map(p => {
-                  const total = registros.filter(r => r.clave === p.clave).length
-                  const heatBg = heatMap ? heatColor(total, maxRegistros) : ''
-                  const nameCellBg = heatBg || 'bg-surface'
-                  return (
-                    <tr key={p.clave} className={`border-b border-border last:border-0 hover:bg-bg/50 ${heatBg}`}>
-                      <td className={`sticky left-0 z-30 border-r border-border px-3 py-2 shadow-[6px_0_14px_-6px_rgba(28,27,25,0.12)] ${nameCellBg}`}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-blue-bg text-blue shrink-0">
-                            {initials(p.nombre)}
-                          </div>
-                          <div>
-                            <div className="text-sm text-text1">{p.nombre}</div>
-                            <div className="font-mono text-xs text-text3">{p.clave} · {p.estatus}</div>
-                          </div>
-                        </div>
-                      </td>
-                      {MESES.map((mes, mi) => {
-                        const recs = registros
-                          .filter(r => r.clave === p.clave && r.mes === mes)
-                          .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                        const cellHeat = heatMap && recs.length ? heatColor(recs.length, 3) : ''
-                        return (
-                          <td
-                            key={mes}
-                            className={`py-1.5 text-center cursor-pointer hover:bg-bg/50 ${cellHeat}`}
-                            onClick={() => setAncModal({ open: true, persona: p, mesIdx: mi })}
-                          >
-                            {recs.length === 0 ? (
-                              <span className="text-border2 text-xs">·</span>
-                            ) : (
-                              <div className="flex flex-col items-center gap-0.5">
-                                {recs.map(r => (
-                                  <div key={r.id} className="flex items-center gap-1">
-                                    <span className="font-mono text-xs text-text3">{assignmentDayOfMonth(r.fecha)}</span>
-                                    <span className={`inline-flex items-center justify-center min-w-7 h-4 px-1 rounded text-xs font-medium font-mono ${BADGE_CLASS[r.tipo] || ''}`}>
-                                      {r.tipo}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                        )
-                      })}
-                      <td className="px-2 py-2 text-center">
-                        <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-mono font-medium bg-bg text-text2">
-                          {total || '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            </div>
-            {ancScrollLeft > 6 && (
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-44 z-20 w-12 bg-linear-to-r from-surface from-15% to-transparent to-100%"
-              />
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Modales */}
+      {/* ── MODALES DE CELDA ── */}
       <MatCellModal
         open={matModal.open}
         onClose={() => setMatModal(m => ({ ...m, open: false }))}
@@ -736,6 +807,7 @@ export default function VistaEditable({ onNavigate }) {
         registros={registros}
         onNavigate={onNavigate}
       />
+
       <AncCellModal
         open={ancModal.open}
         onClose={() => setAncModal(m => ({ ...m, open: false }))}
@@ -745,6 +817,7 @@ export default function VistaEditable({ onNavigate }) {
         onAdd={handleAncAdd}
         onDelete={handleDelete}
       />
+
       <Toast toast={toast} />
     </div>
   )

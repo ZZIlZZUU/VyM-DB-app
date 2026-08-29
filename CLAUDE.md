@@ -8,10 +8,11 @@ Aplicación web para gestión de participaciones en reuniones de congregación (
 
 - **Frontend:** React 19 + Vite 8 + Tailwind CSS v4
 - **Backend:** Supabase (PostgreSQL + Auth + Realtime)
-- **Fuentes:** IBM Plex Sans / IBM Plex Mono
+- **Fuentes:** Inter (Google Fonts) / Monospace para claves y contadores
 - **Package manager:** pnpm
 - **Deploy:** Vercel (activo: [vy-m-db-app-flame.vercel.app](https://vy-m-db-app-flame.vercel.app/))
 - **Directorio:** `participantes-app/`
+- **Documentacion UI Rework:** Consulta `UI_REWORK.md` para la arquitectura detallada del sistema de diseno SaaS, componentes base y tokens de color.
 
 ---
 
@@ -40,17 +41,28 @@ participantes-app/
 │   │   └── generarS140.js           — generador S-140.docx con docxtemplater
 │   ├── pages/
 │   │   ├── Login.jsx                — login email/password
-│   │   ├── VistaEditable.jsx        — tabla cruzada persona × mes con modales
+│   │   ├── VistaEditable.jsx        — tabla cruzada persona × mes (12 meses matrix) con modales
 │   │   ├── VistaSql.jsx             — vista relacional con filtros
-│   │   ├── Personas.jsx             — CRUD personas
-│   │   ├── Registros.jsx            — CRUD participaciones
-│   │   ├── Programa.jsx             — módulo S-140 completo
+│   │   ├── Personas.jsx             — CRUD personas con Sheet lateral
+│   │   ├── Registros.jsx            — CRUD participaciones con Sheet lateral y bulk actions
+│   │   ├── Programa.jsx             — módulo S-140 completo con tarjetas Linear y selector inteligente
 │   │   ├── Usuarios.jsx             — gestión de acceso y lista blanca de usuarios autorizados
-│   │   ├── Exportar.jsx             — CSV / SQL / JSON + importar CSV
+│   │   ├── Exportar.jsx             — CSV / SQL / JSON + importador CSV con drag & drop
 │   │   ├── SetPassword.jsx          — establecimiento de nueva contraseña
-│   │   ├── HistorialCambios.jsx     — log de auditoría en tiempo real
-│   │   └── Estadisticas.jsx         — resumen por tipo/mes/persona
+│   │   ├── HistorialCambios.jsx     — log de auditoría en tiempo real con inspector JSON
+│   │   └── Estadisticas.jsx         — resumen por tipo/mes/persona y gráficos Recharts
 │   ├── components/
+│   │   ├── ui/                      — componentes base del Design System
+│   │   │   ├── Button.jsx           — botones primarios, secundarios, acento (Verde Bosque), etc.
+│   │   │   ├── Badge.jsx            — insignias y chips de estado
+│   │   │   ├── Input.jsx            — campos de texto con soporte de iconos
+│   │   │   ├── Select.jsx           — selector desplegable nativo estilizado
+│   │   │   ├── Sheet.jsx            — slide-over panel lateral para formularios
+│   │   │   ├── Dialog.jsx           — modales centrados con backdrop blur
+│   │   │   └── Tooltip.jsx          — tooltips flotantes
+│   │   ├── Header.jsx               — barra superior con perfil único y búsqueda
+│   │   ├── Sidebar.jsx              — barra lateral colapsable con peek mode en hover
+│   │   ├── CommandPalette.jsx       — paleta de comandos rápida (Cmd/Ctrl+K)
 │   │   ├── ProtectedRoute.jsx       — verifica sesión + tabla usuarios_autorizados
 │   │   ├── Toast.jsx                — notificaciones visuales (success/error/warning/info)
 │   │   ├── Skeleton.jsx             — placeholders animados para estados de carga
@@ -59,9 +71,9 @@ participantes-app/
 │   ├── hooks/
 │   │   ├── useToast.js              — hook para manejo de toasts con tipos
 │   │   └── useConfirm.js            — hook para diálogos de confirmación async
-│   ├── App.jsx                      — sidebar nav colapsable + router de vistas
+│   ├── App.jsx                      — app shell fluido de ancho completo + router de vistas
 │   ├── main.jsx                     — BrowserRouter + rutas
-│   └── index.css                    — Tailwind + estilos base + animaciones
+│   └── index.css                    — Tailwind + variables CSS dark/light mode
 ├── tailwind.config.js               — colores custom del design system
 ├── vite.config.js
 └── package.json

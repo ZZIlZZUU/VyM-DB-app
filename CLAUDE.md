@@ -439,29 +439,68 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ### 🟡 Prioridad Media (Experiencia de Usuario e Interfaz)
 - [X] **Atajos de teclado globales** — Implementada la paleta de comandos flotante `Ctrl+K` / `Cmd+K` (`CommandPalette.jsx`) con búsqueda, navegación por teclado (`↑`/`↓`/`Enter`/`Escape`) y comandos agrupados, junto a secuencias directas de navegación estilo GitHub (`G` + tecla de destino) mediante el hook `useKeyboardShortcuts.js`.
-- [ ] **Vista Editable — Sticky headers** — Fijar de forma permanente la columna izquierda de personas y la fila superior de meses para no perder la referencia al hacer scroll horizontal o vertical.
-- [ ] **Vista Editable — Múltiples asignaciones de Matriculados en la misma celda** — Permitir visualizar de forma compacta (ej: `T²` o badges apilados pequeños) cuando una persona tiene más de una participación en el mismo mes.
-- [ ] **Vista Editable — Rediseño del modal de Matriculados (solo lectura)** — Dado que las asignaciones se hacen en Programa S-140, modificar el modal de celda para que sea puramente informativo, incluyendo un enlace directo para navegar al programa semanal respectivo.
-- [ ] **Nueva Vista Semanal (Lectura rápida del programa)** — Diseñar una vista/página de sólo lectura para mostrar la agenda de la semana actual. Definir si vive como pestaña de `VistaEditable` o sección en el sidebar, si muestra asignaciones pendientes, y el formato de visualización (lineal o calendario).
+- [X] **Vista Editable — Sticky headers** — Columna izquierda de personas y fila superior de meses fijadas con `sticky` (thead `sticky top-0`, primera columna `sticky left-0` con shadow de separación).
+- [X] **Vista Editable — Múltiples asignaciones de Matriculados en la misma celda** — Celdas Mat ahora iteran todos los registros del mes con patrón día+badge apilado, homologando el comportamiento con la tabla de Anc/SM. `MatCellModal` actualizado para mostrar `recs[]` completos.
+- [X] **Vista Editable — Rediseño del modal de Matriculados (solo lectura)** — `MatCellModal` convertido a vista puramente informativa con badge de tipo, fecha y observaciones, y botón "Ver en Programa →" de navegación directa vía prop `onNavigate`.
+- [ ] **Nueva Vista Semanal (widget en Home)** — Vista de solo lectura de la agenda de la semana actual. Vivirá como widget destacado en la Home Page en lugar de página separada, con opción de drill-down al programa completo en `Programa.jsx`.
 - [X] **Programa S-140 — Botón flotante "Generar S-140"** — Colocado como un botón de acción flotante (FAB) fijo en la esquina inferior derecha (`fixed bottom-6 right-6 z-50 rounded-full`), accesible en todo momento sin depender de scroll.
 - [X] **Programa S-140 — Modo lectura vs edición** — Añadido selector/toggle en la cabecera para alternar entre edición (con dropdowns y confirmación) y lectura limpia (programa finalizado en texto plano con badges sutiles, persistente en `localStorage`).
 - [X] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` (`registros_filterMes`, `registros_filterLista`) y botón ✕ para limpiar filtros activos.
 - [X] **Registros — Paginación y Selector de registros por página** — Eliminado el límite truncado de 100 registros en la consulta para cargar la totalidad de participaciones del año. Añadida barra inferior de paginación (estilo Supabase Table Editor) con botones de navegación (← / →), indicador de página actual y total, selector de tamaño de página (25, 50, 100, 250, 500) con persistencia en `localStorage` (`registros_pageSize`) y contador dinámico de registros visibles/filtrados.
 - [X] **Registros — Acciones masivas (Bulk actions)** — Incorporado modo de selección múltiple en `Registros.jsx` con checkboxes por fila, selección masiva de todos los registros filtrados (`indeterminate`), y barra de acciones contextuales para eliminación en bloque y cambio de tipo masivo con validación de roles y confirmación única.
-- [ ] **Registros — Validación en tiempo real** — Impedir guardar o alertar en color rojo si se asocia un tipo de rol restringido a una persona (ej: tipo "NC" asignado a una persona de lista "Mat").
+- [X] **Registros — Validación en tiempo real** — Estado derivado `validationErrors`/`hasErrors` en render; indicadores inline rojo bajo cada campo (persona, fecha, tipo); botón "Guardar" bloqueado con `disabled={saving || hasErrors}`.
 - [X] **Exportar / Importar — Carga interactiva Drag & Drop** — Creado el hook `useDragDrop` para habilitar el arrastre y soltado de archivos `.csv` en las zonas de importación con validación de extensión y feedback visual (`border-dashed border-accent bg-accent-bg`).
 - [X] **Exportar / Importar — Vista previa y validación previa** — Modal de previsualización que muestra las primeras 5 filas del archivo CSV antes de procesarlo en la base de datos, validando la presencia de columnas requeridas (`HeadersWarning`).
 - [X] **Design System — Homogeneización de estados de UI** — Aplicar estilos uniformes de `disabled` (`opacity-50`, `cursor-not-allowed`), hover con token oficial (`accent-hover: #155236`), y foco (`focus:border-accent`) en inputs, selectores y botones de todas las vistas.
 - [X] **Accesibilidad (a11y)** — Ajustado el token `text3` a `#807D75` para cumplir contraste WCAG AA en toda la app, añadidos atributos `aria-label` y `title` a botones de eliminación y campos de búsqueda, e incorporado `aria-hidden="true"` a todos los SVGs decorativos de empty states.
 
 ### 🔵 Prioridad Baja (Futuro y Optimizaciones)
-- [ ] **Gráficos en Estadísticas** — Integrar visualizaciones de barras horizontales (por tipo), pastel (Mat vs Anc/SM) y líneas (timeline) usando la librería `recharts`.
+- [X] **Gráficos en Estadísticas** — Integrados gráficos interactivos `BarChart` con `recharts`: barras horizontales por tipo (`TipoTooltip`) y barras verticales por mes (`MesTooltip`) con colores y tipografía del design system.
 - [X] **Configuración de tema y persistencia** — Implementado modo oscuro integral (`darkMode: 'class'`) con CSS custom properties semánticas en `:root` y `html.dark`, hook `useTheme` con persistencia en `localStorage` y sincronización con `prefers-color-scheme`, toggle interactivo (`◑` / `☀`) en sidebar (expandido y colapsado) y reemplazo de colores hardcoded por tokens del design system.
-- [ ] **Onboarding / Tour de primer uso** — Crear un tour interactivo para nuevos usuarios administradores y un panel lateral deslizable de ayuda rápida.
-- [ ] **Exportación a PDF** — Agregar un botón en la futura Vista Semanal para exportar/imprimir el itinerario en PDF optimizado para impresión física.
+- [ ] **Onboarding integrado en Home** — Wizard de primer uso detectado desde `configuracion` (nombre por default → dispara onboarding). Pasos: (1) nombre de congregación + año, (2) importar participantes CSV, (3) subir primer EPUB mwb. Checklist visual de progreso que desaparece al completarse. Vive integrado en la Home Page.
+- [ ] **Exportación a PDF** — Agregar un botón en la Vista Semanal del Home para exportar/imprimir el itinerario en PDF optimizado para impresión física.
 - [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
 - [X] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
 - [ ] **Conversión a PWA (Progressive Web App)** — Configurar `vite-plugin-pwa` para permitir la instalación de la aplicación en el dispositivo móvil como si fuera nativa, permitiendo acceso offline a los datos locales.
+
+---
+
+## 🏠 Home Page (nueva sección — pendientes)
+
+*La Home es el dashboard de aterrizaje. Es la base sobre la que se integran el Onboarding, la Vista Semanal y las Alertas proactivas.*
+
+### Componentes del Home (`src/pages/Home.jsx`)
+
+- [ ] **KPIs rápidos** — Tarjetas con: personas activas (+ inactivas), participaciones del mes actual, semanas del programa con progreso < 100%, próxima reunión.
+- [ ] **Widget Vista Semanal** — Agenda compacta de la semana más próxima con partes confirmadas/pendientes y acceso directo a `Programa.jsx`. Absorbe el pendiente "Nueva Vista Semanal".
+- [ ] **Alertas proactivas** — Panel tipo inbox que calcula al cargar: semanas sin confirmar, personas con > 2 meses sin participar, programa sin cargar para el mes próximo. Reutiliza lógica de `Estadísticas.jsx` y `Programa.jsx`.
+- [ ] **Accesos rápidos** — Botones/cards hacia las acciones más frecuentes: nuevo registro, abrir programa de la semana actual, exportar S-140, ir a personas.
+- [ ] **Onboarding integrado** — Detecta si `configuracion.nombre_congregacion` === `'Congregacion del Recreo'` (valor por default) para mostrar el wizard de primer uso. Ver sección 🔵 Prioridad Baja.
+
+---
+
+## 🤖 Automatización interna (nueva sección — pendientes)
+
+### EPUB automático desde JW.org
+- [ ] **Edge Function `fetch-epub`** — Consulta el endpoint interno de JW.org (`GETPUBMEDIALINKS?pub=mwb&fileformat=EPUB&langwritten=S&issue=YYYYMM`) para obtener el link de descarga del EPUB más reciente, lo descarga y lo sube a Supabase Storage (bucket `epubs`). Requiere habilitar Storage en el proyecto Supabase.
+- [ ] **Verificación al cargar `Programa.jsx`** — Al montar la vista, comparar el `issue` disponible en JW.org con el más reciente guardado en Storage. Si hay versión nueva, mostrar un banner/toast con botón "Descargar nuevo EPUB mwb (Sep 2026)".
+- [ ] **Selector de EPUB desde Storage** — En lugar de solo subir manualmente, mostrar un `<Select>` con los EPUBs disponibles en el bucket (máximo 4, los más recientes). Mantener el botón de subida manual como fallback.
+- [ ] **Rotación automática del bucket** — Al guardar un nuevo EPUB, si ya hay 4 archivos, eliminar el más antiguo. Lógica en la misma Edge Function `fetch-epub`.
+- [ ] **Tabla `epub_disponibles` en Supabase** — Registrar metadatos de cada EPUB guardado: `id`, `filename`, `issue` (YYYYMM), `url_storage`, `descargado_en`. Permite al selector mostrar etiquetas legibles ("Julio 2026") sin parsear nombres de archivo.
+
+### Otras automatizaciones de calidad de vida
+- [ ] **Auto-confirmación inteligente con revisión previa** — Botón "Revisar y aprobar semana" que muestra un resumen de todas las sugerencias del motor (`sugerido_por_app = true`) con semáforo de idoneidad (✓/↻/⚠) y permite aprobar todas o ajustar las que tienen warning antes del commit.
+- [ ] **Detección de conflictos de rotación al asignar manualmente** — Warning inline al seleccionar una persona en `PersonaSelector` si viola reglas de rotación (participó hace < 2 semanas, ya tiene 3 asignaciones el mes, misma asignación el mes anterior). Complementa el sistema de scoring existente.
+- [ ] **Toast de acción al completar semana al 100%** — Cuando `confirmadas === totalPartes` en una semana, mostrar toast persistente con acción directa: "Semana completa — Generar S-140 ahora →". Reutiliza `generarS140.js`.
+- [ ] **Backup automático a Supabase Storage al exportar** — Al generar CSV/JSON desde `Exportar.jsx`, además de la descarga local, guardar una copia en un bucket `backups` con timestamp. El tab de importación mostraría los backups disponibles en nube para restaurar desde ahí.
+- [ ] **Reporte mensual automático** — Al cambiar de mes o bajo demanda, generar un resumen PDF/CSV de participaciones del mes que acaba (quién participó, cuántas veces, qué tipos) y guardarlo en Storage. Útil para el anciano coordinador.
+- [ ] **Timeline / historial por persona** — Desde `Personas.jsx`, al hacer click en una persona abrir `Sheet.jsx` lateral con su timeline personal: todas sus participaciones ordenadas cronológicamente con badges de tipo y mes. Datos ya disponibles en tabla `participaciones`.
+
+---
+
+## 🎨 Pendiente de prompt dedicado
+
+- [ ] **Vista fiel al S-140 en `Programa.jsx`** — Rediseño visual de las tarjetas de semana para que la disposición en pantalla refleje fielmente la estructura del formulario oficial S-140 (secciones, columnas y jerarquía visual del documento). Requiere prompt dedicado por complejidad.
 
 ---
 
@@ -470,7 +509,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 *Regla de protocolo: En esta sección se concentran integraciones ya realizadas a las que se les pueden añadir más características para enriquecer la experiencia de usuario. Únicamente se incorporan elementos a esta sección cuando el usuario lo indique explícitamente con la instrucción **"Pasa a pulir"**, acompañada de las instrucciones o sugerencias para abordar en una ocasión posterior.*
 
 - [ ] **Atajos y Paleta de Comandos (`CommandPalette` / `useKeyboardShortcuts`)**:
-  - *Sugerencia / Directriz:* Agregar más atajos a la paleta de comandos como opciones de configuración (ej. atajos para alternar tema claro/oscuro, acciones rápidas contextuales como nuevo registro `N`, exportación rápida, filtros inmediatos) y sugerir más características interactivas para potenciar su utilidad.
+  - *Sugerencia / Directriz:* Agregar más atajos: toggle dark/light mode, `N` para nuevo registro, búsqueda de participantes por nombre con navegación directa a su historial en `VistaEditable`, exportación rápida del S-140 de la semana próxima.
+
+- [ ] **Estadísticas — Gráficos adicionales**:
+  - *Sugerencia / Directriz:* Ampliar el dashboard con pastel Mat vs Anc/SM, línea de timeline de participaciones por mes del año y tabla de resumen mensual consolidada con peso acumulado por sección.
+
+- [ ] **Perfil / Settings page (`PerfilDrawer.jsx`)**:
+  - *Sugerencia / Directriz:* Expandir el drawer de perfil con una pestaña de preferencias de usuario (notificaciones, idioma de fechas, vista por defecto al entrar), visible desde el avatar del Header.
 
 ---
 

@@ -38,9 +38,12 @@ participantes-app/
 │   │   ├── supabase.js              — cliente Supabase
 │   │   ├── epubParser.js            — parser EPUB mwb → semanas/partes
 │   │   ├── asignacionesSugeridas.js — motor de sugerencias por rotación
-│   │   └── generarS140.js           — generador S-140.docx con docxtemplater
+│   │   ├── generarS140.js           — generador S-140.docx con docxtemplater
+│   │   └── fechas.js                — formateo centralizado de fechas legibles y rangos de semana
 │   ├── pages/
 │   │   ├── Login.jsx                — login email/password
+│   │   ├── Home.jsx                 — dashboard principal con KPIs, alertas, widget semanal y onboarding
+│   │   ├── VistaSemanal.jsx         — vista semanal histórica con selectores de año/mes y exportación S-140
 │   │   ├── VistaEditable.jsx        — tabla cruzada persona × mes (12 meses matrix) con modales
 │   │   ├── VistaSql.jsx             — vista relacional con filtros
 │   │   ├── Personas.jsx             — CRUD personas con Sheet lateral
@@ -442,7 +445,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Vista Editable — Sticky headers** — Columna izquierda de personas y fila superior de meses fijadas con `sticky` (thead `sticky top-0`, primera columna `sticky left-0` con shadow de separación).
 - [X] **Vista Editable — Múltiples asignaciones de Matriculados en la misma celda** — Celdas Mat ahora iteran todos los registros del mes con patrón día+badge apilado, homologando el comportamiento con la tabla de Anc/SM. `MatCellModal` actualizado para mostrar `recs[]` completos.
 - [X] **Vista Editable — Rediseño del modal de Matriculados (solo lectura)** — `MatCellModal` convertido a vista puramente informativa con badge de tipo, fecha y observaciones, y botón "Ver en Programa →" de navegación directa vía prop `onNavigate`.
-- [ ] **Nueva Vista Semanal (widget en Home)** — Vista de solo lectura de la agenda de la semana actual. Vivirá como widget destacado en la Home Page en lugar de página separada, con opción de drill-down al programa completo en `Programa.jsx`.
+- [X] **Nueva Vista Semanal (widget en Home)** — Vista de solo lectura de la agenda de la semana actual. Vivirá como widget destacado en la Home Page en lugar de página separada, con opción de drill-down al programa completo en `Programa.jsx`.
 - [X] **Programa S-140 — Botón flotante "Generar S-140"** — Colocado como un botón de acción flotante (FAB) fijo en la esquina inferior derecha (`fixed bottom-6 right-6 z-50 rounded-full`), accesible en todo momento sin depender de scroll.
 - [X] **Programa S-140 — Modo lectura vs edición** — Añadido selector/toggle en la cabecera para alternar entre edición (con dropdowns y confirmación) y lectura limpia (programa finalizado en texto plano con badges sutiles, persistente en `localStorage`).
 - [X] **Registros — Filtros persistentes** — Almacenar el último filtro de catálogo seleccionado en `localStorage` (`registros_filterMes`, `registros_filterLista`) y botón ✕ para limpiar filtros activos.
@@ -457,7 +460,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 ### 🔵 Prioridad Baja (Futuro y Optimizaciones)
 - [X] **Gráficos en Estadísticas** — Integrados gráficos interactivos `BarChart` con `recharts`: barras horizontales por tipo (`TipoTooltip`) y barras verticales por mes (`MesTooltip`) con colores y tipografía del design system.
 - [X] **Configuración de tema y persistencia** — Implementado modo oscuro integral (`darkMode: 'class'`) con CSS custom properties semánticas en `:root` y `html.dark`, hook `useTheme` con persistencia en `localStorage` y sincronización con `prefers-color-scheme`, toggle interactivo (`◑` / `☀`) en sidebar (expandido y colapsado) y reemplazo de colores hardcoded por tokens del design system.
-- [ ] **Onboarding integrado en Home** — Wizard de primer uso detectado desde `configuracion` (nombre por default → dispara onboarding). Pasos: (1) nombre de congregación + año, (2) importar participantes CSV, (3) subir primer EPUB mwb. Checklist visual de progreso que desaparece al completarse. Vive integrado en la Home Page.
+- [X] **Onboarding integrado en Home** — Wizard de primer uso detectado desde `configuracion` (nombre por default → dispara onboarding). Pasos: (1) nombre de congregación + año, (2) importar participantes CSV, (3) subir primer EPUB mwb. Checklist visual de progreso que desaparece al completarse. Vive integrado en la Home Page.
 - [ ] **Exportación a PDF** — Agregar un botón en la Vista Semanal del Home para exportar/imprimir el itinerario en PDF optimizado para impresión física.
 - [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
 - [X] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
@@ -465,17 +468,17 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 ---
 
-## 🏠 Home Page (nueva sección — pendientes)
+## 🏠 Home Page (nueva sección — implementada)
 
 *La Home es el dashboard de aterrizaje. Es la base sobre la que se integran el Onboarding, la Vista Semanal y las Alertas proactivas.*
 
 ### Componentes del Home (`src/pages/Home.jsx`)
 
-- [ ] **KPIs rápidos** — Tarjetas con: personas activas (+ inactivas), participaciones del mes actual, semanas del programa con progreso < 100%, próxima reunión.
-- [ ] **Widget Vista Semanal** — Agenda compacta de la semana más próxima con partes confirmadas/pendientes y acceso directo a `Programa.jsx`. Absorbe el pendiente "Nueva Vista Semanal".
-- [ ] **Alertas proactivas** — Panel tipo inbox que calcula al cargar: semanas sin confirmar, personas con > 2 meses sin participar, programa sin cargar para el mes próximo. Reutiliza lógica de `Estadísticas.jsx` y `Programa.jsx`.
-- [ ] **Accesos rápidos** — Botones/cards hacia las acciones más frecuentes: nuevo registro, abrir programa de la semana actual, exportar S-140, ir a personas.
-- [ ] **Onboarding integrado** — Detecta si `configuracion.nombre_congregacion` === `'Congregacion del Recreo'` (valor por default) para mostrar el wizard de primer uso. Ver sección 🔵 Prioridad Baja.
+- [X] **KPIs rápidos** — Tarjetas con: personas activas (+ inactivas), participaciones del mes actual, semanas del programa con progreso < 100%, próxima reunión.
+- [X] **Widget Vista Semanal** — Agenda compacta de la semana más próxima con partes confirmadas/pendientes y acceso directo a `Programa.jsx`. Absorbe el pendiente "Nueva Vista Semanal".
+- [X] **Alertas proactivas** — Panel tipo inbox que calcula al cargar: semanas sin confirmar, personas con > 2 meses sin participar, programa sin cargar para el mes próximo. Reutiliza lógica de `Estadísticas.jsx` y `Programa.jsx`.
+- [X] **Accesos rápidos** — Botones/cards hacia las acciones más frecuentes: nuevo registro, abrir programa de la semana actual, exportar S-140, ir a personas.
+- [X] **Onboarding integrado** — Detecta si `configuracion.nombre_congregacion` === `'Congregacion del Recreo'` (valor por default) para mostrar el wizard de primer uso. Ver sección 🔵 Prioridad Baja.
 
 ---
 
@@ -511,7 +514,7 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Atajos y Paleta de Comandos (`CommandPalette` / `useKeyboardShortcuts`)**:
   - *Sugerencia / Directriz:* Agregar más atajos: toggle dark/light mode, `N` para nuevo registro, búsqueda de participantes por nombre con navegación directa a su historial en `VistaEditable`, exportación rápida del S-140 de la semana próxima.
 
-- [ ] **Estadísticas — Gráficos adicionales**:
+- [ ] **Estadísticas — Gráficos adicionales**: 
   - *Sugerencia / Directriz:* Ampliar el dashboard con pastel Mat vs Anc/SM, línea de timeline de participaciones por mes del año y tabla de resumen mensual consolidada con peso acumulado por sección.
 
 - [ ] **Perfil / Settings page (`PerfilDrawer.jsx`)**:
@@ -672,6 +675,53 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
   - Integrado botón toggle (`◑` / `☀`) en el footer del sidebar de `App.jsx` tanto en estado expandido como colapsado.
   - Reemplazados todos los colores hardcoded por tokens en `Registros.jsx`, `VistaSql.jsx`, `Estadisticas.jsx`, `Programa.jsx`, `VistaEditable.jsx`, `Personas.jsx` y `ConfirmDialog.jsx`.
   - Calibrada la paleta de modo oscuro con tonos más sobrios y orgánicos (`--color-accent: #247A53`, `--color-accent-hover: #1D6444`) eliminando brillos excesivos/neón en botones y componentes activos.
+- **Brief 20 — Home Page (Home.jsx) (29/08/2026):**
+  - Creada la página `src/pages/Home.jsx` como dashboard principal y ruta índice de la aplicación.
+  - Integrados 5 bloques funcionales en estricto orden visual:
+    1. **Onboarding condicional**: Wizard de 3 pasos (nombre congregación/año editable mediante modal en Supabase, importación de participantes y subida de primer EPUB) visible cuando la configuración está por defecto.
+    2. **KPIs rápidos**: 4 tarjetas métricas con datos en tiempo real (personas activas vs total, participaciones del mes en curso, semanas del programa con progreso < 100% en el mes actual y fecha de la próxima reunión calculada con badge de proximidad).
+    3. **Alertas proactivas**: Panel tipo inbox con motor de reglas reactivo para detectar semanas incompletas del mes, participantes con > 2 meses sin asignación y falta de EPUB para el mes próximo, con botones y enlaces directos a sus respectivas vistas.
+    4. **Widget — Semana actual**: Agenda compacta de solo lectura de la semana en curso con lectura bíblica, canciones, barra de progreso calculada por partes únicas y lista de asignaciones con badges de estado y enlace al programa completo.
+    5. **Accesos rápidos**: Grid 2×2 para nuevo registro (con apertura automática del Sheet en `Registros.jsx`), generación directa del documento Word S-140 con `generarS140.js` y feedback por toast, y navegación directa a Personas y Estadísticas.
+  - Registrada la ruta `home` en `App.jsx` como vista por defecto inicial, en `Sidebar.jsx` (atajo `0`), `Header.jsx` (breadcrumb interactivo), `CommandPalette.jsx` y `useKeyboardShortcuts.js` (atajo `G` + `I`).
+- **Brief 13 — Vista Semanal Histórica (VistaSemanal.jsx) (30/08/2026):**
+  - Creada la página `src/pages/VistaSemanal.jsx` para consulta histórica y navegación semana por semana de las asignaciones de reuniones.
+  - **Barra de navegación temporal**:
+    - Selector de año (`<Select>`) con años disponibles en BD.
+    - Selector de mes (`<Select>`) filtrado por el año seleccionado que tengan semanas registradas.
+    - Navegación secuencial de semanas (`← Anterior` / `Siguiente →`) con indicador de rango de fechas y badge de estado (`Completa` / `Parcial` / `Sin datos`).
+  - **Cuerpo de asignaciones**:
+    - Partes agrupadas por sección oficial (`Apertura`, `Tesoros de la Biblia`, `Seamos Mejores Maestros`, `Nuestra Vida Cristiana`, `Cierre`).
+    - Badges de tipo respetando los colores del design system, participantes asignados, ayudantes indentados (`↳`) e indicadores de confirmación.
+    - Estado vacío amigable cuando la semana no cuenta con registros cargados.
+  - **Pie de vista**:
+    - Contador de asignaciones y partes confirmadas.
+    - Botón "Exportar S-140 de esta semana" que genera el `.docx` oficial de la semana activa vía `generarYDescargarS140.js`.
+  - **Integración de navegación**:
+    - Registrada en `App.jsx` (`case 'semanal'`), `Sidebar.jsx` (atajo `W`), `Header.jsx`, `CommandPalette.jsx` y `useKeyboardShortcuts.js` (`G` + `W`).
+    - Enlace *"Ver histórico completo →"* en el widget de la semana actual en `Home.jsx` conectado a la vista con herencia de la semana seleccionada.
+- **Side Question — Fechas Legibles Centralizadas (`fechas.js`) (30/08/2026):**
+  - Creado el módulo `src/lib/fechas.js` con parseo manual sin desfase de zona horaria UTC (`formatFechaLegible`, `formatRangoSemanaLegible`, `formatRangoSemanaPrograma`, `formatFechaSinAnio`, `formatFechaCorta`, `MESES`, `MESES_ABBR`).
+  - **Formato natural para Programa S-140 sin año (`formatRangoSemanaPrograma`)**:
+    - Semanas del mismo mes: `"7 - 13 de Septiembre"`
+    - Semanas entre dos meses: `"28 de Septiembre - 4 de Octubre"`
+    - Integrado en cabecera de `TarjetaSemana`, vista previa en tabla, widget de `Home.jsx` y navegación de `VistaSemanal.jsx`.
+  - Estandarizado el formateo de fechas de formato técnico (`2026-10-26 al 2026-11-01`) a formato abreviado natural (**"26 oct 2026 al 1 nov 2026"**, **"26 oct 2026"**) en el resto de vistas:
+    1. **`Programa.jsx`**: Formato natural sin año en cabeceras de tarjeta y vista previa.
+    2. **`Home.jsx`**: Badge de fechas en widget de semana actual.
+    3. **`VistaSemanal.jsx`**: Control central de navegación y encabezado de la agenda semanal.
+    4. **`Registros.jsx`**: Columna de fecha con formato legible y preview en tiempo real en formulario de creación/edición.
+    5. **`VistaEditable.jsx`**: Modales de detalle de celda (`MatCellModal` y `AncCellModal`).
+    6. **`PerfilDrawer.jsx`**: Rango de fechas de semanas programadas.
+    7. **`HistorialCambios.jsx`**: Formato de fecha en detalles de auditoría.
+- **Brief 22 — Timeline por persona en Personas.jsx (30/08/2026):**
+  - Añadida estructura de dos pestañas (`Perfil` e `Historial`) dentro del `Sheet` lateral de `Personas.jsx`.
+  - **Pestaña Perfil**: Conserva exactamente la funcionalidad de edición y registro de atributos existente.
+  - **Pestaña Historial (Timeline)**:
+    - **Carga Lazy**: Los datos de próximas asignaciones y participaciones se consultan bajo demanda en paralelo (`Promise.all`) solo al abrir la pestaña Historial, con soporte de caché por clave y animación de skeleton durante la carga.
+    - **Bloque 1 — Próximas Asignaciones**: Se muestra únicamente si existen asignaciones con fecha mayor o igual a hoy en `programa_asignaciones` / `programa_partes`, ordenadas cronológicamente de más próxima a lejana, con fecha completa (`formatFechaConDia`), badge de estado de confirmación, badge de tipo con colores oficiales, indicador de ayudante e indicación de escuela.
+    - **Bloque 2 — Historial de Participaciones**: Listado completo de participaciones históricas (`participaciones`) ordenadas de más reciente a más antigua con contador en la cabecera, fecha abreviada (`formatFechaLegible`), badge de tipo respetando el design system, observaciones y estado vacío ilustrado cuando no hay registros.
+  - Actualizado `src/lib/fechas.js` y suite `src/lib/fechas.test.js` con soporte para `formatFechaConDia`.
 
 
 

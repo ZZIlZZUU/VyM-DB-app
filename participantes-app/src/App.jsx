@@ -8,7 +8,8 @@ import PerfilDrawer from './components/PerfilDrawer'
 import CommandPalette from './components/CommandPalette'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
-
+import Home from './pages/Home'
+import VistaSemanal from './pages/VistaSemanal'
 import VistaEditable from './pages/VistaEditable'
 import VistaSql from './pages/VistaSql'
 import Personas from './pages/Personas'
@@ -21,7 +22,8 @@ import HistorialCambios from './pages/HistorialCambios'
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
-  const [view, setView] = useState('editable')
+  const [view, setView] = useState('home')
+  const [selectedSemanaId, setSelectedSemanaId] = useState(null)
   const [user, setUser] = useState(null)
   const [userName, setUserName] = useState('')
   const [rol, setRol] = useState('editor')
@@ -30,6 +32,7 @@ export default function App() {
   const [perfilOpen, setPerfilOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [semanasPendientes, setSemanasPendientes] = useState(0)
+  const [openRegistrosCreate, setOpenRegistrosCreate] = useState(false)
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed')
@@ -39,12 +42,17 @@ export default function App() {
 
   const { confirm, confirmProps } = useConfirm()
 
+  const handleNavigate = useCallback((targetView, params) => {
+    if (params?.semanaId) {
+      setSelectedSemanaId(params.semanaId)
+    }
+    setView(targetView)
+    setMobileOpen(false)
+  }, [])
+
   useKeyboardShortcuts({
     onOpenPalette: () => setPaletteOpen(true),
-    onNavigate: (v) => {
-      setView(v)
-      setMobileOpen(false)
-    },
+    onNavigate: handleNavigate,
     onOpenPerfil: () => setPerfilOpen(true),
   })
 
@@ -204,14 +212,36 @@ export default function App() {
 
   function renderView() {
     switch (view) {
+      case 'home':
+        return (
+          <Home
+            onNavigate={handleNavigate}
+            onOpenRegistrosCreate={() => {
+              setOpenRegistrosCreate(true)
+              setView('registros')
+            }}
+          />
+        )
+      case 'semanal':
+        return (
+          <VistaSemanal
+            onNavigate={handleNavigate}
+            initialSemanaId={selectedSemanaId}
+          />
+        )
       case 'editable':
-        return <VistaEditable onNavigate={setView} />
+        return <VistaEditable onNavigate={handleNavigate} />
       case 'sql':
         return <VistaSql />
       case 'personas':
         return <Personas />
       case 'registros':
-        return <Registros />
+        return (
+          <Registros
+            initialOpenCreate={openRegistrosCreate}
+            onSheetClosed={() => setOpenRegistrosCreate(false)}
+          />
+        )
       case 'programa':
         return <Programa />
       case 'usuarios':
@@ -234,7 +264,7 @@ export default function App() {
       {/* Modern Collapsible Sidebar */}
       <Sidebar
         currentView={view}
-        onNavigate={setView}
+        onNavigate={handleNavigate}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(c => !c)}
         rol={rol}
@@ -255,7 +285,7 @@ export default function App() {
         {/* Modern Top Header */}
         <Header
           currentView={view}
-          onNavigate={setView}
+          onNavigate={handleNavigate}
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenPerfil={() => setPerfilOpen(true)}
@@ -287,10 +317,7 @@ export default function App() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         rol={rol}
-        onNavigate={v => {
-          setView(v)
-          setMobileOpen(false)
-        }}
+        onNavigate={handleNavigate}
         onOpenPerfil={() => setPerfilOpen(true)}
         onLogout={handleLogout}
       />

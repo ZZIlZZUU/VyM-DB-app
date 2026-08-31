@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { formatFechaLegible } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
@@ -132,13 +133,13 @@ function TipoChips({ tipos, selected, onSelect }) {
 const FORM_EMPTY = { clave: '', fecha: '', tipo: '', observaciones: '' }
 
 // ── Componente Principal ──────────────────────────────────────
-export default function Registros() {
+export default function Registros({ initialOpenCreate = false, onSheetClosed } = {}) {
   const [personas, setPersonas] = useState([])
   const [participaciones, setParticipaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [form, setForm] = useState(FORM_EMPTY)
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [isSheetOpen, setIsSheetOpen] = useState(initialOpenCreate)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
   const { toast, success, error: toastError } = useToast()
@@ -158,6 +159,14 @@ export default function Registros() {
   const [modoSeleccion, setModoSeleccion] = useState(false)
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [bulkTipo, setBulkTipo] = useState('')
+
+  useEffect(() => {
+    if (initialOpenCreate) {
+      setEditId(null)
+      setForm(FORM_EMPTY)
+      setIsSheetOpen(true)
+    }
+  }, [initialOpenCreate])
 
   useEffect(() => {
     localStorage.setItem('registros_filterMes', filterMes)
@@ -700,9 +709,11 @@ export default function Registros() {
                       </td>
 
                       {/* Fecha */}
-                      <td className="py-3 px-4 font-mono text-text2 text-xs whitespace-nowrap">
-                        {r.fecha}
-                        <span className="text-[10px] text-text3 block">{r.mes}</span>
+                      <td className="py-3 px-4 text-xs whitespace-nowrap">
+                        <span className="font-medium text-text1 block">
+                          {formatFechaLegible(r.fecha)}
+                        </span>
+                        <span className="text-[10px] text-text3 font-mono">{r.fecha} · {r.mes}</span>
                       </td>
 
                       {/* Participante */}
@@ -838,6 +849,7 @@ export default function Registros() {
         onClose={() => {
           setIsSheetOpen(false)
           setEditId(null)
+          onSheetClosed?.()
         }}
         title={editId ? `Editar registro #${editId}` : 'Nuevo registro de participación'}
         description={
@@ -943,9 +955,9 @@ export default function Registros() {
               onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
               size="md"
             />
-            {previewMes && (
-              <span className="text-[11px] text-text3 font-mono mt-1 inline-block">
-                Mes calculado: {previewMes}
+            {form.fecha && (
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 inline-block">
+                {formatFechaLegible(form.fecha)}
               </span>
             )}
           </div>

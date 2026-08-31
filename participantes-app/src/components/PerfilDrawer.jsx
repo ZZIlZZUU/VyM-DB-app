@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { formatRangoSemanaLegible } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import Toast from './Toast'
@@ -648,8 +649,8 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
                     return (
                       <div key={a.id} className="bg-bg border border-border rounded-lg p-3 text-xs flex flex-col gap-1">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-accent font-medium">
-                            {sem?.fecha_inicio ? `${sem.fecha_inicio} al ${sem.fecha_fin}` : 'Semana programada'}
+                          <span className="text-accent font-medium text-xs">
+                            {sem?.fecha_inicio ? formatRangoSemanaLegible(sem.fecha_inicio, sem.fecha_fin) : 'Semana programada'}
                           </span>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${a.confirmado ? 'bg-accent-bg text-accent' : 'bg-amber-bg text-amber'}`}>
                             {a.confirmado ? 'Confirmada' : 'Pendiente'}

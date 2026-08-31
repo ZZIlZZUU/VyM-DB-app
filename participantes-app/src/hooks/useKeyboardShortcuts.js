@@ -33,11 +33,14 @@ export function useKeyboardShortcuts({ onOpenPalette, onNavigate, onOpenPerfil }
         gPending.current = false
         clearTimeout(gTimer.current)
         const map = {
+          i: 'home',
+          w: 'semanal',
           e: 'editable',
           s: 'sql',
           p: 'personas',
           r: 'registros',
           o: 'programa',
+          u: 'usuarios',
           x: 'exportar',
           t: 'estadisticas',
           h: 'historial',

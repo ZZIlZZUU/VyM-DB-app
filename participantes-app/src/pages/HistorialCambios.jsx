@@ -14,6 +14,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { formatFechaLegible } from '../lib/fechas'
 import { SkeletonList } from '../components/Skeleton'
 
 import { Button } from '../components/ui/Button'
@@ -95,6 +96,7 @@ export default function HistorialCambios() {
     if (data.nombre) partes.push(`Nombre: ${data.nombre}`)
     if (data.clave) partes.push(`Clave: ${data.clave}`)
     if (data.tipo) partes.push(`Tipo: ${data.tipo}`)
+    if (data.fecha) partes.push(`Fecha: ${formatFechaLegible(data.fecha)}`)
     if (data.mes) partes.push(`Mes: ${data.mes}`)
     if (data.email) partes.push(`Email: ${data.email}`)
     if (data.rol) partes.push(`Rol: ${data.rol}`)

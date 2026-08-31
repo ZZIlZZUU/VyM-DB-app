@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import {
+  Home,
+  CalendarDays,
   LayoutGrid,
   Database,
   Users,
@@ -17,6 +19,8 @@ import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 
 export const NAV_ITEMS = [
+  { id: 'home',         icon: Home,          label: 'Inicio',             section: 'Vistas',       shortcut: '0' },
+  { id: 'semanal',      icon: CalendarDays,  label: 'Vista semanal',      section: 'Vistas',       shortcut: 'W' },
   { id: 'editable',     icon: LayoutGrid,    label: 'Vista editable',     section: 'Vistas',       shortcut: '1' },
   { id: 'sql',          icon: Database,      label: 'Vista SQL',          section: 'Vistas',       shortcut: '2' },
   { id: 'personas',     icon: Users,         label: 'Personas',           section: 'Gestión',      shortcut: '3' },

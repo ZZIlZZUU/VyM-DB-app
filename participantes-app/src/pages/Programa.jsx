@@ -26,6 +26,7 @@ import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
 import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
@@ -762,7 +763,7 @@ function TarjetaSemana({
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
               <span className="text-sm font-semibold text-text1">
-                {semana.fecha_inicio} — {semana.fecha_fin}
+                {formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-text3 font-mono mt-0.5">
@@ -1647,8 +1648,9 @@ export default function Programa() {
                       className="hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors"
                     >
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-text1">{s.fecha_inicio}</div>
-                        <div className="text-text3 text-[11px] font-mono">{s.fecha_fin}</div>
+                        <div className="font-semibold text-text1 text-xs">
+                          {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-text2">{s.capitulo_biblico}</td>
                       <td className="px-3 py-3 font-mono text-center text-text3">

@@ -33,13 +33,15 @@ export function Header({
         <nav className="flex items-center gap-1.5 text-xs text-text3 min-w-0">
           <button
             type="button"
-            onClick={() => onNavigate('editable')}
-            className="hover:text-text1 transition-colors cursor-pointer shrink-0 font-medium"
+            onClick={() => onNavigate('home')}
+            className={`transition-colors cursor-pointer shrink-0 font-medium ${
+              currentView === 'home' ? 'text-text1' : 'hover:text-text1'
+            }`}
           >
             Inicio
           </button>
 
-          {currentNav?.section && (
+          {currentView !== 'home' && currentNav?.section && (
             <>
               <ChevronRight className="w-3 h-3 shrink-0 text-text3/60" />
               <span className="hidden sm:inline shrink-0 text-text3 font-normal">
@@ -48,7 +50,7 @@ export function Header({
             </>
           )}
 
-          {currentNav?.label && (
+          {currentView !== 'home' && currentNav?.label && (
             <>
               <ChevronRight className="w-3 h-3 shrink-0 text-text3/60" />
               <span className="text-text1 font-medium truncate max-w-[140px] sm:max-w-none">

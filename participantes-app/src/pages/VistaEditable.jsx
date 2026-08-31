@@ -12,6 +12,7 @@ import {
   Info,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { formatFechaLegible, MESES } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
 
@@ -23,10 +24,6 @@ import { Dialog } from '../components/ui/Dialog'
 import { Tooltip } from '../components/ui/Tooltip'
 
 // ─── Constantes ───────────────────────────────────────────────
-const MESES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-]
 const MES_ABBR = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MES_CODE = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
@@ -218,8 +215,8 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
                 </span>
               </div>
               {r.fecha && (
-                <span className="font-mono text-xs text-text3 bg-surface dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60">
-                  {r.fecha}
+                <span className="text-xs text-text3 bg-surface dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60 font-medium">
+                  {formatFechaLegible(r.fecha)}
                 </span>
               )}
             </div>
@@ -291,8 +288,8 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
                   className="p-2.5 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="font-mono text-[11px] text-text3 w-8 text-right shrink-0">
-                      Día {assignmentDayOfMonth(r.fecha) || '—'}
+                    <span className="text-[11px] text-text3 font-medium shrink-0">
+                      {formatFechaLegible(r.fecha) || `Día ${assignmentDayOfMonth(r.fecha) || '—'}`}
                     </span>
                     <TypeBadge tipo={r.tipo} />
                     <span className="font-medium text-text1 truncate">

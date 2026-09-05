@@ -382,25 +382,53 @@ rose, rose-bg
 danger (#A32020), danger-bg
 ```
 
-### Convenciones y estados de UI (Estándar oficial — Brief 13)
+### Identidad y Estilo Visual (Linear-inspired UI / Ambient Glow & Micro-Elevation)
 
-- **Botón primario:** `bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed`
-- **Botón secundario / outline:** `border border-border2 text-text2 hover:bg-bg disabled:opacity-50 disabled:cursor-not-allowed`
-- **Inputs y selects:** `border border-border2 bg-surface text-text1 outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed`
-- **Transiciones:** `index.css` define transiciones base de 100ms para `a, button, input, select, textarea`. No usar `transition-none` en botones interactivos de acción.
+La aplicación implementa un lenguaje visual moderno alineado con **Linear-inspired UI / Modern Dark Minimalist** y **Ambient Glow UI / Radiant Surface Design**:
+- **Fondos oscuros profundos y superficies mate:** `bg-[#09090B]` de base con `bg-surface` (`#121215`) y texturas de cristal con `backdrop-blur-md` al 95% de opacidad.
+- **Micro-elevaciones y bordes finos:** Bordes translúcidos de 1px (`border-zinc-200/80` en claro, `border-zinc-800/80` en oscuro) y ambient shadows tintadas con el color semántico del evento.
+- **Resplandor degradado perimetral (Faded Glow):** Gradientes translúcidos suaves (`from-[color]-500/15 via-[color]-500/5 to-surface/95`) en tarjetas clave, banners de onboarding y toasts.
+
+### Normas de UI para implementar nuevas funciones
+
+Para que cualquier nueva pantalla, modal, tarjeta o componente conserve esta identidad coherente y pulida, seguir estrictamente las siguientes directrices:
+
+1. **Iluminación y Glow (Regla del 5% al 15%):**
+   - El color de acento o estado nunca debe usarse sólido como fondo de una tarjeta. Siempre se aplica un gradiente lateral desvanecido: `bg-gradient-to-r from-[color]-500/15 via-[color]-500/5 to-surface/95`.
+   - **Sombras tintadas (Ambient Shadows):** En elementos destacados (toasts, banners, widgets clave, modales activos), la sombra perimetral debe llevar el tinte del color del evento (ej. `shadow-emerald-500/10`, `shadow-red-500/10`, `shadow-blue-500/10`).
+   - **Propósito funcional:** El glow solo se reserva para estados de atención (onboarding, éxito, error, alertas, confirmaciones al 100% o focos interactivos), manteniendo el resto de la interfaz en fondos sobrios (`bg-surface`, `bg-zinc-900/60`).
+
+2. **Estructura de Superficies y Micro-Bordes:**
+   - **Bordes translúcidos:** Separadores y tarjetas deben usar bordes de 1px con opacidades controladas (`border-zinc-200/80` en claro, `border-zinc-800/80` en oscuro, o `border-[color]-500/25` en estados semánticos).
+   - **Superficies con Backdrop Blur:** Modales, sheets, headers fijos y toasts deben usar siempre `backdrop-blur-md` junto a fondos al 95% de opacidad para dar textura de cristal mate sin perder legibilidad.
+
+3. **Icon Boxes Temáticas:**
+   - Los íconos de estado no van flotando sueltos: se encierran en un contenedor cuadrado con esquinas redondeadas (`w-8 h-8 rounded-xl` o `w-7 h-7 rounded-lg`), fondo tonal suave (`bg-[color]/15`) y micro-borde del mismo color (`border border-[color]/25`).
+
+4. **Tipografía y Jerarquía Visual (Escala tonal de 3 niveles):**
+   - `text-text1`: Blanco (`#F4F4F5`) o casi negro (`#09090B`) para títulos y contenido principal.
+   - `text-text2`: Gris intermedio (`zinc-400` / `zinc-600`) para subtítulos y descripciones.
+   - `text-text3` / `font-mono`: Gris atenuado para metadatos, atajos de teclado, fechas secundarias o tags técnicos.
+
+5. **Micro-animaciones y Barras de Progreso (GPU-friendly):**
+   - Transiciones aceleradas por hardware usando `transform` y `opacity` (150ms–220ms).
+   - **Barras de consumo temporal:** Líneas delgadas (`h-[2px]`) en el borde inferior con `transform-origin: left` y animación `@keyframes toast-progress` (`scaleX(1)` -> `scaleX(0)`) para indicar temporizadores o consumos de tiempo sin provocar repaints pesados en el navegador.
 
 ### Animaciones definidas en `index.css`
 
 ```css
-/* Toast */
-@keyframes slide-up { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-.animate-slide-up { animation: slide-up 200ms ease forwards }
+/* Toast — animación de entrada y barra de progreso temporal */
+@keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.animate-slide-up { animation: slide-up 200ms ease forwards; }
+
+@keyframes toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.animate-toast-progress { transform-origin: left; animation: toast-progress var(--toast-duration, 3000ms) linear forwards; }
 
 /* ConfirmDialog / modales */
-@keyframes fade-in  { from { opacity:0 } to { opacity:1 } }
-@keyframes scale-in { from { opacity:0; transform:scale(0.95) translateY(4px) } to { opacity:1; transform:scale(1) translateY(0) } }
-.animate-fade-in  { animation: fade-in  150ms ease forwards }
-.animate-scale-in { animation: scale-in 150ms ease forwards }
+@keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.95) translateY(4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.animate-fade-in  { animation: fade-in 150ms ease forwards; }
+.animate-scale-in { animation: scale-in 150ms ease forwards; }
 ```
 
 ---
@@ -722,6 +750,59 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     - **Bloque 1 — Próximas Asignaciones**: Se muestra únicamente si existen asignaciones con fecha mayor o igual a hoy en `programa_asignaciones` / `programa_partes`, ordenadas cronológicamente de más próxima a lejana, con fecha completa (`formatFechaConDia`), badge de estado de confirmación, badge de tipo con colores oficiales, indicador de ayudante e indicación de escuela.
     - **Bloque 2 — Historial de Participaciones**: Listado completo de participaciones históricas (`participaciones`) ordenadas de más reciente a más antigua con contador en la cabecera, fecha abreviada (`formatFechaLegible`), badge de tipo respetando el design system, observaciones y estado vacío ilustrado cuando no hay registros.
   - Actualizado `src/lib/fechas.js` y suite `src/lib/fechas.test.js` con soporte para `formatFechaConDia`.
+- **Brief 23 — Toast al completar el Programa al 100% en Programa.jsx (31/08/2026):**
+  - Implementada detección reactiva de transición a **programa completo** (100% de las semanas cargadas con todas sus partes contables confirmadas) en sesión activa dentro de `Programa.jsx`.
+  - **Toast rico persistente de Programa Completado**:
+    - Aparece exclusivamente cuando el total de semanas del programa ($N$ semanas) pasa de incompleto a 100% confirmado tras confirmar asignaciones en la sesión.
+    - No se dispara en la carga inicial si el programa ya venía completado.
+    - Se cierra automáticamente si el usuario desconfirma alguna parte de cualquier semana y el programa deja de estar al 100%.
+    - **Contenido**: Ícono de celebración (`Sparkles`), badge `100%`, título *"Programa completado"*, subtítulo con el conteo de semanas (*"N semanas programadas al 100%"*), badge de asignaciones confirmadas (*"[✓] N asignaciones confirmadas en total"*), botón primario de acción directa *"Generar S-140"* (invoca la exportación completa del S-140 con todas las semanas) y botón secundario *"Cerrar"*.
+    - Las confirmaciones semanales intermedias mantienen sus notificaciones toast estándar independientes (`"N asignaciones confirmadas en la semana"`) sin solapamientos ni llamadas prematuras a S-140.
+- **Rework Visual de Toasts — Glow Desvanecido y Barra de Tiempo (31/08/2026):**
+  - Rediseñado completamente el componente `<Toast />` (`src/components/Toast.jsx`) y el hook `useToast` (`src/hooks/useToast.js`):
+    - **Glow Desvanecido por Tipo de Evento**: Gradientes laterales translúcidos (`from-[color]/15 via-[color]/5 to-surface/95`), bordes sutiles y ambient shadow glow acordes a cada estado:
+      - `success` (Verde esmeralda)
+      - `error` (Rojo)
+      - `warning` (Ámbar)
+      - `info` (Azul)
+    - **Barra de Tiempo Inferior (Progress Bar)**: Línea delgada (`h-[2px]`) en el borde inferior que se consume suavemente a lo largo de la duración activa del toast mediante animación GPU (`@keyframes toast-progress` con `scaleX(1)` a `scaleX(0)`).
+    - **Control Manual de Cierre**: Botón (✕) para descarte inmediato.
+    - Gestión precisa de temporizadores en `useToast.js` con soporte de `duration` personalizada y método `dismiss()`.
+- **Brief 24 — PWA (vite-plugin-pwa) (31/08/2026):**
+  - Configurada la aplicación como Progressive Web App (PWA) instalable en escritorio, Android e iOS:
+    - **Plugin y Caché (`vite.config.js`)**: Integrado `vite-plugin-pwa` con `generateSW` y `registerType: 'autoUpdate'`. Precacheo de todo el App Shell (`.html`, `.js`, `.css`, `.png`, `.svg`, `.docx`, fuentes).
+    - **Estrategia Supabase (Sin caché obsoleto)**: Peticiones a `*.supabase.co` configuradas con `NetworkFirst` (con timeout estricto de 5s) garantizando que los datos en tiempo real de reuniones, asignaciones y personas provengan siempre de la red primero.
+    - **Manifest (`manifest.webmanifest`)**: Configurado con `display: standalone`, `theme_color: '#09090B'`, `background_color: '#09090B'` (coherente con el dark mode para splash screen nativa) e iconos en todos los formatos requeridos (`192x192`, `512x512`, `maskable`).
+    - **Iconos Generados (`public/`)**: `pwa-192x192.png`, `pwa-512x512.png`, `apple-touch-icon.png`, `pwa-maskable-*.png` y `favicon.svg` basados en la identidad visual del proyecto (`Sparkles` + fondo `#09090B` y acento esmeralda).
+    - **Meta tags en `index.html`**: `<meta name="theme-color" content="#09090B" />`, `<meta name="mobile-web-app-capable" content="yes" />`, `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />` y `<link rel="apple-touch-icon" />`.
+- **Brief 25 — Gráficos adicionales en Estadisticas.jsx (01/09/2026):**
+  - Incorporados dos nuevos gráficos complementarios basados en Recharts al dashboard de `src/pages/Estadisticas.jsx` derivados de las consultas existentes en memoria (cero queries adicionales a Supabase):
+    1. **Gráfico de Pastel (PieChart) — Distribución Mat vs Anc/SM**:
+       - Muestra la proporción exacta entre participaciones de Matriculados (`#10B981` / Verde Esmeralda) y Ancianos/SM (`#3B82F6` / Azul).
+       - Donut chart con `innerRadius` y `outerRadius` limpios, `PieTooltip` personalizado con conteo y porcentaje exacto, y leyenda inferior interactiva.
+    2. **Gráfico de Líneas (LineChart) — Evolución mensual por tipo**:
+       - Gráfica timeline a lo largo de los 12 meses del año (`Ene`–`Dic`) con 4 series diferenciadas con los colores del design system: **Matriculados** (`#10B981`), **Ancianos** (`#3B82F6`), **Siervos Ministeriales** (`#8B5CF6`) y **Necesidades de la congregación** (`#EF4444`).
+       - `LineTimelineTooltip` compartido que desglosa en tiempo real todas las series para el mes seleccionado al hacer hover.
+  - Maquetados en una fila responsiva de 2 columnas (`grid grid-cols-1 lg:grid-cols-2 gap-5`) integrada con dark mode y soporte para apilado vertical en dispositivos móviles.
+- **Brief 26 — PerfilDrawer: pestaña de preferencias (01/09/2026):**
+  - Añadida la pestaña **Preferencias** dentro de `src/components/PerfilDrawer.jsx` (accesible desde el avatar de usuario en `Header.jsx`, `Sidebar.jsx` y `CommandPalette.jsx`):
+    - **Vista inicial al cargar (`pref_vista_default`)**: Selector con opciones `Inicio (Home)`, `Programa S-140`, `Personas / Participantes`, `Histórico de Registros`, `Estadísticas` y `Vista Semanal`. Persiste en `localStorage` e inicializa reactivamente `view` en `App.jsx`.
+    - **Formato de fecha preferido (`pref_formato_fecha`)**: Selector con opciones `dd/mm/yyyy` (estándar México) y `dd mmm yyyy` (legible natural). Centralizado en `src/lib/fechas.js` y `src/lib/formatFecha.js` con despacho de evento `preferences-updated` para actualización instantánea en toda la aplicación.
+    - **Tema visual (Dark/Light Mode)**: Control interactivo integrado con `useTheme` para alternar la apariencia sin duplicar estado.
+- **Brief 27 — CommandPalette: búsqueda de participantes y exportación rápida S-140 (05/09/2026):**
+  - Extendida la paleta de comandos (`src/components/CommandPalette.jsx`) con búsqueda de personas en tiempo real y comandos de acción rápida:
+    1. **Búsqueda de Participantes por Nombre y Clave**:
+       - Al escribir en el buscador, filtra entre las personas activas de la BD y las presenta bajo el grupo **"Personas"**.
+       - Cada resultado muestra avatar de iniciales con color según sexo (`M` azul / `F` púrpura), nombre completo, badge de lista (`Mat` / `Anc/SM`) y clave.
+       - Al presionar Enter o hacer clic, navega directamente a `Personas.jsx` y abre su Sheet lateral en la pestaña **Historial**.
+    2. **Exportación Rápida S-140 de la Semana Actual**:
+       - Comando fijo en el grupo "Acciones" con atajo **`Ctrl+Shift+E` / `Cmd+Shift+E`** e ícono `FileDown`.
+       - Detecta automáticamente la semana actual o más próxima (`getSemanaActualInfo` en `generarS140.js`) y descarga el `.docx`. Si no hay programa cargado para la semana, aparece deshabilitado (`opacity-50`) con la leyenda *"Sin programa para esta semana"*.
+    3. **Alternancia de Tema Visual**:
+       - Comando fijo con atajo **`Ctrl+Shift+T` / `Cmd+Shift+T`** que refleja el estado dinámico (*"Cambiar tema (dark → light)"*) e íconos `Sun`/`Moon`.
+    4. **Atajos Globales (`useKeyboardShortcuts.js`)**:
+       - Registrados los atajos globales `Ctrl+Shift+E` y `Ctrl+Shift+T` accesibles desde cualquier vista sin colisiones.
+
 
 
 

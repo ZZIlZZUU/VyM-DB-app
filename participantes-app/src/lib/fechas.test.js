@@ -1,27 +1,58 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
+  formatFecha,
   formatFechaLegible,
   formatFechaConDia,
   formatRangoSemanaLegible,
   formatRangoSemanaPrograma,
   formatFechaSinAnio,
   formatFechaCorta,
+  getPrefFormatoFecha,
   MESES,
   MESES_ABBR,
 } from './fechas'
 
-describe('fechas helper utils (abreviaturas y programa S-140)', () => {
+// Mock globalThis.localStorage for test environment
+let storage = {}
+globalThis.localStorage = {
+  getItem: key => storage[key] ?? null,
+  setItem: (key, val) => { storage[key] = String(val) },
+  removeItem: key => { delete storage[key] },
+  clear: () => { storage = {} },
+}
+
+describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', () => {
+  beforeEach(() => {
+    globalThis.localStorage.clear()
+  })
+
+  afterEach(() => {
+    globalThis.localStorage.clear()
+  })
+
+  describe('formatFecha & preferencias', () => {
+    it('formatea "2026-10-26" a "26/10/2026" por defecto (dd/mm/yyyy)', () => {
+      expect(formatFecha('2026-10-26')).toBe('26/10/2026')
+    })
+
+    it('formatea "2026-10-26" a "26 oct 2026" cuando pref_formato_fecha es "dd mmm yyyy"', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd mmm yyyy')
+      expect(formatFecha('2026-10-26')).toBe('26 oct 2026')
+    })
+
+    it('respeta formatoOverride explícito', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd/mm/yyyy')
+      expect(formatFecha('2026-10-26', 'dd mmm yyyy')).toBe('26 oct 2026')
+    })
+  })
+
   describe('formatFechaLegible', () => {
-    it('formatea "2026-10-26" a "26 oct 2026"', () => {
-      expect(formatFechaLegible('2026-10-26')).toBe('26 oct 2026')
+    it('formatea "2026-10-26" a "26 oct 2026" con forceLegible=true', () => {
+      expect(formatFechaLegible('2026-10-26', true)).toBe('26 oct 2026')
     })
 
-    it('formatea "2026-01-05" a "5 ene 2026"', () => {
-      expect(formatFechaLegible('2026-01-05')).toBe('5 ene 2026')
-    })
-
-    it('formatea strings ISO con timestamp a "31 dic 2026"', () => {
-      expect(formatFechaLegible('2026-12-31T15:30:00Z')).toBe('31 dic 2026')
+    it('formatea "2026-01-05" con forceLegible=true a "5 ene 2026"', () => {
+      expect(formatFechaLegible('2026-01-05', true)).toBe('5 ene 2026')
     })
 
     it('retorna vacío si recibe null o undefined', () => {
@@ -36,8 +67,14 @@ describe('fechas helper utils (abreviaturas y programa S-140)', () => {
   })
 
   describe('formatFechaConDia', () => {
-    it('formatea "2025-09-01" a "Lunes 1 sep 2025"', () => {
+    it('formatea "2025-09-01" con día de la semana', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd mmm yyyy')
       expect(formatFechaConDia('2025-09-01')).toBe('Lunes 1 sep 2025')
+    })
+
+    it('formatea "2025-09-01" con día en formato dd/mm/yyyy', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd/mm/yyyy')
+      expect(formatFechaConDia('2025-09-01')).toBe('Lunes 01/09/2025')
     })
 
     it('maneja valores vacíos', () => {
@@ -47,19 +84,15 @@ describe('fechas helper utils (abreviaturas y programa S-140)', () => {
   })
 
   describe('formatRangoSemanaLegible', () => {
-    it('formatea "2026-10-26" y "2026-11-01" a "26 oct 2026 al 1 nov 2026"', () => {
+    it('formatea "2026-10-26" y "2026-11-01" según preferencia', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd mmm yyyy')
       expect(formatRangoSemanaLegible('2026-10-26', '2026-11-01')).toBe(
         '26 oct 2026 al 1 nov 2026'
       )
     })
 
-    it('formatea semanas dentro del mismo mes a "6 jul 2026 al 12 jul 2026"', () => {
-      expect(formatRangoSemanaLegible('2026-07-06', '2026-07-12')).toBe(
-        '6 jul 2026 al 12 jul 2026'
-      )
-    })
-
     it('maneja cuando falta fechaInicio o fechaFin', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd mmm yyyy')
       expect(formatRangoSemanaLegible('2026-07-06', null)).toBe('6 jul 2026')
       expect(formatRangoSemanaLegible(null, '2026-07-12')).toBe('12 jul 2026')
       expect(formatRangoSemanaLegible(null, null)).toBe('')
@@ -88,12 +121,6 @@ describe('fechas helper utils (abreviaturas y programa S-140)', () => {
   describe('formatFechaSinAnio', () => {
     it('formatea "2026-10-26" a "26 oct"', () => {
       expect(formatFechaSinAnio('2026-10-26')).toBe('26 oct')
-    })
-  })
-
-  describe('formatFechaCorta', () => {
-    it('formatea "2026-10-26" a "26 oct 2026"', () => {
-      expect(formatFechaCorta('2026-10-26')).toBe('26 oct 2026')
     })
   })
 

@@ -1,4 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+import fs from 'fs'
+import path from 'path'
+import sharp from 'sharp'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const publicDir = path.resolve(__dirname, '../public')
+
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <radialGradient id="bgGlow" cx="50%" cy="35%" r="65%">
       <stop offset="0%" stop-color="#064e3b" stop-opacity="0.5" />
@@ -78,4 +86,57 @@
   >
     PARTICIPANTES
   </text>
-</svg>
+</svg>`
+
+async function generateIcons() {
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true })
+  }
+
+  // 1. Write favicon.svg
+  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), svgContent)
+  console.log('✓ favicon.svg saved')
+
+  const svgBuffer = Buffer.from(svgContent)
+
+  // 2. Generate PNG sizes
+  await sharp(svgBuffer)
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-192x192.png'))
+  console.log('✓ pwa-192x192.png generated')
+
+  await sharp(svgBuffer)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-512x512.png'))
+  console.log('✓ pwa-512x512.png generated')
+
+  await sharp(svgBuffer)
+    .resize(180, 180)
+    .png()
+    .toFile(path.join(publicDir, 'apple-touch-icon.png'))
+  console.log('✓ apple-touch-icon.png generated')
+
+  // 3. Maskable icon (solid background with safe zone padding)
+  const maskableSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <rect width="512" height="512" fill="#09090B" />
+    <g transform="translate(64, 64) scale(0.75)">
+      ${svgContent.replace('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">', '').replace('</svg>', '')}
+    </g>
+  </svg>`
+
+  await sharp(Buffer.from(maskableSvg))
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'))
+  console.log('✓ pwa-maskable-512x512.png generated')
+
+  await sharp(Buffer.from(maskableSvg))
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(publicDir, 'pwa-maskable-192x192.png'))
+  console.log('✓ pwa-maskable-192x192.png generated')
+}
+
+generateIcons().catch(console.error)

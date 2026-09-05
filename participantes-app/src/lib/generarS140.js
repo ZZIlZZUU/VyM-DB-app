@@ -212,3 +212,66 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ── Obtener la semana actual o más próxima disponible ──────────
+export async function getSemanaActualInfo() {
+  try {
+    const hoyIso = new Date().toISOString().slice(0, 10)
+    const { data: semanas, error } = await supabase
+      .from('programa_semanas')
+      .select('*')
+      .order('fecha_inicio', { ascending: true })
+
+    if (error || !semanas || semanas.length === 0) return null
+
+    // 1. Semana que contenga la fecha de hoy
+    let semana = semanas.find(s => {
+      const ini = String(s.fecha_inicio || '').slice(0, 10)
+      const fin = String(s.fecha_fin || '').slice(0, 10)
+      return hoyIso >= ini && hoyIso <= fin
+    })
+
+    // 2. Si no, la primera semana futura más próxima
+    if (!semana) {
+      const futuras = semanas.filter(s => String(s.fecha_inicio || '').slice(0, 10) >= hoyIso)
+      semana = futuras.length > 0 ? futuras[0] : null
+    }
+
+    return semana || null
+  } catch (err) {
+    console.error('[getSemanaActualInfo]', err)
+    return null
+  }
+}
+
+// ── Exportación rápida del S-140 de la semana actual ──────────
+export async function exportarS140SemanaActual() {
+  const semanaActual = await getSemanaActualInfo()
+  if (!semanaActual) {
+    throw new Error('Sin programa para esta semana')
+  }
+
+  // 1. Cargar datos en paralelo
+  const [partesRes, asigRes, personasRes, configRes] = await Promise.all([
+    supabase.from('programa_partes').select('*').eq('semana_id', semanaActual.id),
+    supabase.from('programa_asignaciones').select('*'),
+    supabase.from('personas').select('*'),
+    supabase.from('configuracion').select('clave, valor'),
+  ])
+
+  if (partesRes.error) throw partesRes.error
+
+  const partes = partesRes.data || []
+  const asignaciones = (asigRes.data || []).filter(a => partes.some(p => p.id === a.parte_id))
+  const personas = personasRes.data || []
+  const congregacion = configRes.data?.find(c => c.clave === 'nombre_congregacion')?.valor || 'Congregación del Recreo'
+
+  const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas)
+
+  await generarYDescargarS140({
+    congregacion,
+    semanas: semanasNorm,
+  })
+
+  return semanaActual
+}

@@ -21,6 +21,7 @@ import {
   Layers,
   ArrowRight,
   Clock3,
+  X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
@@ -879,6 +880,38 @@ function TarjetaSemana({
   )
 }
 
+// ── Helper para evaluar si una semana está 100% completada ──────
+function calcularEstadoSemana(semanaId, todasPartes, todasAsignaciones, todoHistorial) {
+  const partesSemana = todasPartes.filter(p => p.semana_id === semanaId)
+  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const partesContables = partesSemana.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
+  const totalPartes = partesContables.length
+  if (totalPartes === 0) return { totalPartes: 0, confirmadas: 0, esCompleta: false }
+
+  const confirmadas = partesContables.filter(p => {
+    const asigParte = todasAsignaciones.filter(a => a.parte_id === p.id && a.confirmado)
+    const asigP = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+    const asigA = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+
+    const pr = asigP?.participacion_id ? todoHistorial.find(h => h.id === asigP.participacion_id) : null
+    const ar = asigA?.participacion_id ? todoHistorial.find(h => h.id === asigA.participacion_id) : null
+    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
+    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
+    const aNuevo =
+      p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
+    const aRem = p.requiere_ayudante && !asigA?.clave && ar
+    const necesitaRec = pCambio || aCambio || aNuevo || aRem
+
+    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
+  }).length
+
+  return {
+    totalPartes,
+    confirmadas,
+    esCompleta: confirmadas === totalPartes,
+  }
+}
+
 // ── Componente Principal ──────────────────────────────────────
 export default function Programa() {
   const [semanas, setSemanas] = useState([])
@@ -899,7 +932,13 @@ export default function Programa() {
       return false
     }
   })
-  const { toast, showToast, success, error: toastError } = useToast()
+
+  // Toast persistente de programa completo al 100%
+  const [toastProgramaCompleto, setToastProgramaCompleto] = useState(null)
+  const wasProgramCompleteRef = useRef(false)
+  const isInitialLoadedRef = useRef(false)
+
+  const { toast, showToast, success, error: toastError, dismiss } = useToast()
   const { confirm, confirmProps } = useConfirm()
 
   useEffect(() => {
@@ -951,6 +990,55 @@ export default function Programa() {
         setHistorial(his || [])
         const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
         if (nombreCfg) setCongregacion(nombreCfg)
+
+        // ── Detección de programa completado al 100% en la sesión activa ──
+        const semList = sem || []
+        const parList = par || []
+        const asiList = asi || []
+        const hisList = his || []
+
+        let totalConfirmadasEnPrograma = 0
+        let totalPartesEnPrograma = 0
+        let semanasCompletadas = 0
+
+        semList.forEach(s => {
+          const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
+            s.id,
+            parList,
+            asiList,
+            hisList
+          )
+          totalConfirmadasEnPrograma += confirmadas
+          totalPartesEnPrograma += totalPartes
+          if (esCompleta) {
+            semanasCompletadas++
+          }
+        })
+
+        const isNowProgramComplete =
+          semList.length > 0 && semanasCompletadas === semList.length
+
+        if (!isInitialLoadedRef.current) {
+          wasProgramCompleteRef.current = isNowProgramComplete
+          isInitialLoadedRef.current = true
+        } else {
+          // Si el programa recién pasó de incompleto a 100% completo en la sesión activa
+          if (!wasProgramCompleteRef.current && isNowProgramComplete) {
+            dismiss()
+            setToastProgramaCompleto({
+              totalSemanas: semList.length,
+              totalAsignaciones: totalConfirmadasEnPrograma,
+              totalPartes: totalPartesEnPrograma,
+            })
+          }
+
+          // Si el usuario desconfirmó alguna parte y el programa ya no está 100% completo, ocultar el toast
+          if (!isNowProgramComplete) {
+            setToastProgramaCompleto(null)
+          }
+
+          wasProgramCompleteRef.current = isNowProgramComplete
+        }
       } catch (err) {
         console.error('[fetchData]', err)
         if (isInitial) {
@@ -964,7 +1052,7 @@ export default function Programa() {
         }
       }
     },
-    [toastError]
+    [toastError, dismiss]
   )
 
   useEffect(() => {
@@ -1383,11 +1471,13 @@ export default function Programa() {
       confirmadas++
     }
 
-    success(`${confirmadas} asignaciones confirmadas en la semana`)
+    if (confirmadas > 0) {
+      success(`${confirmadas} asignaciones confirmadas en la semana`)
+    }
     await fetchData()
   }
 
-  // ── Generar documento S-140 ───────────────────────────────
+  // ── Generar documento S-140 (Completo) ───────────────────
   async function handleGenerarDocx() {
     try {
       showToast('Generando documento S-140...')
@@ -1690,7 +1780,77 @@ export default function Programa() {
         </div>
       )}
 
-      <Toast toast={toast} />
+      {/* ── TOAST PERSISTENTE AL COMPLETAR EL PROGRAMA AL 100% ── */}
+      {toastProgramaCompleto && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-slide-up select-none">
+          <div className="bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-surface/95 dark:to-zinc-900/95 backdrop-blur-md border border-emerald-500/30 dark:border-emerald-500/25 rounded-2xl p-4 shadow-xl shadow-emerald-500/10 dark:shadow-emerald-950/30 flex flex-col gap-3">
+            {/* Cabecera del Toast */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0 shadow-2xs">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-sm font-semibold text-text1">
+                      Programa completado
+                    </h4>
+                    <Badge variant="success" size="xs">
+                      100%
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-text2 font-medium mt-0.5 truncate">
+                    {toastProgramaCompleto.totalSemanas} semanas programadas al 100%
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setToastProgramaCompleto(null)}
+                className="text-text3 hover:text-text1 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
+                aria-label="Cerrar notificación"
+                title="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Mensaje integrado de confirmación de asignaciones */}
+            <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300 font-medium px-3 py-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20">
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate">
+                {toastProgramaCompleto.totalAsignaciones} asignaciones confirmadas en total
+              </span>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-center justify-end gap-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setToastProgramaCompleto(null)}
+                className="text-text3 hover:text-text1"
+              >
+                Cerrar
+              </Button>
+              <Button
+                variant="accent"
+                size="xs"
+                icon={FileDown}
+                onClick={async () => {
+                  setToastProgramaCompleto(null)
+                  await handleGenerarDocx()
+                }}
+              >
+                Generar S-140
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toast toast={toast} onDismiss={dismiss} />
       <ConfirmDialog {...confirmProps} />
     </div>
   )

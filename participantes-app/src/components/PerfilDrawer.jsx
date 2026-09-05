@@ -1,8 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
+import {
+  Settings,
+  User,
+  Shield,
+  Calendar,
+  History,
+  Sun,
+  Moon,
+  Layout,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatRangoSemanaLegible } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
+import { Select } from './ui/Select'
+import { Button } from './ui/Button'
 import Toast from './Toast'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -13,7 +25,16 @@ function initials(email, nombre) {
   return (email || 'U').slice(0, 2).toUpperCase()
 }
 
-export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUserUpdated }) {
+export default function PerfilDrawer({
+  open,
+  onClose,
+  user,
+  rol,
+  onLogout,
+  onUserUpdated,
+  theme,
+  onToggleTheme,
+}) {
   const [activeTab, setActiveTab]                     = useState('perfil')
   const [nombre, setNombre]                           = useState('')
   const [savingPerfil, setSavingPerfil]               = useState(false)
@@ -30,8 +51,28 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
   const [historial, setHistorial]                     = useState([])
   const [loadingHistorial, setLoadingHistorial]       = useState(false)
 
+  const [prefVistaDefault, setPrefVistaDefault] = useState(() => {
+    return localStorage.getItem('pref_vista_default') || 'home'
+  })
+  const [prefFormatoFecha, setPrefFormatoFecha] = useState(() => {
+    return localStorage.getItem('pref_formato_fecha') || 'dd/mm/yyyy'
+  })
+
   const { toast, showToast, success, error } = useToast()
   const { confirm, confirmProps }            = useConfirm()
+
+  function handleVistaDefaultChange(val) {
+    setPrefVistaDefault(val)
+    localStorage.setItem('pref_vista_default', val)
+    success('Vista inicial por defecto guardada')
+  }
+
+  function handleFormatoFechaChange(val) {
+    setPrefFormatoFecha(val)
+    localStorage.setItem('pref_formato_fecha', val)
+    window.dispatchEvent(new CustomEvent('preferences-updated', { detail: { pref_formato_fecha: val } }))
+    success('Formato de fecha actualizado')
+  }
 
   const step1Done = Boolean(currentPassword && currentPassword.trim().length > 0)
   const step2Done = Boolean(step1Done && password && password.length >= 8)
@@ -309,9 +350,10 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
         </div>
 
         {/* Tabs navigation */}
-        <div className="flex border-b border-border bg-surface px-2">
+        <div className="flex border-b border-border bg-surface px-2 overflow-x-auto">
           {[
             { id: 'perfil', label: 'Mi Perfil' },
+            { id: 'preferencias', label: 'Preferencias' },
             { id: 'seguridad', label: 'Seguridad' },
             { id: 'asignaciones', label: 'Asignaciones' },
             { id: 'actividad', label: 'Actividad' },
@@ -319,9 +361,9 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex-1 py-2.5 text-center text-xs font-medium border-b-2 transition-colors ${
+              className={`flex-1 py-2.5 px-2 text-center text-xs font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === t.id
-                  ? 'border-accent text-accent'
+                  ? 'border-accent text-accent font-semibold'
                   : 'border-transparent text-text3 hover:text-text1'
               }`}
             >
@@ -332,6 +374,97 @@ export default function PerfilDrawer({ open, onClose, user, rol, onLogout, onUse
 
         {/* Tab content area */}
         <div className="flex-1 overflow-y-auto p-5">
+          {/* ── PESTAÑA PREFERENCIAS ── */}
+          {activeTab === 'preferencias' && (
+            <div className="flex flex-col gap-6 animate-fade-in">
+              {/* Bloque 1: Vista por defecto al entrar */}
+              <div className="space-y-2 pb-5 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Layout className="w-4 h-4 text-accent" />
+                  <label className="font-mono text-xs text-text3 uppercase tracking-wider font-semibold">
+                    Vista por defecto al entrar
+                  </label>
+                </div>
+                <Select
+                  value={prefVistaDefault}
+                  onChange={e => handleVistaDefaultChange(e.target.value)}
+                  size="md"
+                >
+                  <option value="home">Inicio (Home)</option>
+                  <option value="programa">Programa S-140</option>
+                  <option value="personas">Personas / Participantes</option>
+                  <option value="registros">Histórico de Registros</option>
+                  <option value="estadisticas">Estadísticas</option>
+                  <option value="semanal">Vista Semanal</option>
+                </Select>
+                <p className="text-[11px] text-text3 leading-relaxed">
+                  Define la pantalla que se abrirá automáticamente al iniciar sesión o recargar la aplicación.
+                </p>
+              </div>
+
+              {/* Bloque 2: Formato de fecha */}
+              <div className="space-y-2 pb-5 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-500" />
+                  <label className="font-mono text-xs text-text3 uppercase tracking-wider font-semibold">
+                    Formato de fecha
+                  </label>
+                </div>
+                <Select
+                  value={prefFormatoFecha}
+                  onChange={e => handleFormatoFechaChange(e.target.value)}
+                  size="md"
+                >
+                  <option value="dd/mm/yyyy">dd/mm/yyyy (ej. 26/10/2026 — Estándar México)</option>
+                  <option value="dd mmm yyyy">dd mmm yyyy (ej. 26 oct 2026 — Legible natural)</option>
+                </Select>
+                <p className="text-[11px] text-text3 leading-relaxed">
+                  Controla la visualización de fechas en Vista Semanal, Histórico de Registros y Timeline de Personas.
+                </p>
+              </div>
+
+              {/* Bloque 3: Tema */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-amber-500" />
+                  <label className="font-mono text-xs text-text3 uppercase tracking-wider font-semibold">
+                    Tema de la interfaz
+                  </label>
+                </div>
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-bg border border-border shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text1 shadow-2xs">
+                      {theme === 'dark' ? (
+                        <Moon className="w-4 h-4 text-purple-400" />
+                      ) : (
+                        <Sun className="w-4 h-4 text-amber-500" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-text1">
+                        {theme === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
+                      </div>
+                      <div className="text-[11px] text-text3">
+                        {theme === 'dark' ? 'Superficies oscuras con resplandor suave' : 'Aspecto claro de alto contraste'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {onToggleTheme && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={onToggleTheme}
+                    >
+                      {theme === 'dark' ? 'Cambiar a Claro' : 'Cambiar a Oscuro'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── PESTAÑA PERFIL ── */}
           {activeTab === 'perfil' && (
             <div className="flex flex-col gap-5">

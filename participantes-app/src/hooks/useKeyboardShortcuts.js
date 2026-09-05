@@ -6,16 +6,36 @@ const isTyping = () => {
     || document.activeElement?.isContentEditable
 }
 
-export function useKeyboardShortcuts({ onOpenPalette, onNavigate, onOpenPerfil }) {
+export function useKeyboardShortcuts({
+  onOpenPalette,
+  onNavigate,
+  onOpenPerfil,
+  onToggleTheme,
+  onExportS140,
+}) {
   const gPending = useRef(false)
   const gTimer   = useRef(null)
 
   useEffect(() => {
     function handler(e) {
       // Ctrl+K / Cmd+K → paleta
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault()
         onOpenPalette()
+        return
+      }
+
+      // Ctrl+Shift+E / Cmd+Shift+E → exportar S-140 semana actual
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault()
+        onExportS140?.()
+        return
+      }
+
+      // Ctrl+Shift+T / Cmd+Shift+T → alternar tema
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault()
+        onToggleTheme?.()
         return
       }
 
@@ -58,5 +78,5 @@ export function useKeyboardShortcuts({ onOpenPalette, onNavigate, onOpenPerfil }
       window.removeEventListener('keydown', handler)
       clearTimeout(gTimer.current)
     }
-  }, [onOpenPalette, onNavigate, onOpenPerfil])
+  }, [onOpenPalette, onNavigate, onOpenPerfil, onToggleTheme, onExportS140])
 }

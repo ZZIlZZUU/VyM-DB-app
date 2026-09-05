@@ -7,6 +7,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  PieChart,
+  Pie,
+  LineChart,
+  Line,
 } from 'recharts'
 import {
   Users,
@@ -22,6 +26,8 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  PieChart as PieIcon,
+  LineChart as LineIcon,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -90,6 +96,46 @@ function MesTooltip({ active, payload, label }) {
         {count} {count === 1 ? 'participación' : 'participaciones'}
       </div>
       <div className="text-text3 text-[11px]">{personas} participantes distintos</div>
+    </div>
+  )
+}
+
+function PieTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  const { name, count, percent, color } = payload[0].payload
+
+  return (
+    <div className="bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-3 text-xs space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+        <span className="font-semibold text-text1">{name}</span>
+      </div>
+      <div className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+        {count} {count === 1 ? 'participación' : 'participaciones'} ({percent.toFixed(1)}%)
+      </div>
+    </div>
+  )
+}
+
+function LineTimelineTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+
+  return (
+    <div className="bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-3 text-xs space-y-2 min-w-[170px]">
+      <div className="font-semibold text-text1 pb-1 border-b border-zinc-100 dark:border-zinc-800">
+        {label}
+      </div>
+      <div className="space-y-1.5">
+        {payload.map(p => (
+          <div key={p.name} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+              <span className="text-text2 text-[11px]">{p.name}:</span>
+            </div>
+            <span className="font-mono font-semibold text-text1">{p.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -258,6 +304,64 @@ export default function Estadisticas() {
     count: porMes[mes] || 0,
     personas: personasPorMes[mes]?.size || 0,
   }))
+
+  // ── Distribución Mat vs Anc/SM (PieChart) ──
+  const totalMat = regs.filter(r => r.lista === 'Mat').length
+  const totalAncSM = regs.filter(r => r.lista === 'Anc/SM').length
+  const totalMatAnc = totalMat + totalAncSM
+  const dataPie = [
+    {
+      name: 'Matriculados',
+      key: 'Mat',
+      count: totalMat,
+      percent: totalMatAnc > 0 ? (totalMat / totalMatAnc) * 100 : 0,
+      color: '#10B981',
+    },
+    {
+      name: 'Ancianos / SM',
+      key: 'Anc/SM',
+      count: totalAncSM,
+      percent: totalMatAnc > 0 ? (totalAncSM / totalMatAnc) * 100 : 0,
+      color: '#3B82F6',
+    },
+  ].filter(d => d.count > 0)
+
+  // ── Timeline por Mes y Tipo (LineChart) ──
+  const personaMap = new Map(personas.map(p => [p.clave, p]))
+  const dataTimeline = MESES.map(mes => {
+    const regsDelMes = regs.filter(r => r.mes === mes)
+    let matCount = 0
+    let ancCount = 0
+    let smCount = 0
+    let ncCount = 0
+
+    regsDelMes.forEach(r => {
+      if (r.tipo === 'NC') {
+        ncCount++
+      } else if (r.lista === 'Mat') {
+        matCount++
+      } else {
+        const p = personaMap.get(r.clave)
+        if (p?.estatus === 'Anciano' || r.tipo === 'P' || r.tipo === 'VC') {
+          ancCount++
+        } else if (p?.estatus === 'Siervo Ministerial') {
+          smCount++
+        } else {
+          ancCount++
+        }
+      }
+    })
+
+    return {
+      mes,
+      mesAbr: mes.slice(0, 3),
+      Mat: matCount,
+      Anc: ancCount,
+      SM: smCount,
+      NC: ncCount,
+      Total: matCount + ancCount + smCount + ncCount,
+    }
+  })
 
   if (fetchError) {
     return (
@@ -501,6 +605,143 @@ export default function Estadisticas() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+            </StatCard>
+
+            {/* Gráfico 3: Distribución Mat vs Anc/SM */}
+            <StatCard
+              title="Distribución Matriculados vs Ancianos / SM"
+              icon={PieIcon}
+              badge={`${dataPie.length} grupos`}
+            >
+              {dataPie.length === 0 ? (
+                <div className="py-12 text-center text-xs text-text3">Sin datos</div>
+              ) : (
+                <div className="flex flex-col items-center justify-center pt-2">
+                  <ResponsiveContainer width="100%" height={210}>
+                    <PieChart>
+                      <Tooltip content={<PieTooltip />} />
+                      <Pie
+                        data={dataPie}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        stroke="none"
+                      >
+                        {dataPie.map(entry => (
+                          <Cell key={entry.key} fill={entry.color} fillOpacity={0.9} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  {/* Leyenda personalizada con badges y porcentajes */}
+                  <div className="flex items-center justify-center gap-6 mt-1 flex-wrap text-xs">
+                    {dataPie.map(entry => (
+                      <div key={entry.key} className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                        <span className="text-text2 text-xs font-medium">{entry.name}:</span>
+                        <span className="font-mono font-semibold text-text1">
+                          {entry.count} ({entry.percent.toFixed(0)}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </StatCard>
+
+            {/* Gráfico 4: Evolución Temporal por Mes */}
+            <StatCard
+              title="Evolución mensual por tipo"
+              icon={LineIcon}
+              badge="Timeline anual"
+            >
+              {regs.length === 0 ? (
+                <div className="py-12 text-center text-xs text-text3">Sin datos</div>
+              ) : (
+                <div className="pt-2">
+                  <ResponsiveContainer width="100%" height={210}>
+                    <LineChart
+                      data={dataTimeline}
+                      margin={{ top: 10, right: 16, left: -20, bottom: 0 }}
+                    >
+                      <XAxis
+                        dataKey="mesAbr"
+                        tick={{ fontSize: 11, fontFamily: 'monospace', fill: '#71717a' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#71717a' }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <Tooltip content={<LineTimelineTooltip />} />
+                      <Line
+                        type="monotone"
+                        dataKey="Mat"
+                        name="Matriculados"
+                        stroke="#10B981"
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: '#10B981' }}
+                        activeDot={{ r: 5 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="Anc"
+                        name="Ancianos"
+                        stroke="#3B82F6"
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: '#3B82F6' }}
+                        activeDot={{ r: 5 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="SM"
+                        name="Siervos Min."
+                        stroke="#8B5CF6"
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: '#8B5CF6' }}
+                        activeDot={{ r: 5 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="NC"
+                        name="Nec. Congr."
+                        stroke="#EF4444"
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: '#EF4444' }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  {/* Leyenda con badges de color */}
+                  <div className="flex items-center justify-center gap-4 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/80 flex-wrap text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                      <span className="text-text2">Matriculados</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
+                      <span className="text-text2">Ancianos</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6]" />
+                      <span className="text-text2">Siervos Min.</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                      <span className="text-text2">Nec. Congr.</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </StatCard>

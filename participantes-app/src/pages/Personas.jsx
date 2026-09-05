@@ -106,7 +106,11 @@ function initials(nombre) {
 
 const FORM_EMPTY = { lista: 'Mat', sexo: 'F', nombre: '', estatus: '' }
 
-export default function Personas() {
+export default function Personas({
+  initialPersonaClave,
+  initialTab = 'historial',
+  onClearInitialPersona,
+}) {
   const [personas, setPersonas] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
@@ -291,7 +295,7 @@ export default function Personas() {
     setSheetOpen(true)
   }
 
-  function startEdit(p) {
+  function startEdit(p, tab = 'perfil') {
     setEditClave(p.clave)
     setForm({
       lista: p.lista,
@@ -299,12 +303,26 @@ export default function Personas() {
       nombre: p.nombre,
       estatus: p.estatus,
     })
-    setActiveSheetTab('perfil')
+    setActiveSheetTab(tab)
     setProximas([])
     setHistorial([])
     setHistorialFetchedFor(null)
+    if (tab === 'historial') {
+      fetchHistorialPersona(p.clave)
+    }
     setSheetOpen(true)
   }
+
+  // Apertura programática desde CommandPalette u otra vista
+  useEffect(() => {
+    if (initialPersonaClave && personas.length > 0) {
+      const p = personas.find(per => per.clave === initialPersonaClave)
+      if (p) {
+        startEdit(p, initialTab || 'historial')
+        onClearInitialPersona?.()
+      }
+    }
+  }, [initialPersonaClave, personas, initialTab, onClearInitialPersona])
 
   function closeSheet() {
     setSheetOpen(false)

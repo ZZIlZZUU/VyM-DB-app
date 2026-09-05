@@ -1,6 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
-import { Search, User, LogOut, CornerDownLeft, ArrowDown, ArrowUp } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import {
+  Search,
+  User,
+  LogOut,
+  CornerDownLeft,
+  FileDown,
+  Sun,
+  Moon,
+} from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { getSemanaActualInfo, exportarS140SemanaActual } from '../lib/generarS140'
 import { NAV_ITEMS } from './Sidebar'
+import { Badge } from './ui/Badge'
+
+function initials(nombre) {
+  return (nombre || '')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
 
 export default function CommandPalette({
   open,
@@ -9,15 +31,48 @@ export default function CommandPalette({
   onNavigate,
   onOpenPerfil,
   onLogout,
+  theme,
+  onToggleTheme,
+  onExportS140,
 }) {
-  const [query, setQuery]       = useState('')
-  const [selected, setSelected] = useState(0)
-  const inputRef                = useRef(null)
+  const [query, setQuery]               = useState('')
+  const [selected, setSelected]         = useState(0)
+  const [personas, setPersonas]         = useState([])
+  const [semanaActual, setSemanaActual] = useState(null)
+  const inputRef                        = useRef(null)
 
-  // Comandos de navegación
+  // Cargar personas y estado de semana actual al abrir
+  const loadData = useCallback(async () => {
+    try {
+      const [perRes, semInfo] = await Promise.all([
+        supabase
+          .from('personas')
+          .select('id, clave, nombre, sexo, lista, estatus, activo')
+          .eq('activo', true)
+          .order('nombre'),
+        getSemanaActualInfo(),
+      ])
+      if (perRes.data) setPersonas(perRes.data)
+      setSemanaActual(semInfo)
+    } catch (err) {
+      console.error('[CommandPalette] Error al cargar datos:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      setQuery('')
+      setSelected(0)
+      loadData()
+      setTimeout(() => inputRef.current?.focus(), 30)
+    }
+  }, [open, loadData])
+
+  // Comandos fijos de navegación
   const navCommands = NAV_ITEMS
     .filter(n => !n.adminOnly || rol === 'admin')
     .map(n => ({
+      id: `nav-${n.id}`,
       label: n.label,
       icon: n.icon,
       group: 'Navegación',
@@ -25,31 +80,91 @@ export default function CommandPalette({
       shortcut: n.shortcut,
     }))
 
+  // Comandos de acciones
   const actionCommands = [
-    { label: 'Mi perfil y cuenta', icon: User, group: 'Acciones', action: onOpenPerfil },
-    { label: 'Cerrar sesión', icon: LogOut, group: 'Acciones', action: onLogout },
+    {
+      id: 'action-s140',
+      label: 'Generar S-140 — semana actual',
+      icon: FileDown,
+      group: 'Acciones',
+      shortcut: 'Ctrl+Shift+E',
+      disabled: !semanaActual,
+      secondaryText: !semanaActual ? 'Sin programa para esta semana' : null,
+      action: () => {
+        if (semanaActual) {
+          if (onExportS140) {
+            onExportS140()
+          } else {
+            exportarS140SemanaActual().catch(err => console.error(err))
+          }
+        }
+      },
+    },
+    {
+      id: 'action-theme',
+      label: theme === 'dark' ? 'Cambiar tema (dark → light)' : 'Cambiar tema (light → dark)',
+      icon: theme === 'dark' ? Sun : Moon,
+      group: 'Acciones',
+      shortcut: 'Ctrl+Shift+T',
+      action: onToggleTheme,
+    },
+    {
+      id: 'action-perfil',
+      label: 'Mi perfil y cuenta',
+      icon: User,
+      group: 'Acciones',
+      action: onOpenPerfil,
+    },
+    {
+      id: 'action-logout',
+      label: 'Cerrar sesión',
+      icon: LogOut,
+      group: 'Acciones',
+      action: onLogout,
+    },
   ]
 
-  const all = [...navCommands, ...actionCommands]
+  const cleanQuery = query.trim().toLowerCase()
 
-  const filtered = query.trim()
-    ? all.filter(c => c.label.toLowerCase().includes(query.toLowerCase()))
-    : all
+  // Búsqueda de personas
+  const matchedPersonas = cleanQuery
+    ? personas
+        .filter(p =>
+          p.nombre.toLowerCase().includes(cleanQuery) ||
+          p.clave.toLowerCase().includes(cleanQuery)
+        )
+        .slice(0, 8)
+        .map(p => ({
+          id: `persona-${p.clave}`,
+          label: p.nombre,
+          persona: p,
+          group: 'Personas',
+          action: () => onNavigate('personas', { personaClave: p.clave, personaTab: 'historial' }),
+        }))
+    : []
 
-  useEffect(() => {
-    if (open) {
-      setQuery('')
-      setSelected(0)
-      setTimeout(() => inputRef.current?.focus(), 30)
-    }
-  }, [open])
+  // Comandos filtrados
+  const filteredNav = cleanQuery
+    ? navCommands.filter(c => c.label.toLowerCase().includes(cleanQuery))
+    : navCommands
+
+  const filteredActions = cleanQuery
+    ? actionCommands.filter(c => c.label.toLowerCase().includes(cleanQuery))
+    : actionCommands
+
+  const filtered = [
+    ...filteredNav,
+    ...filteredActions,
+    ...matchedPersonas,
+  ]
 
   useEffect(() => {
     setSelected(0)
   }, [query])
 
   function execute(cmd) {
-    cmd.action()
+    if (!cmd || cmd.disabled) return
+    cmd.action?.()
     onClose()
   }
 
@@ -93,7 +208,7 @@ export default function CommandPalette({
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Buscar comando, vista o acción..."
+            placeholder="Buscar comando, participante o acción..."
             className="flex-1 text-sm bg-transparent outline-none text-text1 placeholder:text-text3"
           />
           <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono text-text3 select-none">
@@ -102,59 +217,114 @@ export default function CommandPalette({
         </div>
 
         {/* Results List */}
-        <div className="max-h-72 overflow-y-auto py-2 px-1.5">
+        <div className="max-h-80 overflow-y-auto py-2 px-1.5">
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-text3">
               No se encontraron resultados para &ldquo;{query}&rdquo;
             </div>
           ) : (
-            groups.map(group => (
-              <div key={group} className="mb-2 last:mb-0">
-                <div className="px-2.5 py-1 text-[10px] font-mono text-text3 uppercase tracking-wider">
-                  {group}
-                </div>
-                {filtered
-                  .filter(c => c.group === group)
-                  .map((cmd) => {
+            groups.map(group => {
+              const groupItems = filtered.filter(c => c.group === group)
+              if (groupItems.length === 0) return null
+
+              return (
+                <div key={group} className="mb-2 last:mb-0">
+                  <div className="px-2.5 py-1 text-[10px] font-mono text-text3 uppercase tracking-wider font-semibold">
+                    {group}
+                  </div>
+                  {groupItems.map(cmd => {
                     const globalIdx = filtered.indexOf(cmd)
                     const isSelected = globalIdx === selected
                     const Icon = cmd.icon
 
+                    if (cmd.persona) {
+                      const p = cmd.persona
+                      const isFemenino = p.sexo === 'F'
+                      const isMat = p.lista === 'Mat'
+
+                      return (
+                        <button
+                          key={cmd.id}
+                          type="button"
+                          onClick={() => execute(cmd)}
+                          onMouseEnter={() => setSelected(globalIdx)}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-zinc-100 dark:bg-zinc-800/90 text-text1 font-medium'
+                              : 'text-text2 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50'
+                          }`}
+                        >
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 border ${
+                              isFemenino
+                                ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20'
+                                : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20'
+                            }`}
+                          >
+                            {initials(p.nombre)}
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <span className="truncate block">{p.nombre}</span>
+                          </div>
+                          <Badge variant={isMat ? 'info' : 'warning'} size="xs">
+                            {isMat ? 'Mat' : 'Anc/SM'}
+                          </Badge>
+                          <span className="text-[10px] font-mono text-text3 bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 ml-1">
+                            {p.clave}
+                          </span>
+                          {isSelected && (
+                            <CornerDownLeft className="w-3.5 h-3.5 text-text3 shrink-0 ml-1" />
+                          )}
+                        </button>
+                      )
+                    }
+
                     return (
                       <button
-                        key={cmd.label}
+                        key={cmd.id || cmd.label}
                         type="button"
                         onClick={() => execute(cmd)}
+                        disabled={cmd.disabled}
                         onMouseEnter={() => setSelected(globalIdx)}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-zinc-100 dark:bg-zinc-800/90 text-text1 font-medium'
-                            : 'text-text2 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50'
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors ${
+                          cmd.disabled
+                            ? 'opacity-50 cursor-not-allowed text-text3'
+                            : isSelected
+                            ? 'bg-zinc-100 dark:bg-zinc-800/90 text-text1 font-medium cursor-pointer'
+                            : 'text-text2 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 cursor-pointer'
                         }`}
                       >
                         {Icon && (
                           <Icon
                             className={`w-4 h-4 shrink-0 ${
-                              isSelected
+                              cmd.disabled
+                                ? 'text-text3'
+                                : isSelected
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : 'text-text3'
                             }`}
                           />
                         )}
                         <span className="flex-1 truncate text-left">{cmd.label}</span>
+                        {cmd.secondaryText && (
+                          <span className="text-[11px] text-text3 italic">
+                            {cmd.secondaryText}
+                          </span>
+                        )}
                         {cmd.shortcut && (
                           <span className="text-[10px] font-mono text-text3 bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
                             {cmd.shortcut}
                           </span>
                         )}
-                        {isSelected && (
+                        {isSelected && !cmd.disabled && (
                           <CornerDownLeft className="w-3.5 h-3.5 text-text3 shrink-0 ml-1" />
                         )}
                       </button>
                     )
                   })}
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
         </div>
 

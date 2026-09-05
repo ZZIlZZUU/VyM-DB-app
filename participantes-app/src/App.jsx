@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabase'
+import { exportarS140SemanaActual } from './lib/generarS140'
 import { useConfirm } from './hooks/useConfirm'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useTheme } from './hooks/useTheme'
+import { useToast } from './hooks/useToast'
+import Toast from './components/Toast'
 import ConfirmDialog from './components/ConfirmDialog'
 import PerfilDrawer from './components/PerfilDrawer'
 import CommandPalette from './components/CommandPalette'
@@ -22,8 +25,17 @@ import HistorialCambios from './pages/HistorialCambios'
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
-  const [view, setView] = useState('home')
+  const { toast, showToast, success, error: toastError } = useToast()
+  const [view, setView] = useState(() => {
+    try {
+      return localStorage.getItem('pref_vista_default') || 'home'
+    } catch {
+      return 'home'
+    }
+  })
   const [selectedSemanaId, setSelectedSemanaId] = useState(null)
+  const [selectedPersonaClave, setSelectedPersonaClave] = useState(null)
+  const [selectedPersonaTab, setSelectedPersonaTab] = useState('historial')
   const [user, setUser] = useState(null)
   const [userName, setUserName] = useState('')
   const [rol, setRol] = useState('editor')
@@ -46,19 +58,50 @@ export default function App() {
     if (params?.semanaId) {
       setSelectedSemanaId(params.semanaId)
     }
+    if (params?.personaClave) {
+      setSelectedPersonaClave(params.personaClave)
+      setSelectedPersonaTab(params.personaTab || 'historial')
+    }
     setView(targetView)
     setMobileOpen(false)
   }, [])
+
+  const handleExportCurrentWeekS140 = useCallback(async () => {
+    try {
+      showToast('Generando S-140 de la semana actual...')
+      await exportarS140SemanaActual()
+      success('S-140 de la semana actual descargado')
+    } catch (err) {
+      console.error('[App] Error al exportar S-140:', err)
+      toastError(err?.message || 'Error al exportar S-140')
+    }
+  }, [showToast, success, toastError])
 
   useKeyboardShortcuts({
     onOpenPalette: () => setPaletteOpen(true),
     onNavigate: handleNavigate,
     onOpenPerfil: () => setPerfilOpen(true),
+    onToggleTheme: toggleTheme,
+    onExportS140: handleExportCurrentWeekS140,
   })
 
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', isCollapsed)
   }, [isCollapsed])
+
+  // Reactive listener for preference changes (e.g. date format)
+  const [, setPrefVersion] = useState(0)
+  useEffect(() => {
+    function onPrefUpdate() {
+      setPrefVersion(v => v + 1)
+    }
+    window.addEventListener('preferences-updated', onPrefUpdate)
+    window.addEventListener('storage', onPrefUpdate)
+    return () => {
+      window.removeEventListener('preferences-updated', onPrefUpdate)
+      window.removeEventListener('storage', onPrefUpdate)
+    }
+  }, [])
 
   // ESC key handler for modals/drawers
   useEffect(() => {
@@ -234,7 +277,16 @@ export default function App() {
       case 'sql':
         return <VistaSql />
       case 'personas':
-        return <Personas />
+        return (
+          <Personas
+            initialPersonaClave={selectedPersonaClave}
+            initialTab={selectedPersonaTab}
+            onClearInitialPersona={() => {
+              setSelectedPersonaClave(null)
+              setSelectedPersonaTab('historial')
+            }}
+          />
+        )
       case 'registros':
         return (
           <Registros
@@ -311,6 +363,8 @@ export default function App() {
         rol={rol}
         onLogout={handleLogout}
         onUserUpdated={fetchUserData}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       <CommandPalette
@@ -320,7 +374,12 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenPerfil={() => setPerfilOpen(true)}
         onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onExportS140={handleExportCurrentWeekS140}
       />
+
+      <Toast toast={toast} />
     </div>
   )
 }

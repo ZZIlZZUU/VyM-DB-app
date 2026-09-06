@@ -520,12 +520,12 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [ ] **Tabla `epub_disponibles` en Supabase** — Registrar metadatos de cada EPUB guardado: `id`, `filename`, `issue` (YYYYMM), `url_storage`, `descargado_en`. Permite al selector mostrar etiquetas legibles ("Julio 2026") sin parsear nombres de archivo.
 
 ### Otras automatizaciones de calidad de vida
-- [ ] **Auto-confirmación inteligente con revisión previa** — Botón "Revisar y aprobar semana" que muestra un resumen de todas las sugerencias del motor (`sugerido_por_app = true`) con semáforo de idoneidad (✓/↻/⚠) y permite aprobar todas o ajustar las que tienen warning antes del commit.
-- [ ] **Detección de conflictos de rotación al asignar manualmente** — Warning inline al seleccionar una persona en `PersonaSelector` si viola reglas de rotación (participó hace < 2 semanas, ya tiene 3 asignaciones el mes, misma asignación el mes anterior). Complementa el sistema de scoring existente.
-- [ ] **Toast de acción al completar semana al 100%** — Cuando `confirmadas === totalPartes` en una semana, mostrar toast persistente con acción directa: "Semana completa — Generar S-140 ahora →". Reutiliza `generarS140.js`.
+- [x] **Auto-confirmación inteligente con revisión previa** — Botón "Revisar y aprobar semana" que muestra un resumen de todas las sugerencias del motor (`sugerido_por_app = true`) con semáforo de idoneidad (✓/↻/⚠) y permite aprobar todas o ajustar las que tienen warning antes del commit.
+- [x] **Detección de conflictos de rotación al asignar manualmente** — Warning inline al seleccionar una persona en `PersonaSelector` si viola reglas de rotación (participó hace < 2 semanas, ya tiene 3 asignaciones el mes, misma asignación el mes anterior). Complementa el sistema de scoring existente.
+- [x] **Toast de acción al completar semana al 100%** — Cuando `confirmadas === totalPartes` en una semana, mostrar toast persistente con acción directa: "Semana completa — Generar S-140 ahora →". Reutiliza `generarS140.js`.
 - [ ] **Backup automático a Supabase Storage al exportar** — Al generar CSV/JSON desde `Exportar.jsx`, además de la descarga local, guardar una copia en un bucket `backups` con timestamp. El tab de importación mostraría los backups disponibles en nube para restaurar desde ahí.
 - [ ] **Reporte mensual automático** — Al cambiar de mes o bajo demanda, generar un resumen PDF/CSV de participaciones del mes que acaba (quién participó, cuántas veces, qué tipos) y guardarlo en Storage. Útil para el anciano coordinador.
-- [ ] **Timeline / historial por persona** — Desde `Personas.jsx`, al hacer click en una persona abrir `Sheet.jsx` lateral con su timeline personal: todas sus participaciones ordenadas cronológicamente con badges de tipo y mes. Datos ya disponibles en tabla `participaciones`.
+- [x] **Timeline / historial por persona** — Desde `Personas.jsx`, al hacer click en una persona abrir `Sheet.jsx` lateral con su timeline personal: todas sus participaciones ordenadas cronológicamente con badges de tipo y mes. Datos ya disponibles en tabla `participaciones`.
 
 ---
 
@@ -539,13 +539,13 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 
 *Regla de protocolo: En esta sección se concentran integraciones ya realizadas a las que se les pueden añadir más características para enriquecer la experiencia de usuario. Únicamente se incorporan elementos a esta sección cuando el usuario lo indique explícitamente con la instrucción **"Pasa a pulir"**, acompañada de las instrucciones o sugerencias para abordar en una ocasión posterior.*
 
-- [ ] **Atajos y Paleta de Comandos (`CommandPalette` / `useKeyboardShortcuts`)**:
+- [x] **Atajos y Paleta de Comandos (`CommandPalette` / `useKeyboardShortcuts`)**:
   - *Sugerencia / Directriz:* Agregar más atajos: toggle dark/light mode, `N` para nuevo registro, búsqueda de participantes por nombre con navegación directa a su historial en `VistaEditable`, exportación rápida del S-140 de la semana próxima.
 
-- [ ] **Estadísticas — Gráficos adicionales**: 
+- [x] **Estadísticas — Gráficos adicionales**: 
   - *Sugerencia / Directriz:* Ampliar el dashboard con pastel Mat vs Anc/SM, línea de timeline de participaciones por mes del año y tabla de resumen mensual consolidada con peso acumulado por sección.
 
-- [ ] **Perfil / Settings page (`PerfilDrawer.jsx`)**:
+- [x] **Perfil / Settings page (`PerfilDrawer.jsx`)**:
   - *Sugerencia / Directriz:* Expandir el drawer de perfil con una pestaña de preferencias de usuario (notificaciones, idioma de fechas, vista por defecto al entrar), visible desde el avatar del Header.
 
 ---
@@ -802,13 +802,49 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
        - Comando fijo con atajo **`Ctrl+Shift+T` / `Cmd+Shift+T`** que refleja el estado dinámico (*"Cambiar tema (dark → light)"*) e íconos `Sun`/`Moon`.
     4. **Atajos Globales (`useKeyboardShortcuts.js`)**:
        - Registrados los atajos globales `Ctrl+Shift+E` y `Ctrl+Shift+T` accesibles desde cualquier vista sin colisiones.
-
-
-
-
-
-
-
-
-
+- **Brief 28 — Detección de conflictos de rotación en PersonaSelector (05/09/2026):**
+  - Incorporada detección y feedback visual de conflictos de rotación en `PersonaSelector` (`src/pages/Programa.jsx`) sin bloqueos ni consultas extra a Supabase:
+    1. **Reglas de Rotación Evaluadas en Memoria**:
+       - **Rotación corta (⚠ Warning)**: Participó hace menos de 2 semanas (< 14 días) respecto a la fecha de la semana (`"Participó hace N días"`).
+       - **Límite mensual (ℹ Info)**: Ya tiene 3 o más asignaciones confirmadas en el mes en curso (`"Ya tiene 3 asignaciones este mes"`).
+       - **Misma parte mes anterior (⚠ Warning)**: Tuvo el mismo tipo de asignación en el mes anterior (`"Tuvo Discurso en agosto"`).
+    2. **Reordenamiento y Distintivos en la Lista**:
+       - Los candidatos con conflicto se reordenan automáticamente al final de la lista de opciones (después de los candidatos sin conflicto) sin ocultarse ni deshabilitarse.
+       - Cada candidato con conflicto muestra un ícono (`⚠` en ámbar o `ℹ` en azul) a la derecha con tooltip explicativo del conflicto.
+    3. **Warning Inline en la Tarjeta de la Parte**:
+       - Si la persona seleccionada presenta algún conflicto, se muestra una alerta inline debajo del selector (`bg-amber-500/10` o `bg-blue-500/10`) con el mensaje específico. Desaparece de inmediato al seleccionar a alguien sin conflictos.
+    4. **Propagación de `fechaSemana`**:
+       - `TarjetaSemana` pasa `fechaSemana={semana.fecha_inicio}` a `FilaParte` y esta a `PersonaSelector` para el cálculo temporal exacto.
+- **Brief 29 — Auto-confirmación inteligente con semáforo en Programa.jsx (05/09/2026):**
+  - Implementado flujo de revisión y aprobación masiva de asignaciones con semáforo de idoneidad y confirmación batch atómica:
+    1. **Punto de Entrada en TarjetaSemana**:
+       - Botón secundario `"Revisar y aprobar semana"` visible en la cabecera cuando todas las partes contables son sugeridas (`asigP.sugerido_por_app === true`) y `confirmadas === 0`.
+    2. **Modal de Revisión (`RevisarSemanaModal` con `Dialog.jsx`)**:
+       - Agrupación de partes por sección (`APERTURA`, `TB`, `SMT`, `VC`, `CIERRE`) con subtítulo resumido `"X partes · Y con advertencias"`.
+       - Semáforo visual:
+         - 🟢 **"Sin conflictos"**: Pre-marcado (`true`), pill verde esmeralda.
+         - 🟡 **"Advertencia"**: Desmarcado por defecto (`false`), evalúa reglas de rotación del Brief #28 con detalle explicativo del conflicto.
+         - 🔴 **"Sin sugerencia"**: Sin checkbox, link `"Asignar manualmente →"` que cierra el modal, expande la semana y realiza scroll suave a la parte.
+    3. **Confirmación Batch Atómica en Supabase**:
+       - Un solo `.from('participaciones').insert()` y un solo `.from('programa_asignaciones').upsert()`.
+       - Toast con conteo `"X partes confirmadas"`, y toast de felicitación de semana al 100% (Brief #23).
+    4. **Motor de Autocompletado Semanal (`handleCompletarConSugerencias`)**:
+       - Botón `"Completar con sugerencias"` (ícono `Sparkles`) en la cabecera y footer de `TarjetaSemana`.
+       - Evalúa todas las partes no confirmadas con `sugerirCandidatos` y `sugerirAyudante`, resolviendo género en SMT, asignando al Presidente primero y excluyéndolo de la oración final (`ORACION_C`).
+       - Guarda todas las asignaciones con `sugerido_por_app = true, confirmado = false`, habilitando automáticamente el flujo de revisión y aprobación masiva de Brief #29.
+- **Brief 30 — Wizard Interactivo de Onboarding en Home.jsx (05/09/2026):**
+  - Transformado el checklist estático de inicio en un asistente interactivo guiado paso a paso con `Dialog.jsx`:
+    1. **Checklist Reactivo en Home**:
+       - Muestra los 3 pasos esenciales con estado en vivo: Nombre de congregación (detecta valor por defecto), Participantes (`personas.length`) y Programa (`semanas.length`).
+       - Los pasos completados se muestran con fondo esmeralda sutil, check badge y texto con tachado suave.
+       - Los pasos pendientes cuentan con botón `"Configurar →"` que abre el wizard directamente en ese paso (`openWizard(step)`).
+       - Enlace `"Saltar por ahora"` en la esquina superior derecha que persiste `onboarding_dismissed = true` en `localStorage` para prevenir auto-aperturas no deseadas.
+    2. **Modal Wizard de 3 Pasos (`Dialog.jsx`)**:
+       - Stepper numerado superior con badges de progreso e indicadores de completado.
+       - **Paso 1 (Congregación y Año)**: Validación que impide guardar nombre vacío o por defecto. Actualiza la tabla `configuracion` en Supabase y avanza automáticamente al paso 2.
+       - **Paso 2 (Participantes)**: Contador en tiempo real y dos tarjetas interactivas de acción rápida: *"Importar archivo CSV"* (`onNavigate('exportar')`) y *"Agregar manualmente"* (`onNavigate('personas')`), con navegación hacia atrás y adelante.
+       - **Paso 3 (Programa EPUB)**: Explicación didáctica sobre los archivos `.epub` de la Guía de Actividades mensual (mwb) de jw.org y extracción automática para el S-140, botón para ir a Programa, y botón primario *"Finalizar"*.
+    3. **Finalización y Auto-apertura**:
+       - Al presionar *"Finalizar"*, guarda `onboarding_complete = true` en `localStorage`, oculta permanentemente el checklist de Home y dispara el toast de bienvenida *"¡Todo listo! La app está configurada"*.
+       - Auto-apertura inteligente en primera visita cuando el usuario no tiene datos configurados ni ha descartado el asistente.
 

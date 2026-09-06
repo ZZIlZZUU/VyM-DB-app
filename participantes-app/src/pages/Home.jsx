@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Users,
   FileText,
@@ -10,6 +10,7 @@ import {
   Calendar,
   Layers,
   ArrowRight,
+  ArrowLeft,
   Plus,
   FileDown,
   Sparkles,
@@ -151,17 +152,22 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
   const [congregacion, setCongregacion] = useState('')
   const [anioEnCurso, setAnioEnCurso] = useState(new Date().getFullYear().toString())
 
-  // Estado para modal de edición de configuración en onboarding
-  const [configModalOpen, setConfigModalOpen] = useState(false)
+  // Wizard Interactivo de Onboarding (Brief #20 Rework)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardStep, setWizardStep] = useState(1) // 1, 2, 3
   const [editCongNombre, setEditCongNombre] = useState('')
   const [editAnio, setEditAnio] = useState('')
   const [savingConfig, setSavingConfig] = useState(false)
   const [generatingDocx, setGeneratingDocx] = useState(false)
 
-  // Descarte de Onboarding persistido en localStorage
+  // Descarte y completado de Onboarding persistido en localStorage
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem('onboarding_dismissed') === 'true'
   )
+  const [onboardingComplete, setOnboardingComplete] = useState(
+    () => localStorage.getItem('onboarding_complete') === 'true'
+  )
+  const hasCheckedAutoOpen = useRef(false)
 
   const { toast, success, error: toastError } = useToast()
 
@@ -232,35 +238,89 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
     return () => supabase.removeChannel(canal)
   }, [fetchData])
 
-  // Guardar configuración desde el modal de Onboarding
-  async function handleSaveConfig() {
-    if (!editCongNombre.trim()) {
+  // ── ESTADOS DE ONBOARDING Y ASISTENTE (Brief #30) ──────────────
+  const esNombreDefault =
+    !congregacion ||
+    congregacion === 'Congregacion del Recreo' ||
+    congregacion.trim().toLowerCase() === 'congregación del recreo'
+
+  const paso1Completo = !esNombreDefault
+  const paso2Completo = personas.length > 0
+  const paso3Completo = semanas.length > 0
+  const todosPasosCompletos = paso1Completo && paso2Completo && paso3Completo
+
+  const mostrarChecklist = !onboardingComplete && (!todosPasosCompletos || esNombreDefault)
+
+  // Auto-apertura del Wizard en primera visita si ningún paso está completo
+  useEffect(() => {
+    if (loading || hasCheckedAutoOpen.current) return
+    hasCheckedAutoOpen.current = true
+
+    const isDismissed = localStorage.getItem('onboarding_dismissed') === 'true'
+    const isComplete = localStorage.getItem('onboarding_complete') === 'true'
+
+    if (!isDismissed && !isComplete && !paso1Completo && !paso2Completo && !paso3Completo) {
+      setEditCongNombre(congregacion && !esNombreDefault ? congregacion : '')
+      setEditAnio(anioEnCurso || new Date().getFullYear().toString())
+      setWizardStep(1)
+      setWizardOpen(true)
+    }
+  }, [loading, paso1Completo, paso2Completo, paso3Completo, congregacion, esNombreDefault, anioEnCurso])
+
+  // ── HANDLERS WIZARD DE ONBOARDING ──────────────────────────────
+  function openWizard(step = 1) {
+    setWizardStep(step)
+    setEditCongNombre(congregacion && !esNombreDefault ? congregacion : '')
+    setEditAnio(anioEnCurso || new Date().getFullYear().toString())
+    setWizardOpen(true)
+  }
+
+  function handleDismissWizard() {
+    setOnboardingDismissed(true)
+    localStorage.setItem('onboarding_dismissed', 'true')
+    setWizardOpen(false)
+  }
+
+  function handleFinalizarWizard() {
+    setOnboardingComplete(true)
+    localStorage.setItem('onboarding_complete', 'true')
+    setWizardOpen(false)
+    success('¡Todo listo! La app está configurada')
+  }
+
+  async function handleSaveStep1() {
+    const trimmed = editCongNombre.trim()
+    if (!trimmed) {
       toastError('El nombre de la congregación no puede estar vacío')
       return
     }
+    if (
+      trimmed.toLowerCase() === 'congregacion del recreo' ||
+      trimmed.toLowerCase() === 'congregación del recreo'
+    ) {
+      toastError('Por favor ingresa el nombre oficial de tu congregación')
+      return
+    }
+
     setSavingConfig(true)
     try {
+      const anioVal = editAnio.trim() || new Date().getFullYear().toString()
       await supabase.from('configuracion').upsert([
-        { clave: 'nombre_congregacion', valor: editCongNombre.trim() },
-        { clave: 'anio_en_curso', valor: editAnio.trim() || new Date().getFullYear().toString() },
+        { clave: 'nombre_congregacion', valor: trimmed },
+        { clave: 'anio_en_curso', valor: anioVal },
       ])
-      setCongregacion(editCongNombre.trim())
-      setAnioEnCurso(editAnio.trim() || new Date().getFullYear().toString())
-      setConfigModalOpen(false)
-      success('Configuración guardada exitosamente')
+      setCongregacion(trimmed)
+      setAnioEnCurso(anioVal)
+      localStorage.setItem('onboarding_step1', 'true')
+      success('Nombre de congregación guardado exitosamente')
+      setWizardStep(2)
       await fetchData()
     } catch (err) {
       console.error(err)
-      toastError('Error al guardar configuración: ' + err.message)
+      toastError('Error al guardar configuración: ' + (err.message || 'Error desconocido'))
     } finally {
       setSavingConfig(false)
     }
-  }
-
-  function openConfigEdit() {
-    setEditCongNombre(congregacion || 'Congregacion del Recreo')
-    setEditAnio(anioEnCurso || new Date().getFullYear().toString())
-    setConfigModalOpen(true)
   }
 
   // ── 1. CÁLCULO DE KPIS RÁPIDOS ─────────────────────────────────
@@ -421,23 +481,6 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
 
   const progSemanaActual = semanaActual ? calcularProgresoSemana(semanaActual.id) : null
 
-  // ── 4. ONBOARDING (CONDICIONAL) ────────────────────────────────
-  const esNombreDefault =
-    !congregacion ||
-    congregacion === 'Congregacion del Recreo' ||
-    congregacion.trim().toLowerCase() === 'congregación del recreo'
-
-  const paso1Completo = !esNombreDefault
-  const paso2Completo = personas.length > 0
-  const paso3Completo = semanas.length > 0
-  const todosPasosCompletos = paso1Completo && paso2Completo && paso3Completo
-
-  const mostrarOnboarding = !onboardingDismissed && (!todosPasosCompletos || esNombreDefault)
-
-  function dismissOnboarding() {
-    setOnboardingDismissed(true)
-    localStorage.setItem('onboarding_dismissed', 'true')
-  }
 
   // ── 5. ACCIÓN RÁPIDA: GENERAR S-140 DIRECTAMENTE ───────────────
   async function handleGenerarS140Directo() {
@@ -532,23 +575,24 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
         </div>
       </div>
 
-      {/* ── 1. ONBOARDING (CONDICIONAL) ── */}
-      {mostrarOnboarding && (
+      {/* ── 1. CHECKLIST DE ONBOARDING (CONDICIONAL) ── */}
+      {mostrarChecklist && (
         <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 shadow-2xs relative">
-          <button
-            type="button"
-            onClick={dismissOnboarding}
-            className="absolute top-3.5 right-3.5 p-1 rounded-lg text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
-            title="Ocultar asistente de configuración"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="absolute top-3.5 right-3.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDismissWizard}
+              className="text-xs text-text3 hover:text-text1 hover:underline transition-colors cursor-pointer px-1 py-0.5"
+            >
+              Saltar por ahora
+            </button>
+          </div>
 
           <div className="flex items-start gap-3.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Sparkles className="w-5 h-5" />
             </div>
-            <div className="flex-1 min-w-0 pr-6">
+            <div className="flex-1 min-w-0 pr-24 sm:pr-28">
               <h2 className="text-sm font-semibold text-text1 tracking-tight">
                 Primeros pasos: Configura tu congregación
               </h2>
@@ -560,117 +604,153 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                 {/* Paso 1 */}
                 <div
-                  className={`p-3 rounded-xl border transition-all ${
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                     paso1Completo
                       ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40'
                       : 'bg-surface border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
-                      Paso 1
-                    </span>
-                    {paso1Completo ? (
-                      <Badge variant="success" size="xs" dot>
-                        Completado
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" size="xs">
-                        Pendiente
-                      </Badge>
-                    )}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
+                        Paso 1
+                      </span>
+                      {paso1Completo ? (
+                        <Badge variant="success" size="xs" dot>
+                          Completado
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral" size="xs">
+                          Pendiente
+                        </Badge>
+                      )}
+                    </div>
+                    <h3
+                      className={`text-xs font-medium ${
+                        paso1Completo
+                          ? 'text-text2 line-through decoration-emerald-500/50'
+                          : 'text-text1'
+                      }`}
+                    >
+                      Nombre de congregación
+                    </h3>
+                    <p className="text-[11px] text-text3 mt-0.5">
+                      {paso1Completo ? congregacion : 'Personaliza el nombre oficial y año'}
+                    </p>
                   </div>
-                  <h3 className="text-xs font-medium text-text1">Nombre de congregación</h3>
-                  <p className="text-[11px] text-text3 mt-0.5">
-                    {paso1Completo ? congregacion : 'Personaliza el nombre oficial y año'}
-                  </p>
-                  <Button
-                    variant={paso1Completo ? 'ghost' : 'accent'}
-                    size="xs"
-                    icon={Settings}
-                    onClick={openConfigEdit}
-                    className="mt-3 w-full text-[11px]"
-                  >
-                    {paso1Completo ? 'Editar nombre' : 'Configurar ahora →'}
-                  </Button>
+                  {!paso1Completo && (
+                    <Button
+                      variant="accent"
+                      size="xs"
+                      icon={ArrowRight}
+                      onClick={() => openWizard(1)}
+                      className="mt-3 w-full text-[11px]"
+                    >
+                      Configurar →
+                    </Button>
+                  )}
                 </div>
 
                 {/* Paso 2 */}
                 <div
-                  className={`p-3 rounded-xl border transition-all ${
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                     paso2Completo
                       ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40'
                       : 'bg-surface border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
-                      Paso 2
-                    </span>
-                    {paso2Completo ? (
-                      <Badge variant="success" size="xs" dot>
-                        {personas.length} importadas
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" size="xs">
-                        Pendiente
-                      </Badge>
-                    )}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
+                        Paso 2
+                      </span>
+                      {paso2Completo ? (
+                        <Badge variant="success" size="xs" dot>
+                          {personas.length} importadas
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral" size="xs">
+                          Pendiente
+                        </Badge>
+                      )}
+                    </div>
+                    <h3
+                      className={`text-xs font-medium ${
+                        paso2Completo
+                          ? 'text-text2 line-through decoration-emerald-500/50'
+                          : 'text-text1'
+                      }`}
+                    >
+                      Importar participantes
+                    </h3>
+                    <p className="text-[11px] text-text3 mt-0.5">
+                      {paso2Completo
+                        ? `${personas.length} hermanos en catálogo`
+                        : 'Carga el archivo CSV de participantes'}
+                    </p>
                   </div>
-                  <h3 className="text-xs font-medium text-text1">Importar participantes</h3>
-                  <p className="text-[11px] text-text3 mt-0.5">
-                    {paso2Completo
-                      ? `${personas.length} hermanos en catálogo`
-                      : 'Carga el archivo CSV de participantes'}
-                  </p>
-                  <Button
-                    variant={paso2Completo ? 'ghost' : 'secondary'}
-                    size="xs"
-                    icon={Upload}
-                    onClick={() => onNavigate?.('exportar')}
-                    className="mt-3 w-full text-[11px]"
-                  >
-                    {paso2Completo ? 'Ver importador' : 'Ir a importar CSV →'}
-                  </Button>
+                  {!paso2Completo && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      icon={ArrowRight}
+                      onClick={() => openWizard(2)}
+                      className="mt-3 w-full text-[11px]"
+                    >
+                      Configurar →
+                    </Button>
+                  )}
                 </div>
 
                 {/* Paso 3 */}
                 <div
-                  className={`p-3 rounded-xl border transition-all ${
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${
                     paso3Completo
                       ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40'
                       : 'bg-surface border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
-                      Paso 3
-                    </span>
-                    {paso3Completo ? (
-                      <Badge variant="success" size="xs" dot>
-                        {semanas.length} semanas
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" size="xs">
-                        Pendiente
-                      </Badge>
-                    )}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-text3">
+                        Paso 3
+                      </span>
+                      {paso3Completo ? (
+                        <Badge variant="success" size="xs" dot>
+                          {semanas.length} semanas
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral" size="xs">
+                          Pendiente
+                        </Badge>
+                      )}
+                    </div>
+                    <h3
+                      className={`text-xs font-medium ${
+                        paso3Completo
+                          ? 'text-text2 line-through decoration-emerald-500/50'
+                          : 'text-text1'
+                      }`}
+                    >
+                      Subir primer EPUB mwb
+                    </h3>
+                    <p className="text-[11px] text-text3 mt-0.5">
+                      {paso3Completo
+                        ? 'Programa S-140 cargado y listo'
+                        : 'Importa la guía de actividades mensual'}
+                    </p>
                   </div>
-                  <h3 className="text-xs font-medium text-text1">Subir primer EPUB mwb</h3>
-                  <p className="text-[11px] text-text3 mt-0.5">
-                    {paso3Completo
-                      ? 'Programa S-140 cargado y listo'
-                      : 'Importa la guía de actividades mensual'}
-                  </p>
-                  <Button
-                    variant={paso3Completo ? 'ghost' : 'secondary'}
-                    size="xs"
-                    icon={BookOpen}
-                    onClick={() => onNavigate?.('programa')}
-                    className="mt-3 w-full text-[11px]"
-                  >
-                    {paso3Completo ? 'Ver programa' : 'Subir EPUB mwb →'}
-                  </Button>
+                  {!paso3Completo && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      icon={ArrowRight}
+                      onClick={() => openWizard(3)}
+                      className="mt-3 w-full text-[11px]"
+                    >
+                      Configurar →
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1137,58 +1217,301 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
         </div>
       </div>
 
-      {/* ── MODAL: EDITAR CONFIGURACIÓN (ONBOARDING) ── */}
+      {/* ── MODAL: WIZARD DE ONBOARDING (Brief #30) ── */}
       <Dialog
-        open={configModalOpen}
-        onClose={() => setConfigModalOpen(false)}
-        title="Configurar Congregación"
-        size="md"
+        isOpen={wizardOpen}
+        onClose={handleDismissWizard}
+        title={
+          wizardStep === 1
+            ? 'Configuración inicial — Congregación y año'
+            : wizardStep === 2
+            ? 'Configuración inicial — Importar participantes'
+            : 'Configuración inicial — Programa de reuniones'
+        }
+        description={
+          wizardStep === 1
+            ? 'Paso 1 de 3: Personaliza los datos oficiales de tu congregación'
+            : wizardStep === 2
+            ? 'Paso 2 de 3: Carga o registra a los participantes'
+            : 'Paso 3 de 3: Importa la guía mensual de actividades'
+        }
+        size="lg"
+        footer={
+          wizardStep === 1 ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDismissWizard}
+              >
+                Saltar por ahora
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                loading={savingConfig}
+                onClick={handleSaveStep1}
+                icon={ArrowRight}
+              >
+                Guardar y continuar
+              </Button>
+            </>
+          ) : wizardStep === 2 ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeft}
+                onClick={() => setWizardStep(1)}
+              >
+                Atrás
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                icon={ArrowRight}
+                onClick={() => setWizardStep(3)}
+              >
+                Continuar
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={ArrowLeft}
+                onClick={() => setWizardStep(2)}
+              >
+                Atrás
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                icon={Check}
+                onClick={handleFinalizarWizard}
+              >
+                Finalizar
+              </Button>
+            </>
+          )
+        }
       >
-        <div className="space-y-4 pt-1">
-          <p className="text-xs text-text2">
-            Este nombre aparecerá en el encabezado oficial del formulario S-140 descargado y en la interfaz general.
-          </p>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-text1">
-              Nombre de la congregación <span className="text-red-500">*</span>
-            </label>
-            <Input
-              value={editCongNombre}
-              onChange={e => setEditCongNombre(e.target.value)}
-              placeholder="Ej. Congregación Los Olivos"
-              autoFocus
-            />
+        <div className="space-y-4">
+          {/* Barra de progreso / Stepper */}
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                  wizardStep === 1
+                    ? 'bg-emerald-600 text-white'
+                    : paso1Completo
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-text3'
+                }`}
+              >
+                {paso1Completo && wizardStep !== 1 ? <Check className="w-3.5 h-3.5" /> : '1'}
+              </div>
+              <span
+                className={`text-xs ${
+                  wizardStep === 1 ? 'font-semibold text-text1' : 'text-text3'
+                }`}
+              >
+                Congregación
+              </span>
+            </div>
+            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                  wizardStep === 2
+                    ? 'bg-emerald-600 text-white'
+                    : paso2Completo
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-text3'
+                }`}
+              >
+                {paso2Completo && wizardStep !== 2 ? <Check className="w-3.5 h-3.5" /> : '2'}
+              </div>
+              <span
+                className={`text-xs ${
+                  wizardStep === 2 ? 'font-semibold text-text1' : 'text-text3'
+                }`}
+              >
+                Participantes
+              </span>
+            </div>
+            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                  wizardStep === 3
+                    ? 'bg-emerald-600 text-white'
+                    : paso3Completo
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-text3'
+                }`}
+              >
+                {paso3Completo && wizardStep !== 3 ? <Check className="w-3.5 h-3.5" /> : '3'}
+              </div>
+              <span
+                className={`text-xs ${
+                  wizardStep === 3 ? 'font-semibold text-text1' : 'text-text3'
+                }`}
+              >
+                Programa
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-text1">
-              Año en curso
-            </label>
-            <Input
-              value={editAnio}
-              onChange={e => setEditAnio(e.target.value)}
-              placeholder="Ej. 2026"
-            />
-          </div>
+          {/* Paso 1: Congregación y año */}
+          {wizardStep === 1 && (
+            <div className="space-y-4 pt-1">
+              <p className="text-xs text-text2 leading-relaxed">
+                Ingresa el nombre oficial de tu congregación y el año de servicio. Estos datos aparecerán en el encabezado de los formularios S-140 generados y en los registros.
+              </p>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setConfigModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="accent"
-              size="sm"
-              loading={savingConfig}
-              onClick={handleSaveConfig}
-            >
-              Guardar configuración
-            </Button>
-          </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-text1">
+                  Nombre de la congregación <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={editCongNombre}
+                  onChange={e => setEditCongNombre(e.target.value)}
+                  placeholder="Ej. Congregación Los Olivos"
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-text1">
+                  Año en curso
+                </label>
+                <Input
+                  value={editAnio}
+                  onChange={e => setEditAnio(e.target.value)}
+                  placeholder="Ej. 2026"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Paso 2: Participantes */}
+          {wizardStep === 2 && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80">
+                <div>
+                  <span className="text-xs font-medium text-text1">Estado del catálogo:</span>
+                  <p className="text-[11px] text-text3 mt-0.5">
+                    {personas.length > 0
+                      ? '¡Paso completado! Ya cuentas con participantes en el catálogo.'
+                      : 'Aún no hay participantes registrados en la base de datos.'}
+                  </p>
+                </div>
+                <Badge variant={personas.length > 0 ? 'success' : 'neutral'} size="sm" dot={personas.length > 0}>
+                  {personas.length} {personas.length === 1 ? 'persona' : 'personas'}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Tarjeta 1: CSV */}
+                <div className="p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface flex flex-col justify-between hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+                  <div className="space-y-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-text1">Importar archivo CSV</h4>
+                    <p className="text-[11px] text-text3 leading-relaxed">
+                      Carga la lista completa de matriculados y ancianos/siervos ministeriales desde un archivo CSV.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    icon={ExternalLink}
+                    onClick={() => {
+                      setWizardOpen(false)
+                      onNavigate?.('exportar')
+                    }}
+                    className="mt-3 w-full text-[11px]"
+                  >
+                    Ir a Importar CSV
+                  </Button>
+                </div>
+
+                {/* Tarjeta 2: Manual */}
+                <div className="p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface flex flex-col justify-between hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+                  <div className="space-y-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-xs font-semibold text-text1">Agregar manualmente</h4>
+                    <p className="text-[11px] text-text3 leading-relaxed">
+                      Registra a los hermanos uno a uno asignando sus privilegios y roles de manera personalizada.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    icon={ExternalLink}
+                    onClick={() => {
+                      setWizardOpen(false)
+                      onNavigate?.('personas')
+                    }}
+                    className="mt-3 w-full text-[11px]"
+                  >
+                    Ir a Personas
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Paso 3: Programa */}
+          {wizardStep === 3 && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80">
+                <div>
+                  <span className="text-xs font-medium text-text1">Estado del programa:</span>
+                  <p className="text-[11px] text-text3 mt-0.5">
+                    {semanas.length > 0
+                      ? '¡Paso completado! Ya tienes semanas registradas en el sistema.'
+                      : 'Aún no se ha importado ninguna guía mensual de actividades.'}
+                  </p>
+                </div>
+                <Badge variant={semanas.length > 0 ? 'success' : 'neutral'} size="sm" dot={semanas.length > 0}>
+                  {semanas.length} {semanas.length === 1 ? 'semana' : 'semanas'}
+                </Badge>
+              </div>
+
+              <div className="p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-text1">Guía de Actividades mensual (EPUB)</h4>
+                    <p className="text-[11px] text-text3 leading-relaxed mt-1">
+                      El archivo <code className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono text-[10px]">.epub</code> de la Guía de Actividades para la reunión Vida y Ministerio Cristianos (mwb) se descarga mensualmente desde jw.org. Al importarlo en la sección de Programa, la aplicación extrae automáticamente todas las semanas, cánticos y títulos de las partes.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="xs"
+                  icon={BookOpen}
+                  onClick={() => {
+                    setWizardOpen(false)
+                    onNavigate?.('programa')
+                  }}
+                  className="w-full text-[11px]"
+                >
+                  Ir a Programa S-140 para importar EPUB
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Dialog>
     </div>

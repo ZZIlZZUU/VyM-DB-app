@@ -17,11 +17,14 @@ import {
   RotateCcw,
   Clock,
   AlertTriangle,
+  Info,
   FileText,
   Layers,
   ArrowRight,
   Clock3,
   X,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
@@ -38,6 +41,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Tooltip } from '../components/ui/Tooltip'
+import { Dialog } from '../components/ui/Dialog'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -110,8 +114,109 @@ const TIPO_PARTICIPACION = {
   LEBC: 'LEBC',
 }
 
+// ── Nombres de meses y helper mes anterior ─────────────────────
+const MESES_NOMBRES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+function getMesAnterior(mes) {
+  if (!mes) return null
+  const idx = MESES_NOMBRES.indexOf(mes)
+  if (idx <= 0) return MESES_NOMBRES[11]
+  return MESES_NOMBRES[idx - 1]
+}
+
+// ── Detección de Conflictos de Rotación (Brief #28) ────────────
+function evaluarConflictosPersona(persona, tipo, historial, mes, fechaSemana) {
+  if (!persona || !persona.clave) return []
+  const clave = persona.clave
+  const conflictos = []
+
+  // 1. Participó hace menos de 2 semanas (< 14 días)
+  const fechaRef = fechaSemana
+    ? new Date(String(fechaSemana).slice(0, 10) + 'T00:00:00')
+    : new Date()
+
+  const participacionesPersona = (historial || [])
+    .filter(h => h.clave === clave && h.fecha)
+    .map(h => ({
+      ...h,
+      dateObj: new Date(String(h.fecha).slice(0, 10) + 'T00:00:00'),
+    }))
+    .filter(h => !isNaN(h.dateObj.getTime()))
+    .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
+
+  if (participacionesPersona.length > 0) {
+    const ultPart = participacionesPersona[0]
+    const diffMs = fechaRef.getTime() - ultPart.dateObj.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays >= 0 && diffDays < 14) {
+      let tiempoTexto = ''
+      if (diffDays === 0) tiempoTexto = 'hoy'
+      else if (diffDays === 1) tiempoTexto = 'hace 1 día'
+      else if (diffDays < 7) tiempoTexto = `hace ${diffDays} días`
+      else if (diffDays === 7) tiempoTexto = 'hace 1 semana'
+      else tiempoTexto = `hace ${diffDays} días`
+
+      conflictos.push({
+        tipo: 'rotacion_corta',
+        severity: 'warning',
+        mensaje: `Participó ${tiempoTexto}`,
+      })
+    }
+  }
+
+  // 2. Ya tiene 3 o más asignaciones en el mes actual
+  if (mes) {
+    const asignacionesMes = (historial || []).filter(h => h.clave === clave && h.mes === mes)
+    if (asignacionesMes.length >= 3) {
+      conflictos.push({
+        tipo: 'limite_mensual',
+        severity: 'info',
+        mensaje: `Ya tiene ${asignacionesMes.length} asignaciones este mes`,
+      })
+    }
+  }
+
+  // 3. Tuvo la misma parte el mes anterior
+  if (mes) {
+    const mesAnt = getMesAnterior(mes)
+    const participacionesMesAnt = (historial || []).filter(h => h.clave === clave && h.mes === mesAnt)
+    const tuvoMismaParte = participacionesMesAnt.some(h => {
+      if (h.tipo === tipo) return true
+      if (tipo === 'SMT_EST' && (h.tipo === 'T' || h.tipo === 'SMT_EST')) return true
+      if (tipo === 'SMT_AYU' && (h.tipo === 'A' || h.tipo === 'SMT_AYU')) return true
+      if (tipo === 'EBC_CON' && (h.tipo === 'EBC' || h.tipo === 'EBC_CON')) return true
+      return false
+    })
+
+    if (tuvoMismaParte) {
+      const nombreTipo = TIPO_LABEL[tipo] || tipo
+      conflictos.push({
+        tipo: 'mismo_tipo_mes_ant',
+        severity: 'warning',
+        mensaje: `Tuvo ${nombreTipo} en ${mesAnt ? mesAnt.toLowerCase() : 'el mes anterior'}`,
+      })
+    }
+  }
+
+  return conflictos
+}
+
 // ── Selector de Participante Inteligente ──────────────────────
-function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAsignados, disabled }) {
+function PersonaSelector({
+  tipo,
+  value,
+  onChange,
+  personas,
+  historial,
+  mes,
+  fechaSemana,
+  yaAsignados,
+  disabled,
+}) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [tooltip, setTooltip] = useState(null)
@@ -121,10 +226,46 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
   const hoverTimer = useRef(null)
   const TOOLTIP_W = 260
 
-  const candidatos = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
+  const candidatosBase = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
 
-  const seleccionado =
+  // Evaluar conflictos para cada persona y ordenar (con conflicto van al final)
+  const candidatosConConflictos = candidatosBase.map(p => {
+    const confs = evaluarConflictosPersona(p, tipo, historial, mes, fechaSemana)
+    const conflicto = confs.length > 0
+      ? {
+          severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
+          mensaje: confs.map(c => c.mensaje).join(' • '),
+          detalles: confs,
+        }
+      : null
+    return { ...p, conflicto }
+  })
+
+  // Sin conflicto primero, con conflicto al final
+  const candidatos = [
+    ...candidatosConConflictos.filter(p => !p.conflicto),
+    ...candidatosConConflictos.filter(p => p.conflicto),
+  ]
+
+  const seleccionadoRaw =
     candidatos.find(p => p.clave === value) || personas.find(p => p.clave === value)
+
+  const conflictoSeleccionado = seleccionadoRaw
+    ? (() => {
+        const confs = evaluarConflictosPersona(seleccionadoRaw, tipo, historial, mes, fechaSemana)
+        return confs.length > 0
+          ? {
+              severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
+              mensaje: confs.map(c => c.mensaje).join(' • '),
+              detalles: confs,
+            }
+          : null
+      })()
+    : null
+
+  const seleccionado = seleccionadoRaw
+    ? { ...seleccionadoRaw, conflicto: conflictoSeleccionado }
+    : null
 
   const filtrados = query.trim()
     ? candidatos.filter(
@@ -230,7 +371,7 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
     const dropdownHeight = 240
-    const dropdownWidth = 240
+    const dropdownWidth = 260
 
     const style = {
       position: 'fixed',
@@ -255,6 +396,9 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
 
   const tooltipPersona = tooltip ? personas.find(p => p.clave === tooltip.clave) : null
   const tooltipParts = tooltip ? getUltimasParticipaciones(tooltip.clave) : []
+  const tooltipConflictos = tooltipPersona
+    ? evaluarConflictosPersona(tooltipPersona, tipo, historial, mes, fechaSemana)
+    : []
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -280,12 +424,42 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               {seleccionado.clave}
             </span>
             <span className="truncate font-medium text-text1">{seleccionado.nombre}</span>
+            {conflictoSeleccionado && (
+              <span
+                className="shrink-0 flex items-center justify-center ml-auto mr-1"
+                title={conflictoSeleccionado.mensaje}
+              >
+                {conflictoSeleccionado.severity === 'warning' ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                ) : (
+                  <Info className="w-3.5 h-3.5 text-blue-500" />
+                )}
+              </span>
+            )}
           </div>
         ) : (
           <span className="text-text3 text-xs italic flex-1">— Sin asignar —</span>
         )}
         <ChevronDown className="w-3.5 h-3.5 text-text3 shrink-0 opacity-70" />
       </button>
+
+      {/* Warning inline si la persona seleccionada tiene conflicto */}
+      {conflictoSeleccionado && (
+        <div
+          className={`mt-1 flex items-start gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] border animate-fade-in ${
+            conflictoSeleccionado.severity === 'warning'
+              ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25'
+              : 'bg-blue-500/10 text-blue-800 dark:text-blue-300 border-blue-500/25'
+          }`}
+        >
+          {conflictoSeleccionado.severity === 'warning' ? (
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500 mt-0.5" />
+          ) : (
+            <Info className="w-3.5 h-3.5 shrink-0 text-blue-500 mt-0.5" />
+          )}
+          <span className="leading-tight">{conflictoSeleccionado.mensaje}</span>
+        </div>
+      )}
 
       {/* Floating Dropdown */}
       {open && (
@@ -351,6 +525,18 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
                     <IndIcon className={`w-3.5 h-3.5 shrink-0 ${ind.cls}`} />
                     <span className="font-mono text-text3 text-[11px] shrink-0 w-12">{p.clave}</span>
                     <span className="truncate flex-1">{p.nombre}</span>
+                    {p.conflicto && (
+                      <span
+                        className="shrink-0 flex items-center justify-center ml-auto"
+                        title={p.conflicto.mensaje}
+                      >
+                        {p.conflicto.severity === 'warning' ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        ) : (
+                          <Info className="w-3.5 h-3.5 text-blue-500" />
+                        )}
+                      </span>
+                    )}
                   </button>
                 )
               })
@@ -371,6 +557,28 @@ function PersonaSelector({ tipo, value, onChange, personas, historial, mes, yaAs
               {tooltipPersona.clave}
             </span>
           </div>
+
+          {/* Banner de conflictos si existen */}
+          {tooltipConflictos.length > 0 && (
+            <div
+              className={`p-2 rounded-lg border text-[11px] flex flex-col gap-1 ${
+                tooltipConflictos.some(c => c.severity === 'warning')
+                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-800 dark:text-amber-300'
+                  : 'bg-blue-500/10 border-blue-500/25 text-blue-800 dark:text-blue-300'
+              }`}
+            >
+              {tooltipConflictos.map((c, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  {c.severity === 'warning' ? (
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                  )}
+                  <span className="leading-tight">{c.mensaje}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {tooltipParts.length === 0 ? (
             <span className="text-text3 italic text-[11px]">Sin participaciones recientes</span>
@@ -421,6 +629,7 @@ function FilaParte({
   personas,
   historial,
   mes,
+  fechaSemana,
   semanaAsignados,
   onAsignar,
   onConfirmar,
@@ -530,7 +739,8 @@ function FilaParte({
 
   return (
     <div
-      className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
+      id={`parte-${parte.id}`}
+      className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center transition-all ${
         modoLectura
           ? 'grid-cols-[auto_1fr_1fr]'
           : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
@@ -613,6 +823,7 @@ function FilaParte({
               personas={personas}
               historial={historial}
               mes={mes}
+              fechaSemana={fechaSemana}
               yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
               disabled={false}
             />
@@ -632,6 +843,7 @@ function FilaParte({
                     personas={personas}
                     historial={historial}
                     mes={mes}
+                    fechaSemana={fechaSemana}
                     yaAsignados={[
                       ...semanaAsignados.filter(c => c !== ayudante?.clave),
                       principal?.clave,
@@ -696,6 +908,8 @@ function TarjetaSemana({
   expandida,
   onToggleExpand,
   modoLectura,
+  onRevisarSemana,
+  onSugerirSemana,
 }) {
   const mes = semana.mes
 
@@ -746,6 +960,15 @@ function TarjetaSemana({
 
     return asigParte.some(a => a.rol === 'principal') && !necesitaRec
   }).length
+
+  const todasSugeridas =
+    totalPartes > 0 &&
+    partesContables.every(p => {
+      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+      return asigP?.clave && asigP.sugerido_por_app === true
+    })
+  const mostrarBotonRevisar = todasSugeridas && confirmadas === 0
+  const mostrarBotonSugerir = !todasSugeridas && confirmadas < totalPartes && totalPartes > 0
 
   const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
@@ -815,15 +1038,44 @@ function TarjetaSemana({
 
         {/* Acciones Rápidas */}
         {!modoLectura && (
-          <Button
-            variant="dangerGhost"
-            size="iconSm"
-            onClick={() => onEliminarSemana(semana.id)}
-            aria-label="Eliminar semana"
-            title="Eliminar semana"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {mostrarBotonRevisar && (
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={e => {
+                  e.stopPropagation()
+                  onRevisarSemana?.(semana)
+                }}
+                className="font-medium text-xs shadow-2xs"
+              >
+                Revisar y aprobar semana
+              </Button>
+            )}
+            {mostrarBotonSugerir && (
+              <Button
+                variant="secondary"
+                size="xs"
+                icon={Sparkles}
+                onClick={e => {
+                  e.stopPropagation()
+                  onSugerirSemana?.(semana.id)
+                }}
+                className="font-medium text-xs shadow-2xs"
+              >
+                Completar con sugerencias
+              </Button>
+            )}
+            <Button
+              variant="dangerGhost"
+              size="iconSm"
+              onClick={() => onEliminarSemana(semana.id)}
+              aria-label="Eliminar semana"
+              title="Eliminar semana"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -847,6 +1099,7 @@ function TarjetaSemana({
                     personas={personas}
                     historial={historial}
                     mes={mes}
+                    fechaSemana={semana.fecha_inicio}
                     semanaAsignados={semanaAsignados}
                     onAsignar={onAsignar}
                     onConfirmar={onConfirmar}
@@ -860,6 +1113,16 @@ function TarjetaSemana({
 
           {!modoLectura && (
             <div className="flex items-center justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800/80 gap-3">
+              {confirmadas < totalPartes && totalPartes > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Sparkles}
+                  onClick={() => onSugerirSemana?.(semana.id)}
+                >
+                  {todasSugeridas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                </Button>
+              )}
               <Button
                 variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
                 size="sm"
@@ -877,6 +1140,283 @@ function TarjetaSemana({
         </div>
       )}
     </div>
+  )
+}
+
+// ── Modal de Revisar y Aprobar Semana (Brief #29) ──────────────
+function RevisarSemanaModal({
+  isOpen,
+  onClose,
+  semana,
+  partes,
+  asignaciones,
+  personas,
+  historial,
+  onConfirmarBatch,
+  onAsignarManual,
+  isBatchSaving,
+}) {
+  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
+
+  const partesSemana = (partes || []).filter(
+    p => p.semana_id === semana?.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
+  )
+
+  // Evaluación de partes y conflictos
+  const partesEvaluadas = partesSemana.map(parte => {
+    const asigP = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'principal')
+    const asigA = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+
+    const personaP = asigP?.clave ? personas.find(p => p.clave === asigP.clave) : null
+    const personaA = asigA?.clave ? personas.find(p => p.clave === asigA.clave) : null
+
+    let estado = 'verde' // 'verde' | 'amarillo' | 'rojo'
+    let advertencias = []
+
+    if (!asigP?.clave || !personaP) {
+      estado = 'rojo'
+    } else {
+      const confsP = evaluarConflictosPersona(
+        personaP,
+        parte.tipo_asignacion,
+        historial,
+        semana?.mes,
+        semana?.fecha_inicio
+      )
+      const confsA =
+        parte.requiere_ayudante && personaA
+          ? evaluarConflictosPersona(
+              personaA,
+              'SMT_AYU',
+              historial,
+              semana?.mes,
+              semana?.fecha_inicio
+            )
+          : []
+
+      advertencias = [
+        ...confsP.map(c => ({ ...c, persona: personaP.nombre, esAyudante: false })),
+        ...confsA.map(c => ({ ...c, persona: personaA.nombre, esAyudante: true })),
+      ]
+
+      if (advertencias.length > 0) {
+        estado = 'amarillo'
+      } else {
+        estado = 'verde'
+      }
+    }
+
+    return {
+      parte,
+      asigP,
+      asigA,
+      personaP,
+      personaA,
+      estado,
+      advertencias,
+    }
+  })
+
+  // Estado de checkboxes seleccionados
+  const [seleccionadas, setSeleccionadas] = useState({})
+
+  useEffect(() => {
+    if (!isOpen || !semana) {
+      setSeleccionadas({})
+      return
+    }
+    const initial = {}
+    partesEvaluadas.forEach(item => {
+      // 🟢 pre-marcado, 🟡 desmarcado por defecto, 🔴 no seleccionable
+      if (item.estado === 'verde') {
+        initial[item.parte.id] = true
+      } else {
+        initial[item.parte.id] = false
+      }
+    })
+    setSeleccionadas(initial)
+  }, [isOpen, semana?.id])
+
+  if (!isOpen || !semana) return null
+
+  const totalPartes = partesSemana.length
+  const totalAdvertencias = partesEvaluadas.filter(p => p.estado === 'amarillo').length
+  const seleccionadasCount = Object.values(seleccionadas).filter(Boolean).length
+
+  const handleToggle = parteId => {
+    setSeleccionadas(prev => ({
+      ...prev,
+      [parteId]: !prev[parteId],
+    }))
+  }
+
+  const handleConfirmar = () => {
+    const ids = Object.keys(seleccionadas).filter(id => seleccionadas[id])
+    onConfirmarBatch(semana, ids)
+  }
+
+  return (
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Revisar semana — ${formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}`}
+      description={`${totalPartes} partes · ${totalAdvertencias} con advertencias`}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <span className="text-xs text-text2 font-medium">
+            {seleccionadasCount} de {totalPartes} partes seleccionadas
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={isBatchSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="accent"
+              size="sm"
+              disabled={seleccionadasCount === 0 || isBatchSaving}
+              onClick={handleConfirmar}
+            >
+              {isBatchSaving ? 'Confirmando...' : 'Confirmar seleccionadas'}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {secciones.map(sec => {
+          const partesSec = partesEvaluadas.filter(item => item.parte.seccion === sec)
+          if (!partesSec.length) return null
+
+          return (
+            <div key={sec} className="space-y-2">
+              <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
+                {SECCION_LABEL[sec]}
+              </div>
+
+              <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                {partesSec.map(item => {
+                  const { parte, personaP, personaA, estado, advertencias } = item
+                  const isChecked = !!seleccionadas[parte.id]
+
+                  return (
+                    <div
+                      key={parte.id}
+                      className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 px-1.5 rounded-lg"
+                    >
+                      {/* Checkbox o Placeholder */}
+                      <div className="pt-0.5 shrink-0">
+                        {estado !== 'rojo' ? (
+                          <input
+                            type="checkbox"
+                            id={`chk-${parte.id}`}
+                            checked={isChecked}
+                            onChange={() => handleToggle(parte.id)}
+                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 bg-surface dark:bg-zinc-800 cursor-pointer"
+                          />
+                        ) : (
+                          <div className="w-4 h-4" />
+                        )}
+                      </div>
+
+                      {/* Info de la parte */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border shrink-0 ${
+                              TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
+                            }`}
+                          >
+                            {parte.tipo_asignacion}
+                          </span>
+                          <span className="text-xs font-semibold text-text1 truncate">
+                            {parte.titulo}
+                          </span>
+                        </div>
+
+                        {/* Nombre sugerido */}
+                        <div className="mt-1 text-xs text-text2">
+                          {personaP ? (
+                            <span className="font-medium text-text1">
+                              {personaP.nombre}
+                              {personaA && (
+                                <span className="font-normal text-text2 ml-1">
+                                  / {personaA.nombre}{' '}
+                                  <span className="text-text3 text-[11px]">(Ayudante)</span>
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-text3 italic">Sin asignación</span>
+                          )}
+                        </div>
+
+                        {/* Mensajes de advertencia */}
+                        {estado === 'amarillo' && advertencias.length > 0 && (
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            {advertencias.map((adv, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400/90 font-medium"
+                              >
+                                <AlertTriangle className="w-3 h-3 shrink-0" />
+                                <span>
+                                  {adv.esAyudante ? `Ayudante: ${adv.mensaje}` : adv.mensaje}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Semáforo indicador / Enlace */}
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {estado === 'verde' && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Sin conflictos
+                          </span>
+                        )}
+
+                        {estado === 'amarillo' && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                            <AlertTriangle className="w-3 h-3" />
+                            Advertencia
+                          </span>
+                        )}
+
+                        {estado === 'rojo' && (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+                              <AlertCircle className="w-3 h-3" />
+                              Sin sugerencia
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onAsignarManual(parte.id)}
+                              className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <span>Asignar manualmente</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Dialog>
   )
 }
 
@@ -937,6 +1477,10 @@ export default function Programa() {
   const [toastProgramaCompleto, setToastProgramaCompleto] = useState(null)
   const wasProgramCompleteRef = useRef(false)
   const isInitialLoadedRef = useRef(false)
+
+  // Modal de Revisar y Aprobar Semana (Brief #29)
+  const [semanaParaRevisar, setSemanaParaRevisar] = useState(null)
+  const [isBatchSaving, setIsBatchSaving] = useState(false)
 
   const { toast, showToast, success, error: toastError, dismiss } = useToast()
   const { confirm, confirmProps } = useConfirm()
@@ -1477,6 +2021,367 @@ export default function Programa() {
     await fetchData()
   }
 
+  // ── Asignación Manual desde Modal de Revisión (Brief #29) ──
+  const handleAsignarManual = useCallback(
+    parteId => {
+      if (!semanaParaRevisar) return
+      const semanaId = semanaParaRevisar.id
+      setSemanaParaRevisar(null)
+      setExpandedWeeks(prev => ({ ...prev, [semanaId]: true }))
+      setTimeout(() => {
+        const el = document.getElementById(`parte-${parteId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('ring-2', 'ring-emerald-500', 'rounded-lg')
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-emerald-500', 'rounded-lg')
+          }, 2500)
+        }
+      }, 100)
+    },
+    [semanaParaRevisar]
+  )
+
+  // ── Confirmar Lote de Asignaciones (Brief #29) ─────────────
+  async function handleBatchConfirmar(semana, partesSeleccionadasIds) {
+    if (!semana || !partesSeleccionadasIds.length) return
+    setIsBatchSaving(true)
+
+    try {
+      const partesSemana = partes.filter(
+        p => p.semana_id === semana.id && partesSeleccionadasIds.includes(p.id)
+      )
+
+      const participacionesAInsertar = []
+      const asignacionesMap = []
+
+      for (const parte of partesSemana) {
+        const asigP = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'principal')
+        const asigA = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+
+        if (!asigP?.clave) continue
+        const personaP = personas.find(p => p.clave === asigP.clave)
+        if (!personaP) continue
+
+        const tipoParticipacion = TIPO_PARTICIPACION[parte.tipo_asignacion] || 'X'
+
+        const pIdx = participacionesAInsertar.length
+        participacionesAInsertar.push({
+          clave: personaP.clave,
+          nombre: personaP.nombre,
+          lista: personaP.lista,
+          fecha: semana.fecha_inicio,
+          mes: semana.mes,
+          tipo: tipoParticipacion,
+          peso: PESO_TIPO[tipoParticipacion] || 1,
+          observaciones: null,
+        })
+        asignacionesMap.push({ asigId: asigP.id, partInsertIdx: pIdx })
+
+        if (parte.requiere_ayudante && asigA?.clave) {
+          const personaA = personas.find(p => p.clave === asigA.clave)
+          if (personaA) {
+            const aIdx = participacionesAInsertar.length
+            participacionesAInsertar.push({
+              clave: personaA.clave,
+              nombre: personaA.nombre,
+              lista: personaA.lista,
+              fecha: semana.fecha_inicio,
+              mes: semana.mes,
+              tipo: 'A',
+              peso: 1,
+              observaciones: 'Ayudante SMT',
+            })
+            asignacionesMap.push({ asigId: asigA.id, partInsertIdx: aIdx })
+          }
+        }
+      }
+
+      if (participacionesAInsertar.length === 0) {
+        setIsBatchSaving(false)
+        return
+      }
+
+      // 1 único INSERT masivo en Supabase para todas las participaciones
+      const { data: insertedParts, error: insertError } = await supabase
+        .from('participaciones')
+        .insert(participacionesAInsertar)
+        .select()
+
+      if (insertError) throw insertError
+
+      // 1 único UPSERT masivo en Supabase para todas las asignaciones
+      const asignacionesUpdates = asignacionesMap.map(item => ({
+        id: item.asigId,
+        confirmado: true,
+        participacion_id: insertedParts[item.partInsertIdx]?.id || null,
+      }))
+
+      const { error: updateError } = await supabase
+        .from('programa_asignaciones')
+        .upsert(asignacionesUpdates)
+
+      if (updateError) throw updateError
+
+      setSemanaParaRevisar(null)
+      const totalConfirmadas = partesSemana.length
+      success(`${totalConfirmadas} partes confirmadas`)
+
+      // Si todas las partes de la semana quedaron confirmadas, disparar también el toast del Brief #23
+      const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+      const partesContablesSemana = partes.filter(
+        p => p.semana_id === semana.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
+      )
+      if (totalConfirmadas === partesContablesSemana.length) {
+        success('¡Semana completada al 100%!')
+      }
+
+      await fetchData()
+    } catch (err) {
+      console.error('[handleBatchConfirmar]', err)
+      toastError('Error al confirmar asignaciones en lote: ' + err.message)
+    } finally {
+      setIsBatchSaving(false)
+    }
+  }
+
+  // ── Completar semana con motor de sugerencias ─────────────
+  async function handleCompletarConSugerencias(semanaId) {
+    const semana = semanas.find(s => s.id === semanaId)
+    if (!semana) return
+
+    const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+    const partesSemana = partes
+      .filter(p => p.semana_id === semanaId && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
+      .sort((a, b) => (a.numero_parte || 0) - (b.numero_parte || 0))
+
+    if (!partesSemana.length) {
+      toastError('No hay partes asignables en esta semana')
+      return
+    }
+
+    const asigSemana = asignaciones.filter(a => partesSemana.some(p => p.id === a.parte_id))
+    const hayAsignadasNoConfirmadas = asigSemana.some(a => a.clave && !a.confirmado)
+
+    if (hayAsignadasNoConfirmadas) {
+      const ok = await confirm({
+        title: '¿Completar semana con sugerencias?',
+        message:
+          'El motor asignará automáticamente candidatos para las partes pendientes. Las partes ya confirmadas se mantendrán intactas.',
+        danger: false,
+      })
+      if (!ok) return
+    }
+
+    showToast('Generando sugerencias para la semana...')
+
+    try {
+      const yaAsignadosSemana = []
+
+      // 1. Personas ya asignadas en partes confirmadas
+      partesSemana.forEach(p => {
+        const asigP = asigSemana.find(a => a.parte_id === p.id && a.rol === 'principal')
+        const asigA = asigSemana.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+        if (asigP?.confirmado && asigP.clave) yaAsignadosSemana.push(asigP.clave)
+        if (asigA?.confirmado && asigA.clave) yaAsignadosSemana.push(asigA.clave)
+      })
+
+      // 2. Identificar Presidente confirmado si ya existe
+      const parteP = partesSemana.find(p => p.tipo_asignacion === 'P')
+      let clavePresidente = null
+      if (parteP) {
+        const asigExistenteP = asigSemana.find(
+          a => a.parte_id === parteP.id && a.rol === 'principal'
+        )
+        if (asigExistenteP?.confirmado && asigExistenteP.clave) {
+          clavePresidente = asigExistenteP.clave
+        }
+      }
+
+      // Ordenar partes para sugerir: P primero, luego las demás, y ORACION_C al final
+      const partesOrdenadas = [...partesSemana].sort((a, b) => {
+        if (a.tipo_asignacion === 'P') return -1
+        if (b.tipo_asignacion === 'P') return 1
+        if (a.tipo_asignacion === 'ORACION_C') return 1
+        if (b.tipo_asignacion === 'ORACION_C') return -1
+        return (a.numero_parte || 0) - (b.numero_parte || 0)
+      })
+
+      const nuevasAsignaciones = []
+
+      for (const parte of partesOrdenadas) {
+        const asigP = asigSemana.find(a => a.parte_id === parte.id && a.rol === 'principal')
+        const asigA = asigSemana.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
+
+        if (asigP?.confirmado) continue
+
+        const tipo = parte.tipo_asignacion
+
+        if (tipo === 'P') {
+          const candidatos = sugerirCandidatos('P', personas, historial, semana.mes, yaAsignadosSemana)
+          const elegido = candidatos[0]
+          if (elegido) {
+            clavePresidente = elegido.clave
+            yaAsignadosSemana.push(elegido.clave)
+            nuevasAsignaciones.push({
+              parte_id: parte.id,
+              clave: elegido.clave,
+              rol: 'principal',
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+          }
+        } else if (tipo === 'ORACION_C') {
+          const exclude = [...yaAsignadosSemana]
+          if (clavePresidente && !exclude.includes(clavePresidente)) {
+            exclude.push(clavePresidente)
+          }
+          const candidatos = sugerirCandidatos('ORACION_C', personas, historial, semana.mes, exclude)
+          const elegido = candidatos[0]
+          if (elegido) {
+            yaAsignadosSemana.push(elegido.clave)
+            nuevasAsignaciones.push({
+              parte_id: parte.id,
+              clave: elegido.clave,
+              rol: 'principal',
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+          }
+        } else if (tipo === 'SMT_EST') {
+          // Titular dama Mat
+          const candidatosTit = sugerirCandidatos('SMT_EST', personas, historial, semana.mes, yaAsignadosSemana)
+          const titular = candidatosTit[0]
+          if (titular) {
+            yaAsignadosSemana.push(titular.clave)
+            nuevasAsignaciones.push({
+              parte_id: parte.id,
+              clave: titular.clave,
+              rol: 'principal',
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+
+            if (parte.requiere_ayudante && !asigA?.confirmado) {
+              const candidatosAyu = sugerirAyudante(titular.clave, personas, historial, semana.mes, yaAsignadosSemana)
+              const ayudante = candidatosAyu[0]
+              if (ayudante) {
+                yaAsignadosSemana.push(ayudante.clave)
+                nuevasAsignaciones.push({
+                  parte_id: parte.id,
+                  clave: ayudante.clave,
+                  rol: 'ayudante',
+                  sugerido_por_app: true,
+                  confirmado: false,
+                })
+              }
+            }
+          }
+        } else if (tipo === 'SMT_EXP') {
+          // Titular Mat
+          const candidatosTit = sugerirCandidatos('SMT_EXP', personas, historial, semana.mes, yaAsignadosSemana)
+          const titular = candidatosTit[0]
+          if (titular) {
+            yaAsignadosSemana.push(titular.clave)
+            nuevasAsignaciones.push({
+              parte_id: parte.id,
+              clave: titular.clave,
+              rol: 'principal',
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+
+            if (parte.requiere_ayudante && !asigA?.confirmado) {
+              const tipoAyu = titular.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F'
+              const candidatosAyu = sugerirCandidatos(
+                tipoAyu,
+                personas,
+                historial,
+                semana.mes,
+                [...yaAsignadosSemana, titular.clave]
+              )
+              const ayudante = candidatosAyu[0]
+              if (ayudante) {
+                yaAsignadosSemana.push(ayudante.clave)
+                nuevasAsignaciones.push({
+                  parte_id: parte.id,
+                  clave: ayudante.clave,
+                  rol: 'ayudante',
+                  sugerido_por_app: true,
+                  confirmado: false,
+                })
+              }
+            }
+          }
+        } else {
+          // Todas las demás partes (TB, PE, LB, SMT_DSC, VC, NC, EBC_CON, LEBC, etc.)
+          const candidatos = sugerirCandidatos(tipo, personas, historial, semana.mes, yaAsignadosSemana)
+          const elegido = candidatos[0]
+          if (elegido) {
+            yaAsignadosSemana.push(elegido.clave)
+            nuevasAsignaciones.push({
+              parte_id: parte.id,
+              clave: elegido.clave,
+              rol: 'principal',
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+          }
+        }
+      }
+
+      if (!nuevasAsignaciones.length) {
+        success('No hay nuevas sugerencias que aplicar')
+        return
+      }
+
+      // Separar en updates (si ya existe fila no confirmada) e inserts
+      const updates = []
+      const inserts = []
+
+      for (const asig of nuevasAsignaciones) {
+        const existing = asigSemana.find(
+          a => a.parte_id === asig.parte_id && a.rol === asig.rol
+        )
+        if (existing) {
+          if (!existing.confirmado) {
+            updates.push({
+              id: existing.id,
+              parte_id: asig.parte_id,
+              clave: asig.clave,
+              rol: asig.rol,
+              sugerido_por_app: true,
+              confirmado: false,
+            })
+          }
+        } else {
+          inserts.push({
+            parte_id: asig.parte_id,
+            clave: asig.clave,
+            rol: asig.rol,
+            sugerido_por_app: true,
+            confirmado: false,
+          })
+        }
+      }
+
+      if (updates.length > 0) {
+        const { error: updErr } = await supabase.from('programa_asignaciones').upsert(updates)
+        if (updErr) throw updErr
+      }
+      if (inserts.length > 0) {
+        const { error: insErr } = await supabase.from('programa_asignaciones').insert(inserts)
+        if (insErr) throw insErr
+      }
+
+      success('Sugerencias generadas para la semana')
+      await fetchData()
+    } catch (err) {
+      console.error('[handleCompletarConSugerencias]', err)
+      toastError('Error al generar sugerencias: ' + err.message)
+    }
+  }
+
   // ── Generar documento S-140 (Completo) ───────────────────
   async function handleGenerarDocx() {
     try {
@@ -1683,6 +2588,8 @@ export default function Programa() {
                   expandida={!!expandedWeeks[s.id]}
                   onToggleExpand={() => handleToggleExpand(s.id)}
                   modoLectura={modoLectura}
+                  onRevisarSemana={setSemanaParaRevisar}
+                  onSugerirSemana={handleCompletarConSugerencias}
                 />
               )
             })
@@ -1849,6 +2756,20 @@ export default function Programa() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL REVISIÓN Y APROBACIÓN DE SEMANA (Brief #29) ── */}
+      <RevisarSemanaModal
+        isOpen={!!semanaParaRevisar}
+        onClose={() => setSemanaParaRevisar(null)}
+        semana={semanaParaRevisar}
+        partes={partes}
+        asignaciones={asignaciones}
+        personas={personas}
+        historial={historial}
+        onConfirmarBatch={handleBatchConfirmar}
+        onAsignarManual={handleAsignarManual}
+        isBatchSaving={isBatchSaving}
+      />
 
       <Toast toast={toast} onDismiss={dismiss} />
       <ConfirmDialog {...confirmProps} />

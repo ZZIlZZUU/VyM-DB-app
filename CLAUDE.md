@@ -817,8 +817,9 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
        - `TarjetaSemana` pasa `fechaSemana={semana.fecha_inicio}` a `FilaParte` y esta a `PersonaSelector` para el cálculo temporal exacto.
 - **Brief 29 — Auto-confirmación inteligente con semáforo en Programa.jsx (05/09/2026):**
   - Implementado flujo de revisión y aprobación masiva de asignaciones con semáforo de idoneidad y confirmación batch atómica:
-    1. **Punto de Entrada en TarjetaSemana**:
-       - Botón secundario `"Revisar y aprobar semana"` visible en la cabecera cuando todas las partes contables son sugeridas (`asigP.sugerido_por_app === true`) y `confirmadas === 0`.
+    1. **Punto de Entrada en TarjetaSemana (Cabecera y Pie)**:
+       - Botón secundario `"Revisar y aprobar semana"` visible tanto en la cabecera como en el pie expandido de la semana cuando existen asignaciones para revisar (`hayAsignaciones || todasSugeridas`) y la semana no está 100% confirmada (`confirmadas < totalPartes`).
+       - Compatible con asignaciones sugeridas por el motor o manuales, y con semanas parcialmente confirmadas.
     2. **Modal de Revisión (`RevisarSemanaModal` con `Dialog.jsx`)**:
        - Agrupación de partes por sección (`APERTURA`, `TB`, `SMT`, `VC`, `CIERRE`) con subtítulo resumido `"X partes · Y con advertencias"`.
        - Semáforo visual:
@@ -847,4 +848,24 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
     3. **Finalización y Auto-apertura**:
        - Al presionar *"Finalizar"*, guarda `onboarding_complete = true` en `localStorage`, oculta permanentemente el checklist de Home y dispara el toast de bienvenida *"¡Todo listo! La app está configurada"*.
        - Auto-apertura inteligente en primera visita cuando el usuario no tiene datos configurados ni ha descartado el asistente.
+- **Brief 31 — Flujo EPUB completo (06/09/2026):**
+  - Automatización del flujo de obtención, descarga y gestión de Guías de Actividades (`mwb`) vía Supabase Storage y Edge Functions:
+    1. **Edge Function `fetch-epub` (`supabase/functions/fetch-epub/index.ts`)**:
+       - Modo sincronización multi-edición (`sync: true`): escanea y descarga tanto la edición futura más reciente en el CDN de JW.org (ej. **Noviembre - Diciembre 2026** / `202611`) como las ediciones anteriores recientes (`202605`, `202607`, `202609`).
+       - Valida autenticación con el token del usuario o `SUPABASE_SERVICE_ROLE_KEY`.
+       - Consulta `epub_disponibles` para prevenir descargas redundantes (`status: 'already_exists'`).
+       - Conexión al endpoint CDN activo de JW.org (`b.jw-cdn.org/apis/pub-media/GETPUBMEDIALINKS` con fallback a `www.jw.org`), descargando los `.epub` a buffers.
+       - Rotación automática: conserva siempre las **4 ediciones más recientes**, eliminando de forma atómica las más antiguas de Supabase Storage (`epubs`) y de la tabla `epub_disponibles`.
+       - Identifica la última edición disponible y responde con `{ status: 'ok', downloadedCount, latestEpub, epubs }`.
+    2. **Migración SQL y Políticas RLS (`supabase/migrations/20260906_epub_disponibles.sql`)**:
+       - Tabla `public.epub_disponibles` con RLS activo: `SELECT` para autenticados, inserción/eliminación exclusiva para `service_role`.
+       - Buckets `epubs` y `backups` creados de forma idempotente en `storage.buckets`.
+       - Políticas de `storage.objects` para lectura autenticada en `epubs`.
+    3. **Integración y Feedback Visual en `Programa.jsx`**:
+       - Al montar la vista, invoca la sincronización multi-edición con `fetch-epub`.
+       - **Banner superior persistente:** destaca la última edición disponible en Storage mientras no esté cargada en el programa (ej. *"Nuevo EPUB disponible — Guía de Actividades Noviembre - Diciembre 2026"*), con botones *"Usar este"* e *"Ignorar"*.
+       - **Selector `<Select>` de guías:** lista las guías en Storage ordenadas cronológicamente de más reciente a más antigua con etiquetas legibles (*"Noviembre - Diciembre 2026"*, *"Septiembre - Octubre 2026"*, etc.).
+       - **Borrado limpio previo y feedback visual:** antes de insertar las nuevas semanas, elimina secuencialmente las asignaciones, partes y semanas previas en Supabase. Durante el proceso, las tarjetas de las semanas se muestran oscurecidas/atenuadas con `pointer-events-none` (no cliqueables), con loader animado centrado y toast informativo: *"Eliminando semanas anteriores y cargando las nuevas..."*.
+       - **Fallback manual:** botón *"Subir EPUB manualmente"* con explorador de archivos local 100% conservado y unificado a través de `procesarArchivoEPUB`.
+
 

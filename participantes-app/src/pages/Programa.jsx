@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
+  RefreshCw,
   Clock,
   AlertTriangle,
   Info,
@@ -40,6 +41,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Dialog } from '../components/ui/Dialog'
 
@@ -125,6 +127,28 @@ function getMesAnterior(mes) {
   const idx = MESES_NOMBRES.indexOf(mes)
   if (idx <= 0) return MESES_NOMBRES[11]
   return MESES_NOMBRES[idx - 1]
+}
+
+// ── Formatear issue bimestral YYYYMM (Brief #31) ─────────────
+function formatearIssueLegible(issue) {
+  if (!issue || typeof issue !== 'string' || issue.length !== 6) return issue || ''
+  const anio = issue.slice(0, 4)
+  const mesNum = parseInt(issue.slice(4, 6), 10)
+  const bimestres = {
+    1: 'Enero - Febrero',
+    2: 'Enero - Febrero',
+    3: 'Marzo - Abril',
+    4: 'Marzo - Abril',
+    5: 'Mayo - Junio',
+    6: 'Mayo - Junio',
+    7: 'Julio - Agosto',
+    8: 'Julio - Agosto',
+    9: 'Septiembre - Octubre',
+    10: 'Septiembre - Octubre',
+    11: 'Noviembre - Diciembre',
+    12: 'Noviembre - Diciembre',
+  }
+  return `${bimestres[mesNum] || `Bimestre ${mesNum}`} ${anio}`
 }
 
 // ── Detección de Conflictos de Rotación (Brief #28) ────────────
@@ -961,14 +985,31 @@ function TarjetaSemana({
     return asigParte.some(a => a.rol === 'principal') && !necesitaRec
   }).length
 
+  const hayAsignaciones = partesContables.some(p => {
+    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+    return !!asigP?.clave
+  })
+
+  const todasAsignadas =
+    totalPartes > 0 &&
+    partesContables.every(p => {
+      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+      return !!asigP?.clave
+    })
+
   const todasSugeridas =
     totalPartes > 0 &&
     partesContables.every(p => {
       const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
       return asigP?.clave && asigP.sugerido_por_app === true
     })
-  const mostrarBotonRevisar = todasSugeridas && confirmadas === 0
-  const mostrarBotonSugerir = !todasSugeridas && confirmadas < totalPartes && totalPartes > 0
+
+  // Visible si hay asignaciones para revisar y la semana aún no está 100% confirmada
+  const mostrarBotonRevisar =
+    totalPartes > 0 && confirmadas < totalPartes && (hayAsignaciones || todasSugeridas)
+  // Visible si faltan partes por asignar y aún no está 100% confirmada
+  const mostrarBotonSugerir =
+    !todasAsignadas && confirmadas < totalPartes && totalPartes > 0
 
   const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
@@ -1043,6 +1084,7 @@ function TarjetaSemana({
               <Button
                 variant="secondary"
                 size="xs"
+                icon={CheckCircle2}
                 onClick={e => {
                   e.stopPropagation()
                   onRevisarSemana?.(semana)
@@ -1120,7 +1162,17 @@ function TarjetaSemana({
                   icon={Sparkles}
                   onClick={() => onSugerirSemana?.(semana.id)}
                 >
-                  {todasSugeridas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                  {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                </Button>
+              )}
+              {mostrarBotonRevisar && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={CheckCircle2}
+                  onClick={() => onRevisarSemana?.(semana)}
+                >
+                  Revisar y aprobar semana
                 </Button>
               )}
               <Button
@@ -1170,11 +1222,14 @@ function RevisarSemanaModal({
 
     const personaP = asigP?.clave ? personas.find(p => p.clave === asigP.clave) : null
     const personaA = asigA?.clave ? personas.find(p => p.clave === asigA.clave) : null
+    const yaConfirmada = !!asigP?.confirmado
 
-    let estado = 'verde' // 'verde' | 'amarillo' | 'rojo'
+    let estado = 'verde' // 'verde' | 'amarillo' | 'rojo' | 'confirmada'
     let advertencias = []
 
-    if (!asigP?.clave || !personaP) {
+    if (yaConfirmada) {
+      estado = 'confirmada'
+    } else if (!asigP?.clave || !personaP) {
       estado = 'rojo'
     } else {
       const confsP = evaluarConflictosPersona(
@@ -1228,7 +1283,7 @@ function RevisarSemanaModal({
     }
     const initial = {}
     partesEvaluadas.forEach(item => {
-      // 🟢 pre-marcado, 🟡 desmarcado por defecto, 🔴 no seleccionable
+      // 🟢 pre-marcado, 🟡 desmarcado por defecto, 🔴 o confirmada no seleccionable
       if (item.estado === 'verde') {
         initial[item.parte.id] = true
       } else {
@@ -1241,6 +1296,8 @@ function RevisarSemanaModal({
   if (!isOpen || !semana) return null
 
   const totalPartes = partesSemana.length
+  const partesPendientes = partesEvaluadas.filter(p => p.estado !== 'confirmada')
+  const totalPendientes = partesPendientes.length
   const totalAdvertencias = partesEvaluadas.filter(p => p.estado === 'amarillo').length
   const seleccionadasCount = Object.values(seleccionadas).filter(Boolean).length
 
@@ -1261,12 +1318,12 @@ function RevisarSemanaModal({
       isOpen={isOpen}
       onClose={onClose}
       title={`Revisar semana — ${formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}`}
-      description={`${totalPartes} partes · ${totalAdvertencias} con advertencias`}
+      description={`${totalPartes} partes (${totalPendientes} pendientes) · ${totalAdvertencias} con advertencias`}
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
           <span className="text-xs text-text2 font-medium">
-            {seleccionadasCount} de {totalPartes} partes seleccionadas
+            {seleccionadasCount} de {totalPendientes} partes pendientes seleccionadas
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -1312,7 +1369,11 @@ function RevisarSemanaModal({
                     >
                       {/* Checkbox o Placeholder */}
                       <div className="pt-0.5 shrink-0">
-                        {estado !== 'rojo' ? (
+                        {estado === 'confirmada' ? (
+                          <div className="w-4 h-4 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </div>
+                        ) : estado !== 'rojo' ? (
                           <input
                             type="checkbox"
                             id={`chk-${parte.id}`}
@@ -1377,6 +1438,13 @@ function RevisarSemanaModal({
 
                       {/* Semáforo indicador / Enlace */}
                       <div className="shrink-0 flex flex-col items-end gap-1">
+                        {estado === 'confirmada' && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <Check className="w-3 h-3" />
+                            Confirmada
+                          </span>
+                        )}
+
                         {estado === 'verde' && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                             <CheckCircle2 className="w-3 h-3" />
@@ -1482,6 +1550,40 @@ export default function Programa() {
   const [semanaParaRevisar, setSemanaParaRevisar] = useState(null)
   const [isBatchSaving, setIsBatchSaving] = useState(false)
 
+  // ── Flujo EPUB Automático (Brief #31) ──
+  const [epubsDisponibles, setEpubsDisponibles] = useState([])
+  const [nuevoEpubDisponible, setNuevoEpubDisponible] = useState(null)
+  const [selectedEpubIssue, setSelectedEpubIssue] = useState('')
+  const [isSyncingEpubs, setIsSyncingEpubs] = useState(false)
+  const [menuGuiasOpen, setMenuGuiasOpen] = useState(false)
+  const menuGuiasRef = useRef(null)
+  const [mostrarFabS140, setMostrarFabS140] = useState(false)
+  const checkedEpubRef = useRef(false)
+
+  // Cerrar menú de guías al hacer clic fuera
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuGuiasRef.current && !menuGuiasRef.current.contains(event.target)) {
+        setMenuGuiasOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Mostrar FAB flotante de Descargar S-140 al hacer scroll hacia abajo
+  useEffect(() => {
+    function handleScroll() {
+      if (window.scrollY > 200) {
+        setMostrarFabS140(true)
+      } else {
+        setMostrarFabS140(false)
+      }
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   const { toast, showToast, success, error: toastError, dismiss } = useToast()
   const { confirm, confirmProps } = useConfirm()
 
@@ -1534,6 +1636,38 @@ export default function Programa() {
         setHistorial(his || [])
         const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
         if (nombreCfg) setCongregacion(nombreCfg)
+
+        // Si las semanas en BD ya tienen cargada la versión sugerida en el banner, descartarla automáticamente
+        if (sem && sem.length > 0) {
+          setNuevoEpubDisponible(prev => {
+            if (!prev) return null
+            const yaCargado = sem.some(
+              s =>
+                s.epub_filename === prev.filename ||
+                (prev.issue &&
+                  String(s.anio) === prev.issue.slice(0, 4) &&
+                  ((prev.issue.endsWith('11') &&
+                    (s.mes?.toLowerCase().includes('noviembre') ||
+                      s.mes?.toLowerCase().includes('diciembre'))) ||
+                    (prev.issue.endsWith('09') &&
+                      (s.mes?.toLowerCase().includes('septiembre') ||
+                        s.mes?.toLowerCase().includes('octubre'))) ||
+                    (prev.issue.endsWith('07') &&
+                      (s.mes?.toLowerCase().includes('julio') ||
+                        s.mes?.toLowerCase().includes('agosto'))) ||
+                    (prev.issue.endsWith('05') &&
+                      (s.mes?.toLowerCase().includes('mayo') ||
+                        s.mes?.toLowerCase().includes('junio'))) ||
+                    (prev.issue.endsWith('03') &&
+                      (s.mes?.toLowerCase().includes('marzo') ||
+                        s.mes?.toLowerCase().includes('abril'))) ||
+                    (prev.issue.endsWith('01') &&
+                      (s.mes?.toLowerCase().includes('enero') ||
+                        s.mes?.toLowerCase().includes('febrero')))))
+            )
+            return yaCargado ? null : prev
+          })
+        }
 
         // ── Detección de programa completado al 100% en la sesión activa ──
         const semList = sem || []
@@ -1619,46 +1753,160 @@ export default function Programa() {
     return () => supabase.removeChannel(canal)
   }, [fetchData])
 
-  // ── Subir y parsear EPUB ──────────────────────────────────
-  async function handleEPUB(e) {
-    const file = e.target.files[0]
-    if (!file) return
+  // ── Flujo EPUB Automático (Brief #31) ───────────────────────
+  const cargarEpubsDisponibles = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('epub_disponibles')
+        .select('*')
+        .order('issue', { ascending: false })
+      if (!error && data) {
+        setEpubsDisponibles(data)
+      }
+    } catch (err) {
+      console.warn('No se pudieron consultar epub_disponibles:', err)
+    }
+  }, [])
+
+  // Función para sincronizar las guías EPUB con Supabase Storage y JW.org
+  const sincronizarGuiaEpub = useCallback(async (manual = false) => {
+    if (manual) {
+      setIsSyncingEpubs(true)
+      showToast('Buscando guías en JW.org...')
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-epub', {
+        body: { sync: true },
+      })
+      console.log('[fetch-epub sincronización]', data, error)
+
+      if (!error && data) {
+        if (data.epubs && data.epubs.length > 0) {
+          setEpubsDisponibles(data.epubs)
+        } else {
+          await cargarEpubsDisponibles()
+        }
+
+        if (manual) {
+          if (data.downloadedCount > 0) {
+            success(`${data.downloadedCount} nueva(s) guía(s) descargada(s)`)
+          } else {
+            showToast('Las guías ya están sincronizadas')
+          }
+        }
+
+        // Verificar si la última edición disponible en Storage ya está cargada en el programa
+        const latest = data.latestEpub
+        if (latest) {
+          const { data: semActuales } = await supabase
+            .from('programa_semanas')
+            .select('epub_filename, anio, mes')
+
+          const yaCargado = semActuales?.some(
+            s =>
+              s.epub_filename === latest.filename ||
+              (latest.issue &&
+                String(s.anio) === latest.issue.slice(0, 4) &&
+                ((latest.issue.endsWith('11') &&
+                  (s.mes?.toLowerCase().includes('noviembre') ||
+                    s.mes?.toLowerCase().includes('diciembre'))) ||
+                  (latest.issue.endsWith('09') &&
+                    (s.mes?.toLowerCase().includes('septiembre') ||
+                      s.mes?.toLowerCase().includes('octubre'))) ||
+                  (latest.issue.endsWith('07') &&
+                    (s.mes?.toLowerCase().includes('julio') ||
+                      s.mes?.toLowerCase().includes('agosto'))) ||
+                  (latest.issue.endsWith('05') &&
+                    (s.mes?.toLowerCase().includes('mayo') ||
+                      s.mes?.toLowerCase().includes('junio'))) ||
+                  (latest.issue.endsWith('03') &&
+                    (s.mes?.toLowerCase().includes('marzo') ||
+                      s.mes?.toLowerCase().includes('abril'))) ||
+                  (latest.issue.endsWith('01') &&
+                    (s.mes?.toLowerCase().includes('enero') ||
+                      s.mes?.toLowerCase().includes('febrero')))))
+          )
+          if (!yaCargado) {
+            setNuevoEpubDisponible(latest)
+          } else {
+            setNuevoEpubDisponible(null)
+          }
+        }
+      } else if (error) {
+        console.error('[fetch-epub error]', error)
+        if (manual) toastError('Error al sincronizar: ' + (error.message || 'Error desconocido'))
+      }
+    } catch (err) {
+      console.warn('Sincronización de EPUB omitida o error de red:', err)
+      if (manual) toastError('Error de red al sincronizar guías')
+    } finally {
+      if (manual) setIsSyncingEpubs(false)
+    }
+  }, [cargarEpubsDisponibles, showToast, success, toastError])
+
+  // Al montar la vista, invocar sincronización de guías
+  useEffect(() => {
+    if (checkedEpubRef.current) return
+    checkedEpubRef.current = true
+
+    cargarEpubsDisponibles()
+    sincronizarGuiaEpub(false)
+  }, [cargarEpubsDisponibles, sincronizarGuiaEpub])
+
+  // Función centralizada para procesar un archivo EPUB (sea de File input o Blob de Storage)
+  // Borra limpiamente las semanas previas antes de insertar las nuevas
+  async function procesarArchivoEPUB(fileOrBlob, filename) {
     setUploading(true)
-    showToast('Procesando archivo EPUB...')
+    showToast('Eliminando semanas anteriores y cargando las nuevas...')
 
     try {
-      const semanasParsed = await parsearEPUB(file)
+      // 1. Borrar asignaciones, partes y semanas existentes en Supabase
+      await supabase
+        .from('programa_asignaciones')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+
+      await supabase
+        .from('programa_partes')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+
+      await supabase
+        .from('programa_semanas')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+
+      // 2. Extraer y procesar las semanas desde el archivo EPUB
+      const semanasParsed = await parsearEPUB(fileOrBlob)
       let insertadas = 0
 
       for (const s of semanasParsed) {
         const { data: semData, error: semError } = await supabase
           .from('programa_semanas')
-          .upsert(
-            {
-              fecha_inicio: s.fecha_inicio,
-              fecha_fin: s.fecha_fin,
-              capitulo_biblico: s.capitulo_biblico,
-              cancion_apertura: s.cancion_apertura,
-              cancion_vc: s.cancion_vc,
-              cancion_cierre: s.cancion_cierre,
-              mes: s.fecha_inicio
-                ? new Date(s.fecha_inicio + 'T12:00:00')
-                    .toLocaleString('es-MX', { month: 'long' })
-                    .replace(/^\w/, c => c.toUpperCase())
-                : '',
-              anio: s.fecha_inicio
-                ? new Date(s.fecha_inicio + 'T12:00:00').getFullYear()
-                : new Date().getFullYear(),
-              epub_filename: file.name,
-            },
-            { onConflict: 'fecha_inicio,fecha_fin', ignoreDuplicates: false }
-          )
+          .insert({
+            fecha_inicio: s.fecha_inicio,
+            fecha_fin: s.fecha_fin,
+            capitulo_biblico: s.capitulo_biblico,
+            cancion_apertura: s.cancion_apertura,
+            cancion_vc: s.cancion_vc,
+            cancion_cierre: s.cancion_cierre,
+            mes: s.fecha_inicio
+              ? new Date(s.fecha_inicio + 'T12:00:00')
+                  .toLocaleString('es-MX', { month: 'long' })
+                  .replace(/^\w/, c => c.toUpperCase())
+              : '',
+            anio: s.fecha_inicio
+              ? new Date(s.fecha_inicio + 'T12:00:00').getFullYear()
+              : new Date().getFullYear(),
+            epub_filename: filename,
+          })
           .select()
           .single()
 
-        if (semError || !semData) continue
-
-        await supabase.from('programa_partes').delete().eq('semana_id', semData.id)
+        if (semError || !semData) {
+          console.error('Error insertando semana del EPUB:', semError)
+          continue
+        }
 
         const partesPayload = s.partes.map((p, i) => ({
           semana_id: semData.id,
@@ -1683,14 +1931,45 @@ export default function Programa() {
       }
 
       success(`${insertadas} semanas importadas exitosamente`)
-      e.target.value = ''
+      setNuevoEpubDisponible(null)
       await fetchData()
     } catch (err) {
       console.error(err)
       toastError('Error al procesar el EPUB: ' + err.message)
+    } finally {
+      setUploading(false)
     }
+  }
 
-    setUploading(false)
+  // Subida manual desde explorador de archivos (fallback)
+  async function handleEPUB(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await procesarArchivoEPUB(file, file.name)
+    e.target.value = ''
+  }
+
+  // Descarga y procesamiento de EPUB desde Supabase Storage
+  async function handleSeleccionarEpubStorage(filename) {
+    if (!filename) return
+    setUploading(true)
+    showToast('Descargando Guía EPUB desde Storage...')
+    try {
+      const { data: blob, error: downloadError } = await supabase
+        .storage
+        .from('epubs')
+        .download(filename)
+
+      if (downloadError) {
+        throw new Error(downloadError.message || 'No se pudo descargar el archivo de Supabase Storage')
+      }
+
+      await procesarArchivoEPUB(blob, filename)
+    } catch (err) {
+      console.error('Error al descargar EPUB de Storage:', err)
+      toastError('Error al descargar EPUB: ' + err.message)
+      setUploading(false)
+    }
   }
 
   async function handleAsignar(parteId, clave, rol, existingId) {
@@ -2124,15 +2403,19 @@ export default function Programa() {
       if (updateError) throw updateError
 
       setSemanaParaRevisar(null)
-      const totalConfirmadas = partesSemana.length
+      const totalConfirmadas = idsSeleccionados.length
       success(`${totalConfirmadas} partes confirmadas`)
 
-      // Si todas las partes de la semana quedaron confirmadas, disparar también el toast del Brief #23
+      // Si todas las partes contables de la semana quedaron confirmadas, disparar también el toast del Brief #23
       const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
       const partesContablesSemana = partes.filter(
         p => p.semana_id === semana.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
       )
-      if (totalConfirmadas === partesContablesSemana.length) {
+      const todasQuedanConfirmadas = partesContablesSemana.every(p => {
+        const asig = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+        return idsSeleccionados.includes(p.id) || asig?.confirmado
+      })
+      if (todasQuedanConfirmadas) {
         success('¡Semana completada al 100%!')
       }
 
@@ -2438,6 +2721,46 @@ export default function Programa() {
 
   return (
     <div className="space-y-5">
+      {/* ── BANNER PERSISTENTE NUEVO EPUB DISPONIBLE (Brief #31) ── */}
+      {nuevoEpubDisponible && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 p-3.5 sm:p-4 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/90 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-400/20 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-blue-900 dark:text-blue-100">
+                Nuevo EPUB disponible — Guía de Actividades {formatearIssueLegible(nuevoEpubDisponible.issue)}
+              </p>
+              <p className="text-[11px] text-blue-700/90 dark:text-blue-300/80">
+                Obtenido automáticamente desde JW.org. Puedes aplicarlo directamente a la planificación o ignorarlo.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <Button
+              variant="accent"
+              size="sm"
+              loading={uploading}
+              onClick={async () => {
+                const fn = nuevoEpubDisponible?.filename
+                setNuevoEpubDisponible(null)
+                if (fn) await handleSeleccionarEpubStorage(fn)
+              }}
+            >
+              Usar este
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setNuevoEpubDisponible(null)}
+            >
+              Ignorar
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── HEADER Y ACCIONES PRINCIPALES ── */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
@@ -2510,9 +2833,9 @@ export default function Programa() {
             </button>
           </div>
 
-          {/* Botón Subir EPUB */}
+          {/* Sub-menú de Guías de Actividades (Brief #31) */}
           {!modoLectura && (
-            <div>
+            <div className="relative" ref={menuGuiasRef}>
               <input
                 type="file"
                 id="epubInput"
@@ -2520,15 +2843,121 @@ export default function Programa() {
                 className="hidden"
                 onChange={handleEPUB}
               />
+
               <Button
                 variant="outline"
                 size="md"
-                icon={Upload}
-                loading={uploading}
-                onClick={() => document.getElementById('epubInput').click()}
+                disabled={uploading}
+                onClick={() => setMenuGuiasOpen(prev => !prev)}
+                className="flex items-center gap-1.5"
+                title="Ver guías disponibles y opciones de carga"
               >
-                {uploading ? 'Importando...' : 'Subir EPUB'}
+                <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Guías de actividades</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-text3 transition-transform duration-200 ${
+                    menuGuiasOpen ? 'rotate-180' : ''
+                  }`}
+                />
               </Button>
+
+              {menuGuiasOpen && (
+                <div className="absolute right-0 mt-1.5 w-72 rounded-xl bg-surface border border-zinc-200/90 dark:border-zinc-800/90 shadow-xl py-1.5 z-50 animate-fade-in text-xs">
+                  {/* Encabezado del sub-menú */}
+                  <div className="px-3 py-1.5 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 mb-1">
+                    <span className="font-semibold text-text1 text-[11px] uppercase tracking-wider">
+                      Guías disponibles
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isSyncingEpubs}
+                      onClick={e => {
+                        e.stopPropagation()
+                        sincronizarGuiaEpub(true)
+                      }}
+                      className="text-text3 hover:text-text1 p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      title="Sincronizar desde JW.org"
+                    >
+                      <RefreshCw
+                        className={`w-3 h-3 ${isSyncingEpubs ? 'animate-spin text-emerald-600' : ''}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Lista de guías en Storage */}
+                  <div className="max-h-56 overflow-y-auto px-1 space-y-0.5">
+                    {epubsDisponibles.length === 0 ? (
+                      <div className="px-3 py-3 text-center text-text3 text-[11px]">
+                        No hay guías sincronizadas todavía
+                      </div>
+                    ) : (
+                      epubsDisponibles.map(item => {
+                        const esActiva =
+                          semanas.length > 0 &&
+                          semanas.some(s => s.epub_filename === item.filename)
+                        return (
+                          <button
+                            key={item.id || item.issue}
+                            type="button"
+                            disabled={uploading}
+                            onClick={async () => {
+                              setMenuGuiasOpen(false)
+                              await handleSeleccionarEpubStorage(item.filename)
+                            }}
+                            className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${
+                              esActiva
+                                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 font-medium'
+                                : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-text1'
+                            }`}
+                          >
+                            <span className="truncate pr-2">
+                              {formatearIssueLegible(item.issue)}
+                            </span>
+                            {esActiva ? (
+                              <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded-full">
+                                <Check className="w-3 h-3" />
+                                Activa
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {/* Acciones secundarias */}
+                  <div className="mt-1 pt-1 border-t border-zinc-100 dark:border-zinc-800/80 px-1 space-y-0.5">
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => {
+                        setMenuGuiasOpen(false)
+                        document.getElementById('epubInput').click()
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-text3" />
+                      <span>Subir EPUB manualmente</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSyncingEpubs}
+                      onClick={() => sincronizarGuiaEpub(true)}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 text-text3 ${isSyncingEpubs ? 'animate-spin text-emerald-600' : ''}`}
+                      />
+                      <span>
+                        {isSyncingEpubs
+                          ? 'Buscando en JW.org...'
+                          : 'Buscar actualizaciones en JW.org'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2547,53 +2976,98 @@ export default function Programa() {
 
       {/* ── VISTA POR SEMANAS ── */}
       {vistaTab === 'semanas' && (
-        <div className="space-y-3">
-          {semanas.length === 0 ? (
-            <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-16 px-6 text-center flex flex-col items-center justify-center min-h-[380px] shadow-2xs">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-center mb-4 text-emerald-700 dark:text-emerald-300">
-                <Calendar className="w-8 h-8" />
+        <div
+          className={`space-y-4 relative transition-all duration-300 ${
+            uploading ? 'pointer-events-none select-none' : ''
+          }`}
+        >
+          {/* Overlay visual: vista oscurecida, no cliqueable con feedback claro */}
+          {uploading && (
+            <div className="absolute inset-0 z-30 bg-zinc-950/40 dark:bg-black/60 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-fade-in min-h-[260px]">
+              <div className="bg-surface/95 dark:bg-zinc-900/95 border border-zinc-200/90 dark:border-zinc-800/90 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3.5 max-w-sm">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-emerald-600 dark:border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs sm:text-sm font-semibold text-text1">
+                    Eliminando semanas anteriores y cargando las nuevas
+                  </h4>
+                  <p className="text-[11px] text-text3 leading-relaxed">
+                    Preparando la base de datos y procesando la nueva Guía de Actividades...
+                  </p>
+                </div>
               </div>
-              <h3 className="text-base font-semibold text-text1">Sin semanas del programa</h3>
-              <p className="text-xs text-text3 max-w-md mt-1.5 mb-6 leading-relaxed">
-                Aún no has importado el calendario de reuniones. Sube el archivo EPUB de la Guía de
-                Actividades de la Reunión Vida y Ministerio Cristianos (mwb) para comenzar.
-              </p>
-              <Button
-                variant="accent"
-                size="md"
-                icon={Upload}
-                onClick={() => document.getElementById('epubInput').click()}
-              >
-                Subir archivo EPUB mwb
-              </Button>
             </div>
-          ) : (
-            semanas.map(s => {
-              const partesSemana = partes.filter(p => p.semana_id === s.id)
-              const asigSemana = asignaciones.filter(a =>
-                partesSemana.some(p => p.id === a.parte_id)
-              )
-              return (
-                <TarjetaSemana
-                  key={s.id}
-                  semana={s}
-                  partes={partesSemana}
-                  asignaciones={asigSemana}
-                  personas={personas}
-                  historial={historial}
-                  onAsignar={handleAsignar}
-                  onConfirmar={handleConfirmar}
-                  onConfirmarTodo={handleConfirmarTodo}
-                  onEliminarSemana={handleEliminarSemana}
-                  expandida={!!expandedWeeks[s.id]}
-                  onToggleExpand={() => handleToggleExpand(s.id)}
-                  modoLectura={modoLectura}
-                  onRevisarSemana={setSemanaParaRevisar}
-                  onSugerirSemana={handleCompletarConSugerencias}
-                />
-              )
-            })
           )}
+
+          <div
+            className={`space-y-4 transition-opacity duration-200 ${
+              uploading
+                ? 'opacity-30 filter grayscale-[50%]'
+                : ''
+            }`}
+          >
+            {semanas.length === 0 ? (
+              <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-16 px-6 text-center flex flex-col items-center justify-center min-h-[380px] shadow-2xs">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-center mb-4 text-emerald-700 dark:text-emerald-300">
+                  <Calendar className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-semibold text-text1">Sin semanas del programa</h3>
+                <p className="text-xs text-text3 max-w-md mt-1.5 mb-6 leading-relaxed">
+                  Aún no has importado el calendario de reuniones. Selecciona una Guía de Actividades
+                  disponible o sube el archivo EPUB (mwb) manualmente para comenzar.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {epubsDisponibles.length > 0 && (
+                    <Button
+                      variant="accent"
+                      size="md"
+                      icon={BookOpen}
+                      loading={uploading}
+                      onClick={() => handleSeleccionarEpubStorage(epubsDisponibles[0].filename)}
+                    >
+                      Cargar {formatearIssueLegible(epubsDisponibles[0].issue)}
+                    </Button>
+                  )}
+                  <Button
+                    variant={epubsDisponibles.length > 0 ? 'outline' : 'accent'}
+                    size="md"
+                    icon={Upload}
+                    loading={uploading}
+                    onClick={() => document.getElementById('epubInput').click()}
+                  >
+                    Subir archivo EPUB mwb
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              semanas.map(s => {
+                const partesSemana = partes.filter(p => p.semana_id === s.id)
+                const asigSemana = asignaciones.filter(a =>
+                  partesSemana.some(p => p.id === a.parte_id)
+                )
+                return (
+                  <TarjetaSemana
+                    key={s.id}
+                    semana={s}
+                    partes={partesSemana}
+                    asignaciones={asigSemana}
+                    personas={personas}
+                    historial={historial}
+                    onAsignar={handleAsignar}
+                    onConfirmar={handleConfirmar}
+                    onConfirmarTodo={handleConfirmarTodo}
+                    onEliminarSemana={handleEliminarSemana}
+                    expandida={!!expandedWeeks[s.id]}
+                    onToggleExpand={() => handleToggleExpand(s.id)}
+                    modoLectura={modoLectura}
+                    onRevisarSemana={setSemanaParaRevisar}
+                    onSugerirSemana={handleCompletarConSugerencias}
+                  />
+                )
+              })
+            )}
+          </div>
         </div>
       )}
 
@@ -2770,6 +3244,19 @@ export default function Programa() {
         onAsignarManual={handleAsignarManual}
         isBatchSaving={isBatchSaving}
       />
+
+      {/* ── BOTÓN FLOTANTE S-140 AL HACER SCROLL ── */}
+      {mostrarFabS140 && semanas.length > 0 && (
+        <button
+          type="button"
+          onClick={handleGenerarDocx}
+          title="Descargar programa S-140 (.docx)"
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white text-xs font-semibold rounded-full shadow-2xl hover:shadow-emerald-900/30 transition-all duration-200 cursor-pointer animate-fade-in hover:scale-105"
+        >
+          <FileDown className="w-4 h-4" />
+          <span>Descargar S-140</span>
+        </button>
+      )}
 
       <Toast toast={toast} onDismiss={dismiss} />
       <ConfirmDialog {...confirmProps} />

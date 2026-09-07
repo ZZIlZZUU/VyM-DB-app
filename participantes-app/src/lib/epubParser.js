@@ -62,7 +62,7 @@ const VC_START_MINUTES = 19 * 60 + 45
   }
   
   // Parser principal de un archivo xhtml de semana
-  function parsearSemana(xhtmlString) {
+  function parsearSemana(xhtmlString, defaultYear) {
     const parser = new DOMParser()
     const doc = parser.parseFromString(xhtmlString, 'text/html')
   
@@ -84,8 +84,7 @@ const VC_START_MINUTES = 19 * 60 + 45
     result.capitulo_biblico = h2?.textContent?.trim() || ''
   
     // Parsear fechas → fecha_inicio y fecha_fin
-    // Formato: "6-12 DE JULIO" o "27 DE JULIO A 2 DE AGOSTO"
-    const fechasParsed = parsearFechas(result.fechas_raw)
+    const fechasParsed = parsearFechas(result.fechas_raw, defaultYear)
     result.fecha_inicio = fechasParsed.inicio
     result.fecha_fin    = fechasParsed.fin
 
@@ -281,38 +280,81 @@ const VC_START_MINUTES = 19 * 60 + 45
   }
 
   // Parsear rango de fechas del encabezado
-  // Formatos: "6-12 DE JULIO", "27 DE JULIO A 2 DE AGOSTO", "31 DE AGOSTO A 6 DE SEPTIEMBRE"
-  const MESES_ES = {
-    'ENERO':1,'FEBRERO':2,'MARZO':3,'ABRIL':4,'MAYO':5,'JUNIO':6,
-    'JULIO':7,'AGOSTO':8,'SEPTIEMBRE':9,'OCTUBRE':10,'NOVIEMBRE':11,'DICIEMBRE':12
+  // Formatos: "6-12 DE JULIO", "27 DE JULIO A 2 DE AGOSTO", "31 DE AGOSTO A 6 DE SEPTIEMBRE", "28 DE DICIEMBRE DE 2026 A 3 DE ENERO DE 2027", etc.
+  export const MESES_ES = {
+    'ENERO': 1, 'FEBRERO': 2, 'MARZO': 3, 'ABRIL': 4, 'MAYO': 5, 'JUNIO': 6,
+    'JULIO': 7, 'AGOSTO': 8, 'SEPTIEMBRE': 9, 'OCTUBRE': 10, 'NOVIEMBRE': 11, 'DICIEMBRE': 12,
+    'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6,
+    'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12
   }
-  
-  function parsearFechas(texto) {
-    const t = texto.toUpperCase().trim()
-    const anio = new Date().getFullYear()
-  
-    // Formato: "27 DE JULIO A 2 DE AGOSTO"
-    const m2 = t.match(/(\d+)\s+DE\s+(\w+)\s+A\s+(\d+)\s+DE\s+(\w+)/)
-    if (m2) {
-      const d1 = parseInt(m2[1]), mes1 = MESES_ES[m2[2]] || 1
-      const d2 = parseInt(m2[3]), mes2 = MESES_ES[m2[4]] || 1
-      const anio2 = mes2 < mes1 ? anio + 1 : anio
-      return {
-        inicio: `${anio}-${String(mes1).padStart(2,'0')}-${String(d1).padStart(2,'0')}`,
-        fin:    `${anio2}-${String(mes2).padStart(2,'0')}-${String(d2).padStart(2,'0')}`,
+
+  export function parsearFechas(texto, defaultYear = new Date().getFullYear()) {
+    if (!texto) return { inicio: null, fin: null }
+
+    // 1. Normalizar caracteres invisibles, non-breaking spaces y guiones tipográficos
+    const t = texto
+      .replace(/[\u00A0\u200B\uFEFF]/g, ' ')
+      .replace(/[–—−]/g, '-')
+      .replace(/\s+/g, ' ')
+      .toUpperCase()
+      .trim()
+
+    // Extraer año por defecto si hay alguno explícito en el texto
+    const explicitYears = Array.from(t.matchAll(/\b(20\d{2})\b/g)).map(m => parseInt(m[1], 10))
+    const fallbackYear = explicitYears[0] || defaultYear
+
+    // Caso 1: Rango entre dos meses distintos
+    // Ejemplos:
+    // - "28 DE DICIEMBRE DE 2026 A 3 DE ENERO DE 2027"
+    // - "28 DE DICIEMBRE DE 2026 AL 3 DE ENERO DE 2027"
+    // - "29 DE DICIEMBRE DE 2025 A 4 DE ENERO DE 2026"
+    // - "30 DE NOVIEMBRE A 6 DE DICIEMBRE"
+    // - "30 DE NOVIEMBRE AL 6 DE DICIEMBRE"
+    // - "30 DE NOVIEMBRE - 6 DE DICIEMBRE"
+    // - "27 DE JULIO A 2 DE AGOSTO"
+    // - "27 DE JULIO AL 2 DE AGOSTO"
+    // - "31 DE AGOSTO A 6 DE SEPTIEMBRE"
+    const mRangoMeses = t.match(
+      /(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚÑ]+)(?:\s+DE\s+(\d{4}))?\s*(?:A|AL|-)\s*(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚÑ]+)(?:\s+DE\s+(\d{4}))?/
+    )
+    if (mRangoMeses) {
+      const d1 = parseInt(mRangoMeses[1], 10)
+      const mes1 = MESES_ES[mRangoMeses[2]]
+      const d2 = parseInt(mRangoMeses[4], 10)
+      const mes2 = MESES_ES[mRangoMeses[5]]
+
+      if (mes1 && mes2 && d1 >= 1 && d1 <= 31 && d2 >= 1 && d2 <= 31) {
+        let y1 = mRangoMeses[3] ? parseInt(mRangoMeses[3], 10) : fallbackYear
+        let y2 = mRangoMeses[6] ? parseInt(mRangoMeses[6], 10) : (mes2 < mes1 ? y1 + 1 : y1)
+
+        return {
+          inicio: `${y1}-${String(mes1).padStart(2, '0')}-${String(d1).padStart(2, '0')}`,
+          fin:    `${y2}-${String(mes2).padStart(2, '0')}-${String(d2).padStart(2, '0')}`,
+        }
       }
     }
-  
-    // Formato: "6-12 DE JULIO"
-    const m1 = t.match(/(\d+)-(\d+)\s+DE\s+(\w+)/)
-    if (m1) {
-      const d1 = parseInt(m1[1]), d2 = parseInt(m1[2]), mes = MESES_ES[m1[3]] || 1
-      return {
-        inicio: `${anio}-${String(mes).padStart(2,'0')}-${String(d1).padStart(2,'0')}`,
-        fin:    `${anio}-${String(mes).padStart(2,'0')}-${String(d2).padStart(2,'0')}`,
+
+    // Caso 2: Rango dentro del mismo mes
+    // Ejemplos:
+    // - "2-8 DE NOVIEMBRE"
+    // - "2 - 8 DE NOVIEMBRE"
+    // - "2-8 DE NOVIEMBRE DE 2026"
+    // - "6-12 DE JULIO"
+    const mMismoMes = t.match(/(\d{1,2})\s*-\s*(\d{1,2})\s+DE\s+([A-ZÁÉÍÓÚÑ]+)(?:\s+DE\s+(\d{4}))?/)
+    if (mMismoMes) {
+      const d1 = parseInt(mMismoMes[1], 10)
+      const d2 = parseInt(mMismoMes[2], 10)
+      const mes = MESES_ES[mMismoMes[3]]
+      const y = mMismoMes[4] ? parseInt(mMismoMes[4], 10) : fallbackYear
+
+      if (mes && d1 >= 1 && d1 <= 31 && d2 >= 1 && d2 <= 31) {
+        return {
+          inicio: `${y}-${String(mes).padStart(2, '0')}-${String(d1).padStart(2, '0')}`,
+          fin:    `${y}-${String(mes).padStart(2, '0')}-${String(d2).padStart(2, '0')}`,
+        }
       }
     }
-  
+
     return { inicio: null, fin: null }
   }
   
@@ -346,31 +388,38 @@ const VC_START_MINUTES = 19 * 60 + 45
   
     // Directorio base del OPF
     const opfDir = opfFile.includes('/') ? opfFile.substring(0, opfFile.lastIndexOf('/') + 1) : ''
-  
+
+    // Extraer año por defecto del título o metadatos del EPUB
+    const titleEl = opfDoc.querySelector('title')
+    const dateEl = opfDoc.querySelector('date')
+    const metaText = (titleEl?.textContent || '') + ' ' + (dateEl?.textContent || '')
+    const yearMatch = metaText.match(/\b(20\d{2})\b/)
+    const defaultYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear()
+
     // Filtrar solo archivos de artículos de semana (excluir portada, índice, etc.)
     // Los artículos de semana tienen estructura con h1 de fechas
     const semanas = []
     let numero = 0
-  
+
     for (const idref of spineItems) {
       const href = manifest[idref]
       if (!href) continue
-  
+
       const fullPath = opfDir + href
       const zipFile  = zip.files[fullPath] || zip.files[href]
       if (!zipFile) continue
-  
+
       const content = await zipFile.async('string')
-  
-      // Solo procesar si tiene h1 con rango de fechas (patrón: número + "DE" + mes)
-      if (!/\d+.*DE\s+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)/i.test(content)) continue
-  
-      numero++
-      const semana = parsearSemana(content, numero)
-      if (semana.fecha_inicio) {
-        semanas.push(semana)
+
+      // Solo procesar si contiene mención de mes (tolerando espacios no rompibles)
+      if (!/DE[\s\u00A0]+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)/i.test(content)) continue
+
+      const semana = parsearSemana(content, defaultYear)
+      if (semana.fecha_inicio && semana.partes.length > 0) {
+        numero++
+        semanas.push({ ...semana, numero })
       }
     }
-  
+
     return semanas
   }

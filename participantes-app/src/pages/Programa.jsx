@@ -1571,18 +1571,51 @@ export default function Programa() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Mostrar FAB flotante de Descargar S-140 al hacer scroll hacia abajo
+  const botonS140TopRef = useRef(null)
+
+  // Mostrar FAB flotante de Descargar S-140 al hacer scroll hacia abajo o cuando el botón superior deja de ser visible
   useEffect(() => {
-    function handleScroll() {
-      if (window.scrollY > 200) {
-        setMostrarFabS140(true)
-      } else {
-        setMostrarFabS140(false)
+    const mainEl = document.querySelector('main')
+
+    function checkVisibility() {
+      // 1. Si el botón superior está montado, verificar si está fuera de la vista
+      if (botonS140TopRef.current) {
+        const rect = botonS140TopRef.current.getBoundingClientRect()
+        // Si el botón ya subió más allá del header (top <= 55px) o su bottom está arriba
+        if (rect.bottom < 65) {
+          setMostrarFabS140(true)
+          return
+        }
       }
+
+      // 2. Fallback por posición de scroll del elemento scrolleable de la app (<main>)
+      const scrollPos = mainEl ? mainEl.scrollTop : (window.scrollY || document.documentElement.scrollTop)
+      setMostrarFabS140(scrollPos > 150)
     }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+
+    if (mainEl) {
+      mainEl.addEventListener('scroll', checkVisibility, { passive: true })
+    }
+    window.addEventListener('scroll', checkVisibility, { passive: true, capture: true })
+
+    // Observer para detectar cuando el botón superior sale del viewport
+    let observer = null
+    if (typeof IntersectionObserver !== 'undefined' && botonS140TopRef.current) {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          setMostrarFabS140(!entry.isIntersecting)
+        },
+        { root: mainEl || null, threshold: 0.1 }
+      )
+      observer.observe(botonS140TopRef.current)
+    }
+
+    return () => {
+      if (mainEl) mainEl.removeEventListener('scroll', checkVisibility)
+      window.removeEventListener('scroll', checkVisibility, { capture: true })
+      if (observer) observer.disconnect()
+    }
+  }, [semanas.length])
 
   const { toast, showToast, success, error: toastError, dismiss } = useToast()
   const { confirm, confirmProps } = useConfirm()
@@ -1878,7 +1911,12 @@ export default function Programa() {
 
       // 2. Extraer y procesar las semanas desde el archivo EPUB
       const semanasParsed = await parsearEPUB(fileOrBlob)
+      if (!semanasParsed || semanasParsed.length === 0) {
+        throw new Error('No se encontraron semanas en el archivo EPUB. Comprueba que sea una Guía de Actividades válida.')
+      }
+
       let insertadas = 0
+      const errores = []
 
       for (const s of semanasParsed) {
         const { data: semData, error: semError } = await supabase
@@ -1905,6 +1943,7 @@ export default function Programa() {
 
         if (semError || !semData) {
           console.error('Error insertando semana del EPUB:', semError)
+          errores.push(`Semana ${s.fecha_inicio}: ${semError?.message || 'Error al insertar'}`)
           continue
         }
 
@@ -1923,14 +1962,18 @@ export default function Programa() {
         const { error: partesError } = await supabase.from('programa_partes').insert(partesPayload)
         if (partesError) {
           console.error('Error insertando partes del EPUB:', partesError)
-          toastError('Error al guardar partes del EPUB: ' + partesError.message)
+          errores.push(`Partes de ${s.fecha_inicio}: ${partesError.message}`)
           continue
         }
 
         insertadas++
       }
 
-      success(`${insertadas} semanas importadas exitosamente`)
+      if (errores.length > 0) {
+        toastError(`Se importaron ${insertadas} de ${semanasParsed.length} semanas. Hubo ${errores.length} errores:\n${errores.join(', ')}`)
+      } else {
+        success(`${insertadas} semanas importadas exitosamente`)
+      }
       setNuevoEpubDisponible(null)
       await fetchData()
     } catch (err) {
@@ -2963,6 +3006,7 @@ export default function Programa() {
 
           {/* Botón Generar S-140 */}
           <Button
+            ref={botonS140TopRef}
             variant="accent"
             size="md"
             icon={FileDown}

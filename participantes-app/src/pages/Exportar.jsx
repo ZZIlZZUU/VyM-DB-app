@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Download,
   Upload,
@@ -14,11 +14,23 @@ import {
   RotateCcw,
   X,
   FileText,
+  Trash2,
+  RefreshCw,
+  Cloud,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../hooks/useToast'
 import { useDragDrop } from '../hooks/useDragDrop'
+import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { formatFechaHora } from '../lib/fechas'
+import {
+  guardarBackupEnStorage,
+  obtenerBackupsDisponibles,
+  descargarBackupStorage,
+  eliminarBackupStorage,
+} from '../lib/backups'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -37,6 +49,14 @@ const PESO_MAP = {
 function downloadCSV(content, filename) {
   const BOM = '\uFEFF'
   const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+}
+
+function downloadJSON(content, filename) {
+  const blob = new Blob([content], { type: 'application/json;charset=utf-8;' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
   a.download = filename
@@ -102,6 +122,63 @@ export default function Exportar() {
   const [mesFin, setMesFin] = useState('')
   const [preview, setPreview] = useState(null)
   const { toast, success, warning, error: toastError } = useToast()
+  const { confirm, confirmProps } = useConfirm()
+
+  // Backups en Supabase Storage
+  const [backups, setBackups] = useState([])
+  const [filtroFormato, setFiltroFormato] = useState('todos')
+  const [loadingBackups, setLoadingBackups] = useState(false)
+  const [actionBackupId, setActionBackupId] = useState(null)
+
+  const cargarBackups = useCallback(async (formato = filtroFormato) => {
+    setLoadingBackups(true)
+    try {
+      const data = await obtenerBackupsDisponibles(formato)
+      setBackups(data)
+    } catch (err) {
+      console.error('Error al cargar backups de Supabase Storage:', err)
+    } finally {
+      setLoadingBackups(false)
+    }
+  }, [filtroFormato])
+
+  useEffect(() => {
+    cargarBackups(filtroFormato)
+  }, [filtroFormato, cargarBackups])
+
+  async function handleDescargarBackup(b) {
+    setActionBackupId(b.id)
+    try {
+      await descargarBackupStorage(b)
+      success(`Copia "${b.filename}" descargada`)
+    } catch (err) {
+      console.error('Error al descargar backup:', err)
+      toastError('No se pudo descargar la copia de seguridad')
+    } finally {
+      setActionBackupId(null)
+    }
+  }
+
+  async function handleEliminarBackup(b) {
+    const ok = await confirm({
+      title: 'Eliminar copia de seguridad',
+      message: `¿Estás seguro de que deseas eliminar permanentemente "${b.filename}" de la nube?`,
+      danger: true,
+    })
+    if (!ok) return
+
+    setActionBackupId(b.id)
+    try {
+      await eliminarBackupStorage(b)
+      success(`Copia "${b.filename}" eliminada`)
+      await cargarBackups(filtroFormato)
+    } catch (err) {
+      console.error('Error al eliminar backup:', err)
+      toastError('No se pudo eliminar la copia de seguridad')
+    } finally {
+      setActionBackupId(null)
+    }
+  }
 
   const { isDragging: isDraggingPart, dropProps: dropPropsPart } = useDragDrop(
     file => processFile(file, 'part')
@@ -148,11 +225,20 @@ export default function Exportar() {
             `${p.clave},${p.lista},"${p.nombre}",${p.sexo},${p.estatus},${p.activo}`
         )
         .join('\n')
+      const fullCsv = header + '\n' + body
       downloadCSV(
-        header + '\n' + body,
+        fullCsv,
         lista ? `participantes_${lista}.csv` : 'participantes.csv'
       )
       success('CSV de participantes descargado')
+
+      // Respaldo en la nube en segundo plano (no bloquea al usuario)
+      guardarBackupEnStorage({ contenido: fullCsv, formato: 'csv' })
+        .then(() => cargarBackups(filtroFormato))
+        .catch(err => {
+          console.error('Aviso al guardar backup en segundo plano:', err)
+          toastError('No se pudo guardar el backup en la nube')
+        })
     } catch (err) {
       console.error(err)
       toastError('Error al exportar: ' + (err?.message || 'Error de red'))
@@ -172,11 +258,20 @@ export default function Exportar() {
             `${r.id},${r.clave},"${r.nombre}",${r.lista},${r.fecha},${r.mes},${r.tipo},${r.peso},"${r.observaciones || ''}"`
         )
         .join('\n')
+      const fullCsv = header + '\n' + body
       downloadCSV(
-        header + '\n' + body,
+        fullCsv,
         lista ? `participaciones_${lista}.csv` : 'participaciones.csv'
       )
       success('CSV de participaciones descargado')
+
+      // Respaldo en la nube en segundo plano (no bloquea al usuario)
+      guardarBackupEnStorage({ contenido: fullCsv, formato: 'csv' })
+        .then(() => cargarBackups(filtroFormato))
+        .catch(err => {
+          console.error('Aviso al guardar backup en segundo plano:', err)
+          toastError('No se pudo guardar el backup en la nube')
+        })
     } catch (err) {
       console.error(err)
       toastError('Error al exportar: ' + (err?.message || 'Error de red'))
@@ -214,13 +309,22 @@ export default function Exportar() {
         fetchParticipaciones(),
       ])
       const json = JSON.stringify({ personas, participaciones }, null, 2)
+      downloadJSON(json, 'respaldo.json')
       copyToClipboard(json, () => {
-        setLoading('')
-        success('JSON completo copiado al portapapeles')
+        success('Respaldo JSON descargado y copiado al portapapeles')
       })
+
+      // Respaldo en la nube en segundo plano (no bloquea al usuario)
+      guardarBackupEnStorage({ contenido: json, formato: 'json' })
+        .then(() => cargarBackups(filtroFormato))
+        .catch(err => {
+          console.error('Aviso al guardar backup en segundo plano:', err)
+          toastError('No se pudo guardar el backup en la nube')
+        })
     } catch (err) {
       console.error(err)
       toastError('Error al generar JSON: ' + (err?.message || 'Error de red'))
+    } finally {
       setLoading('')
     }
   }
@@ -565,11 +669,11 @@ export default function Exportar() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  icon={Copy}
+                  icon={Download}
                   loading={isLoading('json')}
                   onClick={exportJSON}
                 >
-                  Copiar JSON
+                  Descargar JSON
                 </Button>
               </div>
             </div>
@@ -718,6 +822,149 @@ CREATE TABLE participaciones (
         </div>
       </div>
 
+      {/* ── SECCIÓN: BACKUPS EN LA NUBE (STORAGE) ── */}
+      <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80 gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+              <Cloud className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-text1">
+                  Backups en la Nube
+                </h3>
+                <Badge variant="neutral" size="xs">
+                  Supabase Storage
+                </Badge>
+              </div>
+              <p className="text-[11px] text-text3 mt-0.5">
+                Copias automáticas generadas al exportar. Se conservan hasta 10 copias por formato.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {/* Tabs de Filtro */}
+            <div className="inline-flex p-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200/80 dark:border-zinc-800/80 text-xs">
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'csv', label: 'CSV' },
+                { id: 'json', label: 'JSON' },
+                { id: 'pdf', label: 'PDF' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFiltroFormato(tab.id)}
+                  className={`px-2.5 py-1 font-medium rounded-md transition-all ${
+                    filtroFormato === tab.id
+                      ? 'bg-surface text-text1 shadow-2xs font-semibold'
+                      : 'text-text3 hover:text-text2'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              icon={RefreshCw}
+              loading={loadingBackups}
+              onClick={() => cargarBackups(filtroFormato)}
+              title="Actualizar lista de backups"
+            />
+          </div>
+        </div>
+
+        {/* Contenido: Lista o Empty State */}
+        {loadingBackups && backups.length === 0 ? (
+          <div className="py-10 text-center text-xs text-text3 flex items-center justify-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin text-text3" />
+            <span>Consultando copias en la nube...</span>
+          </div>
+        ) : backups.length === 0 ? (
+          <div className="py-10 text-center text-xs text-text3 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-1.5">
+            <Cloud className="w-7 h-7 mx-auto text-text3/50 stroke-[1.5]" />
+            <p className="font-medium text-text2">
+              No hay copias de seguridad {filtroFormato !== 'todos' ? `en formato ${filtroFormato.toUpperCase()}` : ''} disponibles
+            </p>
+            <p className="text-[11px] text-text3 max-w-sm mx-auto">
+              Cada vez que generes una exportación, se guardará automáticamente un respaldo en la nube.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden bg-zinc-50/40 dark:bg-zinc-900/40">
+            {backups.map(b => {
+              const isActioning = actionBackupId === b.id
+              const formatBadgeVariant =
+                b.formato === 'csv'
+                  ? 'success'
+                  : b.formato === 'json'
+                  ? 'purple'
+                  : 'danger'
+
+              const FormatIcon =
+                b.formato === 'csv'
+                  ? FileSpreadsheet
+                  : b.formato === 'json'
+                  ? FileCode
+                  : FileText
+
+              return (
+                <div
+                  key={b.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-surface border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center shrink-0">
+                      <FormatIcon className="w-4 h-4 text-text2" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-text1 font-mono truncate">
+                          {b.filename}
+                        </span>
+                        <Badge variant={formatBadgeVariant} size="xs">
+                          {b.formato.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-text3 mt-0.5">
+                        {formatFechaHora(b.generado_en)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      icon={Download}
+                      loading={isActioning}
+                      onClick={() => handleDescargarBackup(b)}
+                    >
+                      Descargar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      icon={Trash2}
+                      disabled={isActioning}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                      onClick={() => handleEliminarBackup(b)}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* ── MODAL DIALOG: PREVISUALIZACIÓN DE IMPORTACIÓN ── */}
       <Dialog
         isOpen={!!preview}
@@ -779,6 +1026,7 @@ CREATE TABLE participaciones (
         )}
       </Dialog>
 
+      <ConfirmDialog {...confirmProps} />
       <Toast toast={toast} />
     </div>
   )

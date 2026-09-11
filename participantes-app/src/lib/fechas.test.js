@@ -7,6 +7,7 @@ import {
   formatRangoSemanaPrograma,
   formatFechaSinAnio,
   formatFechaCorta,
+  formatFechaHora,
   getPrefFormatoFecha,
   MESES,
   MESES_ABBR,
@@ -121,6 +122,24 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
   describe('formatFechaSinAnio', () => {
     it('formatea "2026-10-26" a "26 oct"', () => {
       expect(formatFechaSinAnio('2026-10-26')).toBe('26 oct')
+    })
+  })
+
+  describe('formatFechaHora', () => {
+    it('formatea timestamp ISO con preferencia dd/mm/yyyy por defecto', () => {
+      const d = new Date(2025, 8, 1, 14, 30) // 1 sep 2025 14:30
+      expect(formatFechaHora(d)).toBe('01/09/2025, 14:30')
+    })
+
+    it('formatea timestamp ISO con preferencia dd mmm yyyy', () => {
+      globalThis.localStorage.setItem('pref_formato_fecha', 'dd mmm yyyy')
+      const d = new Date(2025, 8, 1, 14, 30)
+      expect(formatFechaHora(d)).toBe('1 sep 2025, 14:30')
+    })
+
+    it('retorna cadena vacía para null o undefined', () => {
+      expect(formatFechaHora(null)).toBe('')
+      expect(formatFechaHora(undefined)).toBe('')
     })
   })
 

@@ -7,7 +7,16 @@ export {
   formatRangoSemanaPrograma,
   formatFechaSinAnio,
   formatFechaCorta,
+  formatFechaHora,
   getPrefFormatoFecha,
   MESES,
   MESES_ABBR,
 } from './fechas'
+
+export {
+  formatMesYYYYMM,
+  getMesAnteriorYYYYMM,
+  getMesActualYYYYMM,
+  construirCSVReporteMensual,
+} from './generarReporteMensual'
+

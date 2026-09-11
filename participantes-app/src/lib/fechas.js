@@ -208,3 +208,28 @@ export function formatFechaSinAnio(fechaStr) {
 export function formatFechaCorta(fechaStr) {
   return formatFecha(fechaStr)
 }
+
+/**
+ * Convierte un ISO timestamp o fecha (ej: "2025-09-01T14:30:00Z") a fecha y hora legible:
+ * Respetando la preferencia del usuario:
+ * - 'dd mmm yyyy': "1 sep 2025, 14:30"
+ * - 'dd/mm/yyyy': "01/09/2025, 14:30"
+ * @param {string|Date} isoString 
+ * @returns {string}
+ */
+export function formatFechaHora(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  if (isNaN(d.getTime())) return String(isoString)
+
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const dateFormatted = formatFecha(`${y}-${m}-${day}`)
+
+  const hours = String(d.getHours()).padStart(2, '0')
+  const mins = String(d.getMinutes()).padStart(2, '0')
+
+  return `${dateFormatted}, ${hours}:${mins}`
+}
+

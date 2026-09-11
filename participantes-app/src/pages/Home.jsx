@@ -29,6 +29,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
+import { formatMesYYYYMM, getMesActualYYYYMM } from '../lib/generarReporteMensual'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
 
@@ -169,7 +170,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
   )
   const hasCheckedAutoOpen = useRef(false)
 
-  const { toast, success, error: toastError } = useToast()
+  const { toast, success, error: toastError, showToast } = useToast()
 
   const fetchData = useCallback(async () => {
     try {
@@ -266,6 +267,57 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
       setWizardOpen(true)
     }
   }, [loading, paso1Completo, paso2Completo, paso3Completo, congregacion, esNombreDefault, anioEnCurso])
+
+  // ── DETECCIÓN DE CAMBIO DE MES — REPORTE MENSUAL AUTOMÁTICO (Brief #33) ──
+  const hasCheckedReporteMes = useRef(false)
+
+  useEffect(() => {
+    if (hasCheckedReporteMes.current) return
+    hasCheckedReporteMes.current = true
+
+    const mesActual = getMesActualYYYYMM()
+    const ultimoMes = localStorage.getItem('ultimo_mes_reportado')
+
+    if (!ultimoMes) {
+      // Primera visita: registrar mes actual sin disparar generación de reporte incompleto
+      localStorage.setItem('ultimo_mes_reportado', mesActual)
+      return
+    }
+
+    if (ultimoMes !== mesActual) {
+      // Mes nuevo detectado — invocar Edge Function con el mes que acaba de cerrar
+      supabase.functions
+        .invoke('reporte-mensual', {
+          body: { mes: ultimoMes },
+        })
+        .then(({ data, error }) => {
+          if (error) {
+            console.warn('[Home reporte-mensual]:', error)
+            return
+          }
+          if (data?.status === 'generated') {
+            const mesNombre = formatMesYYYYMM(ultimoMes)
+            showToast(
+              <span>
+                Reporte de {mesNombre.toLowerCase()} generado y guardado en backups.{' '}
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('exportar')}
+                  className="font-semibold underline ml-1 hover:opacity-80"
+                >
+                  Ver →
+                </button>
+              </span>,
+              'info',
+              6000
+            )
+          }
+        })
+        .catch(err => console.warn('[Home reporte-mensual error]:', err))
+
+      localStorage.setItem('ultimo_mes_reportado', mesActual)
+    }
+  }, [onNavigate, showToast])
 
   // ── HANDLERS WIZARD DE ONBOARDING ──────────────────────────────
   function openWizard(step = 1) {

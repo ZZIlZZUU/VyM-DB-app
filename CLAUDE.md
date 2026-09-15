@@ -489,10 +489,10 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [X] **Gráficos en Estadísticas** — Integrados gráficos interactivos `BarChart` con `recharts`: barras horizontales por tipo (`TipoTooltip`) y barras verticales por mes (`MesTooltip`) con colores y tipografía del design system.
 - [X] **Configuración de tema y persistencia** — Implementado modo oscuro integral (`darkMode: 'class'`) con CSS custom properties semánticas en `:root` y `html.dark`, hook `useTheme` con persistencia en `localStorage` y sincronización con `prefers-color-scheme`, toggle interactivo (`◑` / `☀`) en sidebar (expandido y colapsado) y reemplazo de colores hardcoded por tokens del design system.
 - [X] **Onboarding integrado en Home** — Wizard de primer uso detectado desde `configuracion` (nombre por default → dispara onboarding). Pasos: (1) nombre de congregación + año, (2) importar participantes CSV, (3) subir primer EPUB mwb. Checklist visual de progreso que desaparece al completarse. Vive integrado en la Home Page.
-- [ ] **Exportación a PDF** — Agregar un botón en la Vista Semanal del Home para exportar/imprimir el itinerario en PDF optimizado para impresión física.
+- [X] **Exportación a PDF** — Agregar un botón en la Vista Semanal del Home para exportar/imprimir el itinerario en PDF optimizado para impresión física.
 - [X] **Migración SQL para `tipo_asignacion` VARCHAR(15)** — Ampliar la longitud del campo `tipo_asignacion` en `programa_partes` para asegurar espacio adicional holgado.
 - [X] **SMT_AYU como tipo independiente** — Registrar de forma explícita el tipo de asignación para el ayudante principal, simplificando las consultas SQL en cascada.
-- [ ] **Conversión a PWA (Progressive Web App)** — Configurar `vite-plugin-pwa` para permitir la instalación de la aplicación en el dispositivo móvil como si fuera nativa, permitiendo acceso offline a los datos locales.
+- [X] **Conversión a PWA (Progressive Web App)** — Configurar `vite-plugin-pwa` para permitir la instalación de la aplicación en el dispositivo móvil como si fuera nativa, permitiendo acceso offline a los datos locales.
 
 ---
 
@@ -523,15 +523,15 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 - [x] **Auto-confirmación inteligente con revisión previa** — Botón "Revisar y aprobar semana" que muestra un resumen de todas las sugerencias del motor (`sugerido_por_app = true`) con semáforo de idoneidad (✓/↻/⚠) y permite aprobar todas o ajustar las que tienen warning antes del commit.
 - [x] **Detección de conflictos de rotación al asignar manualmente** — Warning inline al seleccionar una persona en `PersonaSelector` si viola reglas de rotación (participó hace < 2 semanas, ya tiene 3 asignaciones el mes, misma asignación el mes anterior). Complementa el sistema de scoring existente.
 - [x] **Toast de acción al completar semana al 100%** — Cuando `confirmadas === totalPartes` en una semana, mostrar toast persistente con acción directa: "Semana completa — Generar S-140 ahora →". Reutiliza `generarS140.js`.
-- [ ] **Backup automático a Supabase Storage al exportar** — Al generar CSV/JSON desde `Exportar.jsx`, además de la descarga local, guardar una copia en un bucket `backups` con timestamp. El tab de importación mostraría los backups disponibles en nube para restaurar desde ahí.
-- [ ] **Reporte mensual automático** — Al cambiar de mes o bajo demanda, generar un resumen PDF/CSV de participaciones del mes que acaba (quién participó, cuántas veces, qué tipos) y guardarlo en Storage. Útil para el anciano coordinador.
+- [X] **Backup automático a Supabase Storage al exportar** — Al generar CSV/JSON desde `Exportar.jsx`, además de la descarga local, guardar una copia en un bucket `backups` con timestamp. El tab de importación mostraría los backups disponibles en nube para restaurar desde ahí.
+- [X] **Reporte mensual automático** — Al cambiar de mes o bajo demanda, generar un resumen PDF/CSV de participaciones del mes que acaba (quién participó, cuántas veces, qué tipos) y guardarlo en Storage. Útil para el anciano coordinador.
 - [x] **Timeline / historial por persona** — Desde `Personas.jsx`, al hacer click en una persona abrir `Sheet.jsx` lateral con su timeline personal: todas sus participaciones ordenadas cronológicamente con badges de tipo y mes. Datos ya disponibles en tabla `participaciones`.
 
 ---
 
 ## 🎨 Pendiente de prompt dedicado
 
-- [ ] **Vista fiel al S-140 en `Programa.jsx`** — Rediseño visual de las tarjetas de semana para que la disposición en pantalla refleje fielmente la estructura del formulario oficial S-140 (secciones, columnas y jerarquía visual del documento). Requiere prompt dedicado por complejidad.
+- [X] **Vista fiel al S-140 en `Programa.jsx`** — Rediseño visual de las tarjetas de semana para que la disposición en pantalla refleje fielmente la estructura del formulario oficial S-140 (secciones, columnas y jerarquía visual del documento). Requiere prompt dedicado por complejidad.
 
 ---
 

@@ -513,11 +513,11 @@ new Date(fecha + 'T12:00:00').toLocaleString('es-MX', { month: 'long' })
 ## 🤖 Automatización interna (nueva sección — pendientes)
 
 ### EPUB automático desde JW.org
-- [ ] **Edge Function `fetch-epub`** — Consulta el endpoint interno de JW.org (`GETPUBMEDIALINKS?pub=mwb&fileformat=EPUB&langwritten=S&issue=YYYYMM`) para obtener el link de descarga del EPUB más reciente, lo descarga y lo sube a Supabase Storage (bucket `epubs`). Requiere habilitar Storage en el proyecto Supabase.
-- [ ] **Verificación al cargar `Programa.jsx`** — Al montar la vista, comparar el `issue` disponible en JW.org con el más reciente guardado en Storage. Si hay versión nueva, mostrar un banner/toast con botón "Descargar nuevo EPUB mwb (Sep 2026)".
-- [ ] **Selector de EPUB desde Storage** — En lugar de solo subir manualmente, mostrar un `<Select>` con los EPUBs disponibles en el bucket (máximo 4, los más recientes). Mantener el botón de subida manual como fallback.
-- [ ] **Rotación automática del bucket** — Al guardar un nuevo EPUB, si ya hay 4 archivos, eliminar el más antiguo. Lógica en la misma Edge Function `fetch-epub`.
-- [ ] **Tabla `epub_disponibles` en Supabase** — Registrar metadatos de cada EPUB guardado: `id`, `filename`, `issue` (YYYYMM), `url_storage`, `descargado_en`. Permite al selector mostrar etiquetas legibles ("Julio 2026") sin parsear nombres de archivo.
+- [X] **Edge Function `fetch-epub`** — Consulta el endpoint interno de JW.org (`GETPUBMEDIALINKS?pub=mwb&fileformat=EPUB&langwritten=S&issue=YYYYMM`) para obtener el link de descarga del EPUB más reciente, lo descarga y lo sube a Supabase Storage (bucket `epubs`). Requiere habilitar Storage en el proyecto Supabase.
+- [X] **Verificación al cargar `Programa.jsx`** — Al montar la vista, comparar el `issue` disponible en JW.org con el más reciente guardado en Storage. Si hay versión nueva, mostrar un banner/toast con botón "Descargar nuevo EPUB mwb (Sep 2026)".
+- [X] **Selector de EPUB desde Storage** — En lugar de solo subir manualmente, mostrar un `<Select>` con los EPUBs disponibles en el bucket (máximo 4, los más recientes). Mantener el botón de subida manual como fallback.
+- [X] **Rotación automática del bucket** — Al guardar un nuevo EPUB, si ya hay 4 archivos, eliminar el más antiguo. Lógica en la misma Edge Function `fetch-epub`.
+- [X] **Tabla `epub_disponibles` en Supabase** — Registrar metadatos de cada EPUB guardado: `id`, `filename`, `issue` (YYYYMM), `url_storage`, `descargado_en`. Permite al selector mostrar etiquetas legibles ("Julio 2026") sin parsear nombres de archivo.
 
 ### Otras automatizaciones de calidad de vida
 - [x] **Auto-confirmación inteligente con revisión previa** — Botón "Revisar y aprobar semana" que muestra un resumen de todas las sugerencias del motor (`sugerido_por_app = true`) con semáforo de idoneidad (✓/↻/⚠) y permite aprobar todas o ajustar las que tienen warning antes del commit.

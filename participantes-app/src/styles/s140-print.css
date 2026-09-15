@@ -1,0 +1,97 @@
+/* src/styles/s140-print.css — Estilos de vista previa e impresión para el formulario S-140 */
+
+/* ── ESTILOS EN PANTALLA (Screen Preview) ── */
+@media screen {
+  .s140-contenedor-pantalla {
+    padding: 24px 16px;
+    background-color: #f4f4f5;
+  }
+
+  .s140-pagina {
+    background-color: #ffffff !important;
+    color: #18181b !important;
+    width: 215.9mm;
+    min-height: 279.4mm;
+    padding: 10mm 12mm;
+    margin: 0 auto 32px auto;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e4e4e7;
+    box-sizing: border-box;
+    position: relative;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .s140-separador-pagina {
+    border-bottom: 2px dashed #d4d4d8;
+    margin-bottom: 28px;
+    width: 215.9mm;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ── ESTILOS DE IMPRESIÓN (PDF / Printer) ── */
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 10mm 12mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #s140-print-root,
+  #s140-print-root * {
+    visibility: visible;
+  }
+
+  #s140-print-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+  }
+
+  .s140-pagina {
+    page-break-after: always;
+    break-after: page;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    background-color: #ffffff !important;
+    box-sizing: border-box;
+  }
+
+  .s140-pagina:last-of-type {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .s140-separador-pagina {
+    display: none !important;
+  }
+
+  /* Asegurar que se impriman los fondos de color de las cabeceras */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

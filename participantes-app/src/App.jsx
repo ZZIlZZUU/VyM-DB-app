@@ -28,6 +28,9 @@ export default function App() {
   const { toast, showToast, success, error: toastError } = useToast()
   const [view, setView] = useState(() => {
     try {
+      const p = window.location.pathname.replace(/^\//, '').split('/')[0]
+      const validViews = ['home', 'semanal', 'editable', 'sql', 'personas', 'registros', 'programa', 'usuarios', 'exportar', 'estadisticas', 'historial']
+      if (validViews.includes(p)) return p
       return localStorage.getItem('pref_vista_default') || 'home'
     } catch {
       return 'home'
@@ -63,6 +66,11 @@ export default function App() {
       setSelectedPersonaTab(params.personaTab || 'historial')
     }
     setView(targetView)
+    if (targetView && targetView !== 'home') {
+      window.history.replaceState(null, '', `/${targetView}`)
+    } else {
+      window.history.replaceState(null, '', '/')
+    }
     setMobileOpen(false)
   }, [])
 

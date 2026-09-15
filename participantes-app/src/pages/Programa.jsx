@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Search,
   Calendar,
@@ -26,6 +27,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  Printer,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
@@ -1560,11 +1562,23 @@ export default function Programa() {
   const [mostrarFabS140, setMostrarFabS140] = useState(false)
   const checkedEpubRef = useRef(false)
 
-  // Cerrar menú de guías al hacer clic fuera
+  const navigate = useNavigate()
+  const [menuS140TopOpen, setMenuS140TopOpen] = useState(false)
+  const [menuS140FabOpen, setMenuS140FabOpen] = useState(false)
+  const menuS140TopRef = useRef(null)
+  const menuS140FabRef = useRef(null)
+
+  // Cerrar menús al hacer clic fuera
   useEffect(() => {
     function handleClickOutside(event) {
       if (menuGuiasRef.current && !menuGuiasRef.current.contains(event.target)) {
         setMenuGuiasOpen(false)
+      }
+      if (menuS140TopRef.current && !menuS140TopRef.current.contains(event.target)) {
+        setMenuS140TopOpen(false)
+      }
+      if (menuS140FabRef.current && !menuS140FabRef.current.contains(event.target)) {
+        setMenuS140FabOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -2724,6 +2738,19 @@ export default function Programa() {
     }
   }
 
+  // ── Abrir Vista Nativa S-140 / PDF (Brief 34) ────────────
+  function handleAbrirVistaS140() {
+    setMenuS140TopOpen(false)
+    setMenuS140FabOpen(false)
+    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
+    navigate('/s140-preview', {
+      state: {
+        semanas: semanasData,
+        congregacion,
+      },
+    })
+  }
+
   // ── Eliminar semana ──────────────────────────────────────
   async function handleEliminarSemana(semanaId) {
     const ok = await confirm({
@@ -3004,17 +3031,64 @@ export default function Programa() {
             </div>
           )}
 
-          {/* Botón Generar S-140 */}
-          <Button
-            ref={botonS140TopRef}
-            variant="accent"
-            size="md"
-            icon={FileDown}
-            disabled={!semanas.length}
-            onClick={handleGenerarDocx}
-          >
-            Descargar S-140
-          </Button>
+          {/* Botón Generar S-140 con menú desplegable (Brief 34) */}
+          <div className="relative" ref={menuS140TopRef}>
+            <div className="inline-flex rounded-lg shadow-sm">
+              <Button
+                ref={botonS140TopRef}
+                variant="accent"
+                size="md"
+                icon={Printer}
+                disabled={!semanas.length}
+                onClick={handleAbrirVistaS140}
+                className="rounded-r-none border-r border-emerald-600/30"
+                title="Abrir vista nativa y generar PDF"
+              >
+                Vista S-140 / PDF
+              </Button>
+              <Button
+                variant="accent"
+                size="md"
+                disabled={!semanas.length}
+                onClick={() => setMenuS140TopOpen(prev => !prev)}
+                className="rounded-l-none px-2"
+                title="Opciones de exportación S-140"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {menuS140TopOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-60 bg-surface dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-1.5 z-50 animate-fade-in">
+                <button
+                  type="button"
+                  onClick={handleAbrirVistaS140}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-text1">Vista PDF nativa</span>
+                    <span className="text-[10px] text-text3 font-normal">Vectorial, 2 semanas por página</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuS140TopOpen(false)
+                    handleGenerarDocx()
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
+                >
+                  <FileDown className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-text1">Descargar Word (.docx)</span>
+                    <span className="text-[10px] text-text3 font-normal">Plantilla tradicional editable</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3262,13 +3336,13 @@ export default function Programa() {
               <Button
                 variant="accent"
                 size="xs"
-                icon={FileDown}
-                onClick={async () => {
+                icon={Printer}
+                onClick={() => {
                   setToastProgramaCompleto(null)
-                  await handleGenerarDocx()
+                  handleAbrirVistaS140()
                 }}
               >
-                Generar S-140
+                Ver S-140 / PDF
               </Button>
             </div>
           </div>
@@ -3289,17 +3363,60 @@ export default function Programa() {
         isBatchSaving={isBatchSaving}
       />
 
-      {/* ── BOTÓN FLOTANTE S-140 AL HACER SCROLL ── */}
+      {/* ── BOTÓN FLOTANTE S-140 AL HACER SCROLL (Brief 34) ── */}
       {mostrarFabS140 && semanas.length > 0 && (
-        <button
-          type="button"
-          onClick={handleGenerarDocx}
-          title="Descargar programa S-140 (.docx)"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white text-xs font-semibold rounded-full shadow-2xl hover:shadow-emerald-900/30 transition-all duration-200 cursor-pointer animate-fade-in hover:scale-105"
-        >
-          <FileDown className="w-4 h-4" />
-          <span>Descargar S-140</span>
-        </button>
+        <div className="fixed bottom-6 right-6 z-40 animate-fade-in" ref={menuS140FabRef}>
+          {menuS140FabOpen && (
+            <div className="absolute bottom-full right-0 mb-2 w-60 bg-surface dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-1.5 animate-fade-in">
+              <button
+                type="button"
+                onClick={handleAbrirVistaS140}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-text1">Vista PDF nativa</span>
+                  <span className="text-[10px] text-text3 font-normal">Vectorial, 2 semanas por pág.</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuS140FabOpen(false)
+                  handleGenerarDocx()
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
+              >
+                <FileDown className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-text1">Descargar Word (.docx)</span>
+                  <span className="text-[10px] text-text3 font-normal">Plantilla tradicional editable</span>
+                </div>
+              </button>
+            </div>
+          )}
+
+          <div className="inline-flex items-center shadow-2xl rounded-full overflow-hidden">
+            <button
+              type="button"
+              onClick={handleAbrirVistaS140}
+              title="Abrir vista nativa S-140 y generar PDF"
+              className="flex items-center gap-2 px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white text-xs font-semibold transition-all duration-200 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Vista S-140 / PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuS140FabOpen(prev => !prev)}
+              title="Opciones de exportación S-140"
+              className="px-2.5 py-3 bg-emerald-800 hover:bg-emerald-900 border-l border-emerald-600/50 text-white transition-all duration-200 cursor-pointer"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       <Toast toast={toast} onDismiss={dismiss} />

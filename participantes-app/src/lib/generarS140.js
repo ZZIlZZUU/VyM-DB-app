@@ -123,6 +123,8 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
         titulo: parte.titulo || '',
         est:    est ? nombrePorClave(est.clave) : '',
         ayu:    ayu ? nombrePorClave(ayu.clave) : '',
+        duracion_min: parte.duracion_min || null,
+        hora_inicio: parte.hora_inicio || null,
       }
     }).slice(0, 4) // max 4 slots SMT en la plantilla
 
@@ -136,25 +138,30 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       return {
         titulo: parte.titulo || '',
         cond:   asig ? nombrePorClave(asig.clave) : '',
+        duracion_min: parte.duracion_min || null,
+        hora_inicio: parte.hora_inicio || null,
       }
     }).slice(0, 2) // max 2 slots VC en la plantilla
 
     return {
-      fecha:       `${fechaInicio} — ${fechaFin}`,
-      presidente:  asigDe('P'),
-      can_ap:      String(s.cancion_apertura || ''),
-      oracion_ap:  asigDe('P'),              // mismo Presidente
-      tb_titulo:   partesSemana.find(p => p.tipo_asignacion === 'TB')?.titulo || '',
-      tb_cond:     asigDe('TB'),
-      pe_cond:     asigDe('PE'),
-      lb_est:      asigDe('LB'),
+      fecha:        `${fechaInicio} — ${fechaFin}`,
+      fecha_inicio: fechaInicio,
+      fecha_fin:    fechaFin,
+      presidente:   asigDe('P'),
+      can_ap:       String(s.cancion_apertura || ''),
+      oracion_ap:   asigDe('P'),              // mismo Presidente
+      tb_titulo:    partesSemana.find(p => p.tipo_asignacion === 'TB')?.titulo || '',
+      tb_cond:      asigDe('TB'),
+      pe_cond:      asigDe('PE'),
+      lb_est:       asigDe('LB'),
       smt,
-      can_vc:      String(s.cancion_vc || ''),
+      can_vc:       String(s.cancion_vc || ''),
       vc,
-      ebc_cond:    asigDe('EBC_CON'),
-      ebc_lect:    asigDe('LEBC'),
-      can_ci:      String(s.cancion_cierre || ''),
-      oracion_ci:  asigDe('ORACION_C'),
+      ebc_cond:     asigDe('EBC_CON'),
+      ebc_lect:     asigDe('LEBC'),
+      ebc_hora_inicio: partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.hora_inicio || null,
+      can_ci:       String(s.cancion_cierre || ''),
+      oracion_ci:   asigDe('ORACION_C'),
     }
   })
 }

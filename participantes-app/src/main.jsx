@@ -5,6 +5,7 @@ import './index.css'
 
 import Login          from './pages/Login'
 import SetPassword     from './pages/SetPassword'
+import S140Preview     from './pages/S140Preview'
 import ProtectedRoute from './components/ProtectedRoute'
 import App            from './App'
 
@@ -15,6 +16,16 @@ createRoot(document.getElementById('root')).render(
         {/* Rutas públicas */}
         <Route path="/login" element={<Login />} />
         <Route path="/set-password" element={<SetPassword />} />
+
+        {/* Ruta dedicada para vista previa e impresión de S-140 (sin shell de app) */}
+        <Route
+          path="/s140-preview"
+          element={
+            <ProtectedRoute>
+              <S140Preview />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Rutas protegidas — requieren sesión activa */}
         <Route

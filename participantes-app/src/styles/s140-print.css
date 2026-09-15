@@ -1,5 +1,39 @@
 /* src/styles/s140-print.css — Estilos de vista previa e impresión para el formulario S-140 */
 
+/* ── FUENTES Y CLASES INSTITUCIONALES ── */
+.s140-fuente-cuerpo {
+  font-family: 'Calibri', 'Segoe UI', Candara, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.s140-fuente-titulo {
+  font-family: 'Cambria', Georgia, serif;
+}
+
+.s140-header-line {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+.s140-header-line::before {
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  border-top: 2px solid #18181b;
+}
+
+.s140-header-line::after {
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-top: 1px solid #18181b;
+}
+
 /* ── ESTILOS EN PANTALLA (Screen Preview) ── */
 @media screen {
   .s140-contenedor-pantalla {
@@ -12,13 +46,13 @@
     color: #18181b !important;
     width: 215.9mm;
     min-height: 279.4mm;
-    padding: 10mm 12mm;
+    padding: 12mm 15mm 10mm 15mm;
     margin: 0 auto 32px auto;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
     border: 1px solid #e4e4e7;
     box-sizing: border-box;
     position: relative;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Calibri', 'Segoe UI', Candara, -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   .s140-separador-pagina {
@@ -34,17 +68,24 @@
 @media print {
   @page {
     size: letter portrait;
-    margin: 10mm 12mm;
+    margin: 12mm 15mm 10mm 15mm;
   }
 
-  html, body {
+  :root,
+  html,
+  html.dark,
+  body,
+  #root {
+    color-scheme: light !important;
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
     height: auto !important;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: auto !important;
+    font-family: 'Calibri', 'Segoe UI', Candara, -apple-system, BlinkMacSystemFont, sans-serif !important;
   }
 
   body * {
@@ -63,7 +104,7 @@
     width: 100%;
     margin: 0;
     padding: 0;
-    background: transparent !important;
+    background: #ffffff !important;
   }
 
   .s140-pagina {
@@ -78,6 +119,7 @@
     min-height: auto !important;
     background-color: #ffffff !important;
     box-sizing: border-box;
+    font-family: 'Calibri', 'Segoe UI', Candara, -apple-system, BlinkMacSystemFont, sans-serif !important;
   }
 
   .s140-pagina:last-of-type {

@@ -60,9 +60,20 @@ export default function S140Preview() {
     const primerSemana = semanas[0]?.fecha ? `${semanas[0].fecha}` : ''
     const prevTitle = document.title
     document.title = `S-140 ${congregacion || ''} ${primerSemana}`.trim()
+
+    // Evitar que el modo oscuro contamine el diálogo y lienzo de impresión de Windows/Chromium
+    const isDark = document.documentElement.classList.contains('dark')
+    if (isDark) {
+      document.documentElement.classList.remove('dark')
+    }
+
     window.print()
+
     setTimeout(() => {
       document.title = prevTitle
+      if (isDark) {
+        document.documentElement.classList.add('dark')
+      }
     }, 1000)
   }
 
@@ -83,7 +94,7 @@ export default function S140Preview() {
   const totalPaginas = Math.ceil(semanas.length / 2)
 
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col selection:bg-emerald-500/20">
+    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col selection:bg-emerald-500/20 print:bg-white print:text-black print:min-h-0">
       {/* ── BARRA SUPERIOR DE HERRAMIENTAS (Solo visible en pantalla) ── */}
       <header className="sticky top-0 z-50 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 px-4 sm:px-6 py-3 shadow-xs print:hidden">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -136,14 +147,14 @@ export default function S140Preview() {
       </header>
 
       {/* ── CONTENEDOR DE PÁGINAS S-140 ── */}
-      <main className="flex-1 s140-contenedor-pantalla">
+      <main className="flex-1 s140-contenedor-pantalla print:p-0 print:bg-white">
         {loading ? (
           <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-text3">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
             <p className="text-xs font-medium">Preparando vista previa del S-140...</p>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto print:max-w-none print:m-0 print:p-0">
             <S140Vista semanas={semanas} nombreCongregacion={congregacion} />
           </div>
         )}

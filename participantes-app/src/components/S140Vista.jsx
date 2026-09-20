@@ -5,27 +5,13 @@ import tesorosIcon from '../assets/icons/tesoros.svg'
 import smtIcon from '../assets/icons/smt.svg'
 import nvcIcon from '../assets/icons/nvc.svg'
 import { formatRangoSemanaPrograma } from '../lib/fechas'
+import { abreviarNombre, formatearParParticipantes } from '../lib/nombres'
+import { obtenerHorariosS140, formatHora12 } from '../lib/horarios'
 
 // Colores institucionales estándar S-140 solicitados por el usuario
 const COLOR_TB = '#3A7E89'
 const COLOR_SMT = '#D58E00'
 const COLOR_VC = '#BE2D11'
-
-/**
- * Convierte un formato militar '19:25' o '19:25:00' a formato 12h sin sufijo ('7:25', '8:10')
- */
-function formatHora12(horaStr) {
-  if (!horaStr || typeof horaStr !== 'string') return ''
-  const trimmed = horaStr.trim()
-  // Acepta tanto HH:MM como HH:MM:SS (ej: '19:25' y '19:25:00')
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
-  if (!match) return trimmed
-
-  const h = parseInt(match[1], 10)
-  const m = match[2]
-  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h
-  return `${h12}:${m}`
-}
 
 /**
  * Formatea el rango de fechas de la semana en formato legible institucional (ej: "7 - 13 DE SEPTIEMBRE")
@@ -59,14 +45,14 @@ function formatearFechaSemana(semana) {
  */
 function PageHeader({ nombreCongregacion }) {
   return (
-    <div className="flex items-baseline justify-between s140-header-line pb-1 mb-2">
-      <div className="w-[45%] text-left">
-        <span className="s140-fuente-titulo text-[13.5px] font-bold tracking-normal text-zinc-900">
+    <div className="flex items-baseline justify-between s140-header-line pb-1.5 mb-3">
+      <div className="text-left">
+        <span className="s140-fuente-titulo text-[17px] sm:text-[18px] font-bold tracking-normal text-zinc-900">
           {nombreCongregacion || 'Congregación'}
         </span>
       </div>
-      <div className="w-[55%] text-right">
-        <span className="text-[14px] sm:text-[15px] font-extrabold tracking-tight text-zinc-950">
+      <div className="text-right">
+        <span className="s140-fuente-titulo text-[16.5pt] font-bold tracking-normal text-zinc-950 whitespace-nowrap">
           Programa para la reunión de entre semana
         </span>
       </div>
@@ -81,6 +67,7 @@ function SemanaBloque({ semana }) {
   if (!semana) return null
 
   const fechaTexto = formatearFechaSemana(semana)
+  const horarios = obtenerHorariosS140(semana)
 
   // Filtrar partes con contenido real
   const smtPartes = (semana.smt || []).filter(p => p && p.titulo && String(p.titulo).trim() !== '').slice(0, 4)
@@ -101,64 +88,64 @@ function SemanaBloque({ semana }) {
   const numeroEBC = numeroActual
 
   return (
-    <div className="s140-semana-bloque text-zinc-950 text-[11px] leading-tight select-text mb-2.5 last:mb-0">
+    <div className="s140-semana-bloque text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug select-text">
       <table className="w-full border-collapse table-fixed bg-white">
         <colgroup>
-          <col style={{ width: '7%' }} />
-          <col style={{ width: '44%' }} />
+          <col style={{ width: '6.5%' }} />
+          <col style={{ width: '43.5%' }} />
           <col style={{ width: '17%' }} />
-          <col style={{ width: '32%' }} />
+          <col style={{ width: '33%' }} />
         </colgroup>
         <tbody>
           {/* ── FILA 1: FECHA Y PRESIDENTE ── */}
           <tr>
-            <td colSpan={2} className="py-[2px] font-bold text-[11px] text-zinc-950">
+            <td colSpan={2} className="py-[2.5px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950">
               {fechaTexto}
             </td>
-            <td className="py-[2px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Presidente:
               </div>
             </td>
-            <td className="py-[2px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.presidente || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.presidente, 26)}
             </td>
           </tr>
 
           {/* ── APERTURA: CANCIÓN Y PALABRAS DE INTRODUCCIÓN ── */}
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:00
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.apertura.cancion}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              <span className="inline-block mr-1.5 text-[8.5px] leading-none select-none" style={{ color: COLOR_TB }}>●</span>
-              <span className="font-bold text-zinc-950">Canción {semana.can_ap || ''}</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px]">
+              <span className="inline-block mr-1.5 text-[9px] leading-none select-none" style={{ color: COLOR_TB }}>●</span>
+              <span className="font-bold">Canción {semana.can_ap || ''}</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Oración:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.oracion_ap || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.oracion_ap, 26)}
             </td>
           </tr>
 
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:04
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.apertura.intro}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              <span className="inline-block mr-1.5 text-[8.5px] leading-none select-none" style={{ color: COLOR_TB }}>●</span>
-              <span className="text-zinc-950">Palabras de introducción (1 min.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px]">
+              <span className="inline-block mr-1.5 text-[9px] leading-none select-none" style={{ color: COLOR_TB }}>●</span>
+              <span>Palabras de introducción (1 min.)</span>
             </td>
-            <td className="py-[1.5px]"></td>
-            <td className="py-[1.5px]"></td>
+            <td className="py-[2.5px]"></td>
+            <td className="py-[2.5px]"></td>
           </tr>
 
           {/* Separador */}
-          <tr className="h-[2px]">
-            <td colSpan={4} className="h-[2px] p-0"></td>
+          <tr className="h-[5px]">
+            <td colSpan={4} className="h-[5px] p-0"></td>
           </tr>
 
           {/* ── SECCIÓN 1: TESOROS DE LA BIBLIA (#3A7E89) ── */}
@@ -166,77 +153,77 @@ function SemanaBloque({ semana }) {
             <td
               colSpan={2}
               style={{ backgroundColor: COLOR_TB }}
-              className="px-2 py-[2.5px] text-white"
+              className="px-2 py-[3px] text-white"
             >
               <div className="flex items-center gap-1.5">
                 <img src={tesorosIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
-                <span className="font-bold text-[11px] tracking-wider uppercase text-white">
+                <span className="font-bold text-[11.5px] sm:text-[12px] tracking-wider uppercase text-white">
                   TESOROS DE LA BIBLIA
                 </span>
               </div>
             </td>
-            <td className="py-[2.5px]"></td>
-            <td className="py-[2.5px] text-left pl-2">
-              <span className="text-[10px] font-bold text-zinc-600">
+            <td className="py-[3px]"></td>
+            <td className="py-[3px] text-left pl-2">
+              <span className="text-[10.5px] font-bold text-zinc-600">
                 Auditorio principal
               </span>
             </td>
           </tr>
 
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:05
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.tb.discurso}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              1. {semana.tb_titulo || 'Discurso de Tesoros'} <span className="text-[10px] text-zinc-600">(10 mins.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+              1. {semana.tb_titulo || 'Discurso de Tesoros'} <span className="text-[11.5px] text-zinc-600 font-normal">(10 mins.)</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Conductor:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.tb_cond || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.tb_cond, 26)}
             </td>
           </tr>
 
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:15
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.tb.perlas}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              2. Busquemos perlas escondidas <span className="text-[10px] text-zinc-600">(10 mins.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+              2. Busquemos perlas escondidas <span className="text-[11.5px] text-zinc-600 font-normal">(10 mins.)</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Conductor:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.pe_cond || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.pe_cond, 26)}
             </td>
           </tr>
 
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:25
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.tb.lectura}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              3. Lectura de la Biblia <span className="text-[10px] text-zinc-600">(4 mins.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+              3. Lectura de la Biblia <span className="text-[11.5px] text-zinc-600 font-normal">(4 mins.)</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Estudiante:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.lb_est || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.lb_est, 26)}
             </td>
           </tr>
 
           {/* Separador */}
-          <tr className="h-[2px]">
-            <td colSpan={4} className="h-[2px] p-0"></td>
+          <tr className="h-[5px]">
+            <td colSpan={4} className="h-[5px] p-0"></td>
           </tr>
 
           {/* ── SECCIÓN 2: SEAMOS MEJORES MAESTROS (#D58E00) ── */}
@@ -244,52 +231,52 @@ function SemanaBloque({ semana }) {
             <td
               colSpan={2}
               style={{ backgroundColor: COLOR_SMT }}
-              className="px-2 py-[2.5px] text-white"
+              className="px-2 py-[3px] text-white"
             >
               <div className="flex items-center gap-1.5">
                 <img src={smtIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
-                <span className="font-bold text-[11px] tracking-wider uppercase text-white">
+                <span className="font-bold text-[11.5px] sm:text-[12px] tracking-wider uppercase text-white">
                   SEAMOS MEJORES MAESTROS
                 </span>
               </div>
             </td>
-            <td className="py-[2.5px]"></td>
-            <td className="py-[2.5px] text-left pl-2">
-              <span className="text-[10px] font-bold text-zinc-600">
+            <td className="py-[3px]"></td>
+            <td className="py-[3px] text-left pl-2">
+              <span className="text-[10.5px] font-bold text-zinc-600">
                 Auditorio principal
               </span>
             </td>
           </tr>
 
           {/* Filas dinámicas de SMT (máximo 4) */}
-          {smtNumeradas.map(p => {
-            const horaLabel = p.hora_inicio ? formatHora12(p.hora_inicio) : '7:XX'
+          {smtNumeradas.map((p, idx) => {
+            const horaLabel = horarios.smtHoras[idx] || (p.hora_inicio ? formatHora12(p.hora_inicio) : '7:XX')
             const duracionLabel = p.duracion_min ? `${p.duracion_min} mins.` : 'X mins.'
             const tieneAyudante = Boolean(p.ayu && String(p.ayu).trim() !== '')
 
             let participanteTexto = ''
             if (tieneAyudante) {
-              participanteTexto = `${p.est || '—'} / ${p.ayu}`
+              participanteTexto = formatearParParticipantes(p.est, p.ayu, 28)
             } else if (p.est) {
-              participanteTexto = p.est
+              participanteTexto = abreviarNombre(p.est, 26)
             } else {
               participanteTexto = ' / '
             }
 
             return (
               <tr key={p.numero}>
-                <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
+                <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
                   {horaLabel}
                 </td>
-                <td className="py-[1.5px] text-zinc-900">
-                  {p.numero}. {p.titulo} <span className="text-[10px] text-zinc-600">({duracionLabel})</span>
+                <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+                  {p.numero}. {p.titulo} <span className="text-[11.5px] text-zinc-600 font-normal">({duracionLabel})</span>
                 </td>
-                <td className="py-[1.5px]">
-                  <div className="text-right font-bold text-[10px] text-zinc-600">
+                <td className="py-[2.5px]">
+                  <div className="text-right font-bold text-[10.5px] text-zinc-600">
                     {tieneAyudante || !p.est ? 'Estudiante/Ayudante:' : 'Estudiante:'}
                   </div>
                 </td>
-                <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
+                <td className={`py-[2.5px] text-left font-normal ${tieneAyudante ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
                   {participanteTexto}
                 </td>
               </tr>
@@ -297,8 +284,8 @@ function SemanaBloque({ semana }) {
           })}
 
           {/* Separador */}
-          <tr className="h-[2px]">
-            <td colSpan={4} className="h-[2px] p-0"></td>
+          <tr className="h-[5px]">
+            <td colSpan={4} className="h-[5px] p-0"></td>
           </tr>
 
           {/* ── SECCIÓN 3: NUESTRA VIDA CRISTIANA (#BE2D11) ── */}
@@ -306,52 +293,52 @@ function SemanaBloque({ semana }) {
             <td
               colSpan={2}
               style={{ backgroundColor: COLOR_VC }}
-              className="px-2 py-[2.5px] text-white"
+              className="px-2 py-[3px] text-white"
             >
               <div className="flex items-center gap-1.5">
                 <img src={nvcIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
-                <span className="font-bold text-[11px] tracking-wider uppercase text-white">
+                <span className="font-bold text-[11.5px] sm:text-[12px] tracking-wider uppercase text-white">
                   NUESTRA VIDA CRISTIANA
                 </span>
               </div>
             </td>
-            <td className="py-[2.5px]"></td>
-            <td className="py-[2.5px]"></td>
+            <td className="py-[3px]"></td>
+            <td className="py-[3px]"></td>
           </tr>
 
           {/* Canción de Vida Cristiana */}
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              7:45
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.vc.cancion}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              <span className="inline-block mr-1.5 text-[8.5px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
-              <span className="font-bold text-zinc-950">Canción {semana.can_vc || ''}</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px]">
+              <span className="inline-block mr-1.5 text-[9px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
+              <span className="font-bold">Canción {semana.can_vc || ''}</span>
             </td>
-            <td className="py-[1.5px]"></td>
-            <td className="py-[1.5px]"></td>
+            <td className="py-[2.5px]"></td>
+            <td className="py-[2.5px]"></td>
           </tr>
 
           {/* Filas dinámicas de VC (máximo 2) */}
-          {vcNumeradas.map((v, i) => {
-            const horaLabel = i === 0 ? '7:50' : v.hora_inicio ? formatHora12(v.hora_inicio) : '8:XX'
+          {vcNumeradas.map((v, idx) => {
+            const horaLabel = horarios.vc.partesHoras[idx] || (idx === 0 ? '7:50' : v.hora_inicio ? formatHora12(v.hora_inicio) : '8:XX')
             const duracionLabel = v.duracion_min ? `${v.duracion_min} mins.` : 'XX mins.'
 
             return (
               <tr key={v.numero}>
-                <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
+                <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
                   {horaLabel}
                 </td>
-                <td className="py-[1.5px] text-zinc-900">
-                  {v.numero}. {v.titulo} <span className="text-[10px] text-zinc-600">({duracionLabel})</span>
+                <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+                  {v.numero}. {v.titulo} <span className="text-[11.5px] text-zinc-600 font-normal">({duracionLabel})</span>
                 </td>
-                <td className="py-[1.5px]">
-                  <div className="text-right font-bold text-[10px] text-zinc-600">
+                <td className="py-[2.5px]">
+                  <div className="text-right font-bold text-[10.5px] text-zinc-600">
                     Conductor:
                   </div>
                 </td>
-                <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-                  {v.cond || ''}
+                <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+                  {abreviarNombre(v.cond, 26)}
                 </td>
               </tr>
             )
@@ -359,20 +346,20 @@ function SemanaBloque({ semana }) {
 
           {/* Estudio Bíblico de la Congregación */}
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              {semana.ebc_hora_inicio ? formatHora12(semana.ebc_hora_inicio) : '8:XX'}
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.vc.ebcHora || (semana.ebc_hora_inicio ? formatHora12(semana.ebc_hora_inicio) : '8:XX')}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              {numeroEBC}. Estudio bíblico de la congregación <span className="text-[10px] text-zinc-600 font-normal">(30 mins.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
+              {numeroEBC}. Estudio bíblico de la congregación <span className="text-[11.5px] text-zinc-600 font-normal">(30 mins.)</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Conductor/Lector:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
+            <td className={`py-[2.5px] text-left font-normal ${semana.ebc_cond && semana.ebc_lect ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
               {semana.ebc_cond || semana.ebc_lect ? (
-                `${semana.ebc_cond || '—'} / ${semana.ebc_lect || '—'}`
+                formatearParParticipantes(semana.ebc_cond, semana.ebc_lect, 28)
               ) : (
                 ' / '
               )}
@@ -381,33 +368,33 @@ function SemanaBloque({ semana }) {
 
           {/* Palabras de conclusión */}
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              8:37
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.cierre.conclu}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              <span className="inline-block mr-1.5 text-[8.5px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
-              <span className="text-zinc-950">Palabras de conclusión (3 min.)</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px]">
+              <span className="inline-block mr-1.5 text-[9px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
+              <span>Palabras de conclusión (3 min.)</span>
             </td>
-            <td className="py-[1.5px]"></td>
-            <td className="py-[1.5px]"></td>
+            <td className="py-[2.5px]"></td>
+            <td className="py-[2.5px]"></td>
           </tr>
 
           {/* Canción y oración final */}
           <tr>
-            <td className="py-[1.5px] text-left font-bold text-[11px] text-zinc-800">
-              8:40
+            <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
+              {horarios.cierre.cancion}
             </td>
-            <td className="py-[1.5px] text-zinc-900">
-              <span className="inline-block mr-1.5 text-[8.5px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
-              <span className="font-bold text-zinc-950">Canción {semana.can_ci || ''}</span>
+            <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px]">
+              <span className="inline-block mr-1.5 text-[9px] leading-none select-none" style={{ color: COLOR_VC }}>●</span>
+              <span className="font-bold">Canción {semana.can_ci || ''}</span>
             </td>
-            <td className="py-[1.5px]">
-              <div className="text-right font-bold text-[10px] text-zinc-600">
+            <td className="py-[2.5px]">
+              <div className="text-right font-bold text-[10.5px] text-zinc-600">
                 Oración:
               </div>
             </td>
-            <td className="py-[1.5px] text-left font-normal text-[11px] text-zinc-950 pl-2">
-              {semana.oracion_ci || ''}
+            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+              {abreviarNombre(semana.oracion_ci, 26)}
             </td>
           </tr>
         </tbody>
@@ -446,7 +433,7 @@ export default function S140Vista({ semanas = [], nombreCongregacion = '' }) {
               <div>
                 <PageHeader nombreCongregacion={nombreCongregacion} />
 
-                <div className="flex flex-col justify-start gap-4">
+                <div className="flex flex-col justify-start gap-6 sm:gap-7">
                   <SemanaBloque semana={semana1} />
 
                   {semana2 ? (
@@ -460,7 +447,7 @@ export default function S140Vista({ semanas = [], nombreCongregacion = '' }) {
 
               {/* Pie de página oficial S-140 */}
               <div className="pt-2 text-left select-none">
-                <span className="text-[10px] text-zinc-600 font-normal">S-140-S 11/23</span>
+                <span className="text-[10px] text-zinc-500 font-normal tracking-tight">S-140-S 11/23</span>
               </div>
             </div>
 

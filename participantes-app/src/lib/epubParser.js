@@ -3,50 +3,14 @@
 // Usa JSZip para descomprimir y DOMParser para leer el HTML
 // ============================================================
 
+import { calcularHorariosSMT, calcularHorariosVC } from './horarios'
+
 // Horarios fijos de Tesoros (siempre iguales)
 const HORARIOS_TB = [
-  { inicio: '19:00', fin: '19:10' }, // TB principal 10 min
-  { inicio: '19:10', fin: '19:20' }, // Perlas 10 min
-  { inicio: '19:20', fin: '19:24' }, // Lectura 4 min
+  { inicio: '19:05', fin: '19:15' }, // TB principal 10 min
+  { inicio: '19:15', fin: '19:25' }, // Perlas 10 min
+  { inicio: '19:25', fin: '19:29' }, // Lectura 4 min
 ]
-
-// VC siempre empieza a las 19:45
-const VC_START_MINUTES = 19 * 60 + 45
-  
-  function minutesToTime(totalMinutes) {
-    const h = Math.floor(totalMinutes / 60)
-    const m = totalMinutes % 60
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  }
-  
-  function timeToMinutes(timeStr) {
-    const [h, m] = timeStr.split(':').map(Number)
-    return h * 60 + m
-  }
-  
-  // Calcular horarios de SMT en base a las duraciones
-  function calcularHorariosSMT(partesSMT) {
-    let cursor = timeToMinutes('19:25') // SMT empieza en 19:25
-    return partesSMT.map(p => {
-      const inicio = minutesToTime(cursor)
-      const dur = p.duracion_min || 5
-      cursor += dur + 1 // +1 minuto de transición
-      const fin = minutesToTime(cursor - 1)
-      return { ...p, hora_inicio: inicio, hora_fin: fin }
-    })
-  }
-  
-  // Calcular horarios de VC
-  function calcularHorariosVC(partesVC) {
-    let cursor = VC_START_MINUTES
-    return partesVC.map(p => {
-      const inicio = minutesToTime(cursor)
-      const dur = p.duracion_min || 15
-      cursor += dur + 1
-      const fin = minutesToTime(cursor - 1)
-      return { ...p, hora_inicio: inicio, hora_fin: fin }
-    })
-  }
   
   // Identificar tipo de asignación SMT por título
   function inferirTipoSMT() {

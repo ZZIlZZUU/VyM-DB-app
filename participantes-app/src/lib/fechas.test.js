@@ -11,6 +11,7 @@ import {
   getPrefFormatoFecha,
   MESES,
   MESES_ABBR,
+  getProximaReunion,
 } from './fechas'
 
 // Mock globalThis.localStorage for test environment
@@ -157,6 +158,114 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
       expect(MESES).toHaveLength(12)
       expect(MESES[0]).toBe('Enero')
       expect(MESES[11]).toBe('Diciembre')
+    })
+  })
+
+  describe('getProximaReunion — Rotación dinámica entre reuniones', () => {
+    const configDefault = {
+      diaReunionEntreSemana: 'Martes',
+      horaReunionEntreSemana: '19:30',
+      diaReunionFinSemana: 'Sábado',
+      horaReunionFinSemana: '18:00',
+    }
+
+    // 2026-09-21 es Lunes
+    // 2026-09-22 es Martes
+    // 2026-09-23 es Miércoles
+    // 2026-09-24 es Jueves
+    // 2026-09-25 es Viernes
+    // 2026-09-26 es Sábado
+    // 2026-09-27 es Domingo
+
+    it('Lunes mañana: la próxima es Martes (Mañana)', () => {
+      const lunes = new Date(2026, 8, 21, 10, 0)
+      const res = getProximaReunion(configDefault, lunes)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Martes')
+      expect(res.diasRestantes).toBe(1)
+      expect(res.badgeTexto).toBe('Mañana')
+      expect(res.badgeVariant).toBe('warning')
+    })
+
+    it('Martes antes de la reunión (14:00): la próxima es Martes (Hoy)', () => {
+      const martesTarde = new Date(2026, 8, 22, 14, 0)
+      const res = getProximaReunion(configDefault, martesTarde)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Martes')
+      expect(res.diasRestantes).toBe(0)
+      expect(res.badgeTexto).toBe('Hoy')
+      expect(res.badgeVariant).toBe('success')
+    })
+
+    it('Martes después de la reunión (20:00): rota al Sábado (En 4 días)', () => {
+      const martesNoche = new Date(2026, 8, 22, 20, 0)
+      const res = getProximaReunion(configDefault, martesNoche)
+      expect(res.tipo).toBe('fin_semana')
+      expect(res.nombreDia).toBe('Sábado')
+      expect(res.diasRestantes).toBe(4)
+      expect(res.badgeTexto).toBe('En 4 días')
+    })
+
+    it('Miércoles: la próxima es Sábado (En 3 días)', () => {
+      const miercoles = new Date(2026, 8, 23, 10, 0)
+      const res = getProximaReunion(configDefault, miercoles)
+      expect(res.tipo).toBe('fin_semana')
+      expect(res.nombreDia).toBe('Sábado')
+      expect(res.diasRestantes).toBe(3)
+      expect(res.badgeTexto).toBe('En 3 días')
+    })
+
+    it('Viernes: la próxima es Sábado (Mañana)', () => {
+      const viernes = new Date(2026, 8, 25, 10, 0)
+      const res = getProximaReunion(configDefault, viernes)
+      expect(res.tipo).toBe('fin_semana')
+      expect(res.nombreDia).toBe('Sábado')
+      expect(res.diasRestantes).toBe(1)
+      expect(res.badgeTexto).toBe('Mañana')
+      expect(res.badgeVariant).toBe('warning')
+    })
+
+    it('Sábado antes de la reunión (12:00): la próxima es Sábado (Hoy)', () => {
+      const sabadoMediodia = new Date(2026, 8, 26, 12, 0)
+      const res = getProximaReunion(configDefault, sabadoMediodia)
+      expect(res.tipo).toBe('fin_semana')
+      expect(res.nombreDia).toBe('Sábado')
+      expect(res.diasRestantes).toBe(0)
+      expect(res.badgeTexto).toBe('Hoy')
+      expect(res.badgeVariant).toBe('success')
+    })
+
+    it('Sábado después de la reunión (19:00): rota al Martes (En 3 días)', () => {
+      const sabadoNoche = new Date(2026, 8, 26, 19, 0)
+      const res = getProximaReunion(configDefault, sabadoNoche)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Martes')
+      expect(res.diasRestantes).toBe(3)
+      expect(res.badgeTexto).toBe('En 3 días')
+    })
+
+    it('Domingo: la próxima es Martes (En 2 días)', () => {
+      const domingo = new Date(2026, 8, 27, 10, 0)
+      const res = getProximaReunion(configDefault, domingo)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Martes')
+      expect(res.diasRestantes).toBe(2)
+      expect(res.badgeTexto).toBe('En 2 días')
+    })
+
+    it('funciona con días personalizados como Jueves y Domingo', () => {
+      const configCustom = {
+        diaReunionEntreSemana: 'Jueves',
+        horaReunionEntreSemana: '19:00',
+        diaReunionFinSemana: 'Domingo',
+        horaReunionFinSemana: '10:00',
+      }
+      // Miércoles 2026-09-23
+      const miercoles = new Date(2026, 8, 23, 10, 0)
+      const res = getProximaReunion(configCustom, miercoles)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Jueves')
+      expect(res.badgeTexto).toBe('Mañana')
     })
   })
 })

@@ -12,6 +12,8 @@ import {
   ChevronRight,
   Code,
   RotateCcw,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatFechaLegible } from '../lib/fechas'
@@ -27,12 +29,42 @@ function initials(email) {
   return email.slice(0, 2).toUpperCase()
 }
 
+function parsePayload(val) {
+  if (!val) return null
+  if (typeof val === 'object') return val
+  try {
+    return JSON.parse(val)
+  } catch {
+    return val
+  }
+}
+
+function formatLogDate(str) {
+  if (!str) return '—'
+  try {
+    const d = new Date(str)
+    if (isNaN(d.getTime())) return '—'
+    return d.toLocaleString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  } catch {
+    return '—'
+  }
+}
+
 export default function HistorialCambios() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [operation, setOperation] = useState('ALL') // 'ALL', 'INSERT', 'UPDATE', 'DELETE'
+  const [limit, setLimit] = useState(50)
   const [selectedLog, setSelectedLog] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -41,7 +73,7 @@ export default function HistorialCambios() {
         .from('historial_cambios')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50)
+        .limit(limit)
 
       if (operation !== 'ALL') {
         query = query.eq('operacion', operation)
@@ -56,7 +88,7 @@ export default function HistorialCambios() {
     } finally {
       setLoading(false)
     }
-  }, [operation])
+  }, [operation, limit])
 
   useEffect(() => {
     fetchLogs()
@@ -77,20 +109,21 @@ export default function HistorialCambios() {
 
   const filteredLogs = logs.filter(log => {
     const term = search.toLowerCase()
-    const jsonStr = JSON.stringify(
-      log.datos_despues || log.datos_antes || {}
-    ).toLowerCase()
+    const payload = parsePayload(log.datos_despues || log.datos_antes)
+    const jsonStr = (typeof payload === 'object' ? JSON.stringify(payload) : String(payload || '')).toLowerCase()
+    const regIdStr = String(log.registro_id ?? '').toLowerCase()
     return (
       (log.usuario_email || '').toLowerCase().includes(term) ||
       (log.tabla || '').toLowerCase().includes(term) ||
-      (log.registro_id || '').toLowerCase().includes(term) ||
+      regIdStr.includes(term) ||
       jsonStr.includes(term)
     )
   })
 
   const formatDetalles = log => {
-    const data = log.datos_despues || log.datos_antes
-    if (!data) return log.registro_id ? `ID #${log.registro_id}` : '—'
+    const data = parsePayload(log.datos_despues || log.datos_antes)
+    if (!data) return log.registro_id != null ? `ID #${log.registro_id}` : '—'
+    if (typeof data !== 'object') return String(data)
 
     const partes = []
     if (data.nombre) partes.push(`Nombre: ${data.nombre}`)
@@ -128,12 +161,33 @@ export default function HistorialCambios() {
               Historial de Cambios
             </h1>
             <Badge variant="neutral" size="sm">
-              Últimos 50 eventos
+              Últimos {limit} eventos
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
             Registro cronológico y auditoría en tiempo real de todas las modificaciones del sistema.
           </p>
+        </div>
+
+        {/* Selector de límite */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-xs text-text3 font-medium">Mostrar:</span>
+          <div className="inline-flex p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 text-xs">
+            {[50, 100, 200].map(cnt => (
+              <button
+                key={cnt}
+                type="button"
+                onClick={() => setLimit(cnt)}
+                className={`px-2 py-0.5 rounded-md font-mono text-[11px] transition-all cursor-pointer ${
+                  limit === cnt
+                    ? 'bg-surface text-text1 shadow-2xs font-semibold'
+                    : 'text-text3 hover:text-text2'
+                }`}
+              >
+                {cnt}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -235,16 +289,7 @@ export default function HistorialCambios() {
                     >
                       {/* Fecha y Hora */}
                       <td className="py-3 px-4 font-mono text-text3 text-[11px] whitespace-nowrap">
-                        {fechaStr
-                          ? new Date(fechaStr).toLocaleString('es-MX', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })
-                          : '—'}
+                        {formatLogDate(fechaStr)}
                       </td>
 
                       {/* Usuario */}
@@ -313,9 +358,33 @@ export default function HistorialCambios() {
         description={`${selectedLog?.operacion} en tabla "${selectedLog?.tabla}" por ${selectedLog?.usuario_email || 'Sistema'}`}
         width="md"
         footer={
-          <Button variant="secondary" size="sm" onClick={() => setSelectedLog(null)}>
-            Cerrar
-          </Button>
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={copied ? Check : Copy}
+              onClick={() => {
+                const fullPayload = {
+                  id: selectedLog?.id,
+                  operacion: selectedLog?.operacion,
+                  tabla: selectedLog?.tabla,
+                  registro_id: selectedLog?.registro_id,
+                  usuario_email: selectedLog?.usuario_email,
+                  created_at: selectedLog?.created_at,
+                  datos_antes: parsePayload(selectedLog?.datos_antes),
+                  datos_despues: parsePayload(selectedLog?.datos_despues),
+                }
+                navigator.clipboard.writeText(JSON.stringify(fullPayload, null, 2))
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+            >
+              {copied ? 'Copiado al portapapeles' : 'Copiar JSON completo'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedLog(null)}>
+              Cerrar
+            </Button>
+          </div>
         }
       >
         {selectedLog && (
@@ -325,8 +394,8 @@ export default function HistorialCambios() {
                 <span className="text-[10px] font-mono text-text3 uppercase tracking-wider block mb-1">
                   Estado Anterior (datos_antes)
                 </span>
-                <pre className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-48">
-                  {JSON.stringify(selectedLog.datos_antes, null, 2)}
+                <pre className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-48 leading-relaxed">
+                  {JSON.stringify(parsePayload(selectedLog.datos_antes), null, 2)}
                 </pre>
               </div>
             )}
@@ -336,8 +405,8 @@ export default function HistorialCambios() {
                 <span className="text-[10px] font-mono text-text3 uppercase tracking-wider block mb-1">
                   Estado Resultante (datos_despues)
                 </span>
-                <pre className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-48">
-                  {JSON.stringify(selectedLog.datos_despues, null, 2)}
+                <pre className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 font-mono text-[11px] text-zinc-700 dark:text-zinc-300 overflow-x-auto max-h-48 leading-relaxed">
+                  {JSON.stringify(parsePayload(selectedLog.datos_despues), null, 2)}
                 </pre>
               </div>
             )}

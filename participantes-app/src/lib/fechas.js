@@ -233,3 +233,102 @@ export function formatFechaHora(isoString) {
   return `${dateFormatted}, ${hours}:${mins}`
 }
 
+const DIAS_SEMANA_MAP = {
+  domingo: 0,
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  'miércoles': 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+  'sábado': 6,
+}
+
+/**
+ * Calcula la reunión más próxima (rotando dinámicamente entre reunión de entre semana
+ * y reunión de fin de semana) según los días y horas configurados.
+ *
+ * @param {Object} [config]
+ * @param {Date} [fechaReferencia] Fecha base para cálculo (permite pruebas deterministas)
+ * @returns {Object}
+ */
+export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
+  const hoy = new Date(fechaReferencia)
+
+  const diaEntre = (config?.diaReunionEntreSemana || 'Martes').toLowerCase().trim()
+  const horaEntre = config?.horaReunionEntreSemana || '19:30'
+  const diaFin = (config?.diaReunionFinSemana || 'Sábado').toLowerCase().trim()
+  const horaFin = config?.horaReunionFinSemana || '18:00'
+
+  const targetDayEntre = DIAS_SEMANA_MAP[diaEntre] ?? 2 // Martes por defecto
+  const targetDayFin = DIAS_SEMANA_MAP[diaFin] ?? 6   // Sábado por defecto
+
+  function parseHora(str) {
+    const parts = (str || '19:00').split(':').map(Number)
+    return { h: parts[0] || 0, m: parts[1] || 0 }
+  }
+
+  function calcularOcurrencia(targetDay, horaStr) {
+    const { h, m } = parseHora(horaStr)
+    const currentDay = hoy.getDay()
+
+    let diasHasta = (targetDay - currentDay + 7) % 7
+    if (diasHasta === 0) {
+      // Es hoy mismo: verificar si la hora ya pasó
+      const horaReunionHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), h, m, 0)
+      if (hoy.getTime() >= horaReunionHoy.getTime()) {
+        diasHasta = 7
+      }
+    }
+
+    const fechaTarget = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + diasHasta, h, m, 0)
+    return {
+      fecha: fechaTarget,
+      diasRestantes: diasHasta,
+      diffMs: fechaTarget.getTime() - hoy.getTime(),
+      horaStr,
+    }
+  }
+
+  const candEntre = calcularOcurrencia(targetDayEntre, horaEntre)
+  const candFin = calcularOcurrencia(targetDayFin, horaFin)
+
+  const esEntreSemana = candEntre.diffMs <= candFin.diffMs
+  const ganador = esEntreSemana ? candEntre : candFin
+
+  const nombreReunion = esEntreSemana ? 'Vida y Ministerio' : 'Reunión Pública'
+  const nombreDia = esEntreSemana
+    ? (config?.diaReunionEntreSemana || 'Martes')
+    : (config?.diaReunionFinSemana || 'Sábado')
+
+  const diaNum = ganador.fecha.getDate()
+  const mesNom = MESES[ganador.fecha.getMonth()]
+
+  let badgeTexto = ''
+  let badgeVariant = 'neutral'
+  if (ganador.diasRestantes === 0) {
+    badgeTexto = 'Hoy'
+    badgeVariant = 'success'
+  } else if (ganador.diasRestantes === 1) {
+    badgeTexto = 'Mañana'
+    badgeVariant = 'warning'
+  } else {
+    badgeTexto = `En ${ganador.diasRestantes} días`
+    badgeVariant = 'neutral'
+  }
+
+  return {
+    tipo: esEntreSemana ? 'entre_semana' : 'fin_semana',
+    nombreReunion,
+    nombreDia,
+    hora: ganador.horaStr,
+    horaFormateada: `${ganador.horaStr} hrs`,
+    textoFormateado: `${nombreDia} ${diaNum} de ${mesNom}`,
+    diasRestantes: ganador.diasRestantes,
+    badgeTexto,
+    badgeVariant,
+  }
+}
+
+

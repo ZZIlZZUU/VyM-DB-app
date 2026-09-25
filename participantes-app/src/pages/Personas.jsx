@@ -14,6 +14,8 @@ import {
   Clock,
   Calendar,
   History,
+  PowerOff,
+  Trash2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatFechaLegible, formatFechaConDia } from '../lib/fechas'
@@ -336,7 +338,7 @@ export default function Personas({
 
   async function handleSave(e) {
     if (e) e.preventDefault()
-    const nombreClean = form.nombre.trim()
+    const nombreClean = form.nombre.trim().replace(/\s+/g, ' ')
     if (!nombreClean) {
       toastError('Ingresa el nombre completo del participante')
       return
@@ -344,6 +346,19 @@ export default function Personas({
     if (!form.estatus) {
       toastError('Selecciona el estatus correspondiente')
       return
+    }
+
+    // Detección de posibles duplicados
+    const duplicado = personas.find(
+      p => p.clave !== editClave && p.nombre.trim().toLowerCase() === nombreClean.toLowerCase()
+    )
+    if (duplicado) {
+      const proceed = await confirm({
+        title: 'Posible participante duplicado',
+        message: `Ya existe un participante registrado con el nombre "${duplicado.nombre}" (Clave: ${duplicado.clave}). ¿Deseas guardarlo de todas formas con una clave distinta?`,
+        danger: false,
+      })
+      if (!proceed) return
     }
 
     setSaving(true)
@@ -382,6 +397,53 @@ export default function Personas({
     } catch (err) {
       console.error('[handleSave]', err)
       toastError(err?.message || 'Error al guardar en la base de datos')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeletePersona(clave) {
+    const persona = personas.find(p => p.clave === clave)
+    if (!persona) return
+
+    const ok = await confirm({
+      title: `¿Eliminar permanentemente a ${persona.nombre}?`,
+      message: `Esta acción no se puede deshacer. Se comprobará que el participante no tenga registros históricos ni asignaciones en el programa.`,
+      danger: true,
+    })
+    if (!ok) return
+
+    setSaving(true)
+    try {
+      const [{ count: partCount, error: partErr }, { count: asigCount, error: asigErr }] = await Promise.all([
+        supabase.from('participaciones').select('*', { count: 'exact', head: true }).eq('clave', clave),
+        supabase.from('programa_asignaciones').select('*', { count: 'exact', head: true }).eq('clave', clave),
+      ])
+
+      if (partErr) throw partErr
+      if (asigErr) throw asigErr
+
+      if ((partCount || 0) > 0 || (asigCount || 0) > 0) {
+        toastError(
+          `No se puede eliminar a ${persona.nombre} porque tiene ${partCount || 0} participaciones y ${asigCount || 0} asignaciones registradas. Para ocultarlo sin perder el historial, puedes deshabilitarlo.`
+        )
+        setSaving(false)
+        return
+      }
+
+      const { error: delErr } = await supabase
+        .from('personas')
+        .delete()
+        .eq('clave', clave)
+
+      if (delErr) throw delErr
+
+      success(`Participante ${persona.nombre} (${clave}) eliminado permanentemente`)
+      closeSheet()
+      fetchPersonas()
+    } catch (err) {
+      console.error('[handleDeletePersona]', err)
+      toastError(err?.message || 'Error al eliminar participante')
     } finally {
       setSaving(false)
     }
@@ -776,24 +838,40 @@ export default function Personas({
               Cerrar
             </Button>
           ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={closeSheet}
-                disabled={saving}
-              >
-                Cancelar
-              </Button>
-              <Button
-                variant="accent"
-                size="sm"
-                loading={saving}
-                onClick={handleSave}
-              >
-                {editClave ? 'Guardar cambios' : 'Registrar participante'}
-              </Button>
-            </>
+            <div className="flex items-center justify-between w-full">
+              <div>
+                {editClave && (
+                  <Button
+                    variant="dangerGhost"
+                    size="sm"
+                    icon={Trash2}
+                    disabled={saving}
+                    onClick={() => handleDeletePersona(editClave)}
+                    title="Eliminar permanentemente si no tiene registros"
+                  >
+                    Eliminar
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={closeSheet}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="accent"
+                  size="sm"
+                  loading={saving}
+                  onClick={handleSave}
+                >
+                  {editClave ? 'Guardar cambios' : 'Registrar participante'}
+                </Button>
+              </div>
+            </div>
           )
         }
       >

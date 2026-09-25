@@ -32,10 +32,15 @@ export default function ProtectedRoute({ children }) {
 
   async function verificarAutorizacion(email) {
     try {
+      const cleanEmail = email?.trim().toLowerCase()
+      if (!cleanEmail) {
+        setAutorizado(false)
+        return
+      }
       const { data, error } = await supabase
         .from('usuarios_autorizados')
         .select('activo')
-        .eq('email', email)
+        .eq('email', cleanEmail)
         .single()
 
       if (error || !data) {

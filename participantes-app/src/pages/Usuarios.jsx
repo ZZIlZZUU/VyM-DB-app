@@ -110,6 +110,10 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
 
   const handleInvite = async e => {
     if (e) e.preventDefault()
+    if (currentRol !== 'admin') {
+      error('Solo los administradores pueden invitar nuevos usuarios.')
+      return
+    }
     const emailTrimmed = email.trim().toLowerCase()
     if (!emailTrimmed) return
 
@@ -163,7 +167,30 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
   }
 
   async function handleRoleChange(u, newRol) {
+    if (currentRol !== 'admin') {
+      error('Solo los administradores pueden modificar roles.')
+      return
+    }
     if (u.rol === newRol) return
+
+    // Prevenir que el único administrador se degrade a sí mismo a editor
+    const isSelf = u.email?.toLowerCase() === currentUser?.email?.toLowerCase()
+    if (isSelf && newRol !== 'admin') {
+      const otrosAdmins = usuarios.filter(
+        x => x.rol === 'admin' && x.activo && x.email?.toLowerCase() !== u.email?.toLowerCase()
+      )
+      if (otrosAdmins.length === 0) {
+        error('No puedes remover tu rol de administrador porque eres el único administrador activo.')
+        return
+      }
+      const ok = await confirm({
+        title: '¿Remover tus privilegios de administrador?',
+        message: 'Perderás el acceso a la administración de usuarios inmediatamente.',
+        danger: true,
+      })
+      if (!ok) return
+    }
+
     const { error: updateError } = await supabase
       .from('usuarios_autorizados')
       .update({ rol: newRol })
@@ -195,6 +222,16 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
   }
 
   async function toggleActivo(u) {
+    if (currentRol !== 'admin') {
+      error('Solo los administradores pueden cambiar el estado de las cuentas.')
+      return
+    }
+    const isSelf = u.email?.toLowerCase() === currentUser?.email?.toLowerCase()
+    if (isSelf) {
+      error('No puedes desactivar tu propia cuenta.')
+      return
+    }
+
     const ok = await confirm({
       title: u.activo ? `¿Desactivar a ${u.email}?` : `¿Activar a ${u.email}?`,
       message: u.activo
@@ -221,6 +258,16 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
   }
 
   async function handleDeleteUsuario(u) {
+    if (currentRol !== 'admin') {
+      error('Solo los administradores pueden eliminar usuarios.')
+      return
+    }
+    const isSelf = u.email?.toLowerCase() === currentUser?.email?.toLowerCase()
+    if (isSelf) {
+      error('No puedes eliminar tu propia cuenta.')
+      return
+    }
+
     const ok = await confirm({
       title: `¿Eliminar permanentemente a ${u.email}?`,
       message:
@@ -260,6 +307,22 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
       console.error(err)
       error('Error de conexión al eliminar el usuario.')
     }
+  }
+
+  if (currentRol !== 'admin') {
+    return (
+      <div className="py-20 px-4 text-center max-w-md mx-auto">
+        <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center text-xl mx-auto mb-4 border border-red-500/20">
+          <Shield className="w-6 h-6 text-red-500" />
+        </div>
+        <h2 className="text-base font-semibold text-text1">
+          Acceso restringido
+        </h2>
+        <p className="text-xs text-text3 mt-1.5 leading-relaxed">
+          Solo las cuentas con rol de Administrador pueden visualizar o gestionar los usuarios y permisos del sistema.
+        </p>
+      </div>
+    )
   }
 
   return (

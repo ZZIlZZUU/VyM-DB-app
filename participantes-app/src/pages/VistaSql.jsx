@@ -131,6 +131,10 @@ export default function VistaSql() {
       danger:  true,
     })
     if (!ok) return
+    await supabase
+      .from('programa_asignaciones')
+      .update({ confirmado: false, participacion_id: null })
+      .eq('participacion_id', id)
     await supabase.from('participaciones').delete().eq('id', id)
     fetchParticipaciones()
   }

@@ -135,4 +135,30 @@ describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
       expect(h.vc.ebcHora).toBe('8:06')
     })
   })
+
+  describe('Horarios configurables con hora de inicio personalizada', () => {
+    const semanaEjemplo = {
+      smt: [
+        { titulo: 'Empiece conversaciones', duracion_min: 3 },
+      ],
+      vc: [
+        { titulo: 'Tema local', duracion_min: 15 },
+      ],
+    }
+
+    it('ajusta la línea temporal a las 19:30 (7:30)', () => {
+      const h = obtenerHorariosS140(semanaEjemplo, '19:30')
+      expect(h.apertura.cancion).toBe('7:30')
+      expect(h.apertura.intro).toBe('7:34')
+      expect(h.tb.discurso).toBe('7:35')
+      expect(h.tb.perlas).toBe('7:45')
+      expect(h.tb.lectura).toBe('7:55')
+      expect(h.smtHoras).toEqual(['8:00'])
+      expect(h.vc.cancion).toBe('8:15')
+      expect(h.vc.partesHoras).toEqual(['8:20'])
+      expect(h.vc.ebcHora).toBe('8:36')
+      expect(h.cierre.conclu).toBe('9:07')
+      expect(h.cierre.cancion).toBe('9:10')
+    })
+  })
 })

@@ -28,8 +28,14 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
-import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
+import {
+  formatFechaLegible,
+  formatRangoSemanaLegible,
+  formatRangoSemanaPrograma,
+  getProximaReunion,
+} from '../lib/fechas'
 import { formatMesYYYYMM, getMesActualYYYYMM } from '../lib/generarReporteMensual'
+import { useConfiguracion } from '../hooks/useConfiguracion'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
 
@@ -87,60 +93,8 @@ function getProximoMesInfo() {
   }
 }
 
-// Calcula el lunes o jueves más próximo desde la fecha actual
-function getProximaReunion() {
-  const hoy = new Date()
-  const diaSemana = hoy.getDay() // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mie, 4 = Jue, 5 = Vie, 6 = Sab
-
-  let diasHastaReunion = 0
-  let nombreDia = ''
-
-  if (diaSemana === 1) {
-    // Hoy es Lunes
-    diasHastaReunion = 0
-    nombreDia = 'Lunes'
-  } else if (diaSemana > 1 && diaSemana <= 4) {
-    // Martes, Miércoles, Jueves
-    diasHastaReunion = 4 - diaSemana
-    nombreDia = 'Jueves'
-  } else if (diaSemana === 0) {
-    // Domingo -> Próximo Lunes
-    diasHastaReunion = 1
-    nombreDia = 'Lunes'
-  } else {
-    // Viernes o Sábado -> Próximo Lunes
-    diasHastaReunion = (8 - diaSemana) % 7
-    nombreDia = 'Lunes'
-  }
-
-  const fechaReunion = new Date(hoy)
-  fechaReunion.setDate(hoy.getDate() + diasHastaReunion)
-
-  const diaNum = fechaReunion.getDate()
-  const mesNom = MESES[fechaReunion.getMonth()]
-
-  let badgeTexto = ''
-  let badgeVariant = 'neutral'
-  if (diasHastaReunion === 0) {
-    badgeTexto = 'Hoy'
-    badgeVariant = 'success'
-  } else if (diasHastaReunion === 1) {
-    badgeTexto = 'Mañana'
-    badgeVariant = 'warning'
-  } else {
-    badgeTexto = `En ${diasHastaReunion} días`
-    badgeVariant = 'neutral'
-  }
-
-  return {
-    textoFormateado: `${nombreDia} ${diaNum} de ${mesNom}`,
-    diasRestantes: diasHastaReunion,
-    badgeTexto,
-    badgeVariant,
-  }
-}
-
-export default function Home({ onNavigate, onOpenRegistrosCreate }) {
+export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
+  const { config: globalConfig, guardarConfiguracion: guardarGlobalConfig } = useConfiguracion()
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
@@ -240,17 +194,15 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
   }, [fetchData])
 
   // ── ESTADOS DE ONBOARDING Y ASISTENTE (Brief #30) ──────────────
-  const esNombreDefault =
-    !congregacion ||
-    congregacion === 'Congregacion del Recreo' ||
-    congregacion.trim().toLowerCase() === 'congregación del recreo'
-
-  const paso1Completo = !esNombreDefault
+  const paso1Completo =
+    localStorage.getItem('onboarding_step1') === 'true' ||
+    configuracion.some(r => r.clave === 'nombre_congregacion' && r.valor?.trim()) ||
+    configuracion.some(r => r.clave === 'configuracion_inicial_completada')
   const paso2Completo = personas.length > 0
   const paso3Completo = semanas.length > 0
   const todosPasosCompletos = paso1Completo && paso2Completo && paso3Completo
 
-  const mostrarChecklist = !onboardingComplete && (!todosPasosCompletos || esNombreDefault)
+  const mostrarChecklist = !onboardingDismissed && !onboardingComplete && !todosPasosCompletos
 
   // Auto-apertura del Wizard en primera visita si ningún paso está completo
   useEffect(() => {
@@ -261,12 +213,12 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
     const isComplete = localStorage.getItem('onboarding_complete') === 'true'
 
     if (!isDismissed && !isComplete && !paso1Completo && !paso2Completo && !paso3Completo) {
-      setEditCongNombre(congregacion && !esNombreDefault ? congregacion : '')
+      setEditCongNombre(congregacion || 'Congregacion del Recreo')
       setEditAnio(anioEnCurso || new Date().getFullYear().toString())
       setWizardStep(1)
       setWizardOpen(true)
     }
-  }, [loading, paso1Completo, paso2Completo, paso3Completo, congregacion, esNombreDefault, anioEnCurso])
+  }, [loading, paso1Completo, paso2Completo, paso3Completo, congregacion, anioEnCurso])
 
   // ── DETECCIÓN DE CAMBIO DE MES — REPORTE MENSUAL AUTOMÁTICO (Brief #33) ──
   const hasCheckedReporteMes = useRef(false)
@@ -322,7 +274,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
   // ── HANDLERS WIZARD DE ONBOARDING ──────────────────────────────
   function openWizard(step = 1) {
     setWizardStep(step)
-    setEditCongNombre(congregacion && !esNombreDefault ? congregacion : '')
+    setEditCongNombre(congregacion || 'Congregacion del Recreo')
     setEditAnio(anioEnCurso || new Date().getFullYear().toString())
     setWizardOpen(true)
   }
@@ -346,26 +298,27 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
       toastError('El nombre de la congregación no puede estar vacío')
       return
     }
-    if (
-      trimmed.toLowerCase() === 'congregacion del recreo' ||
-      trimmed.toLowerCase() === 'congregación del recreo'
-    ) {
-      toastError('Por favor ingresa el nombre oficial de tu congregación')
-      return
-    }
 
     setSavingConfig(true)
     try {
       const anioVal = editAnio.trim() || new Date().getFullYear().toString()
-      await supabase.from('configuracion').upsert([
-        { clave: 'nombre_congregacion', valor: trimmed },
-        { clave: 'anio_en_curso', valor: anioVal },
-      ])
+      await guardarGlobalConfig({
+        ...(globalConfig || {}),
+        nombreCongregacion: trimmed,
+        anioEnCurso: anioVal,
+      })
       setCongregacion(trimmed)
       setAnioEnCurso(anioVal)
       localStorage.setItem('onboarding_step1', 'true')
       success('Nombre de congregación guardado exitosamente')
-      setWizardStep(2)
+
+      if (personas.length > 0 && semanas.length > 0) {
+        setOnboardingComplete(true)
+        localStorage.setItem('onboarding_complete', 'true')
+        setWizardOpen(false)
+      } else {
+        setWizardStep(2)
+      }
       await fetchData()
     } catch (err) {
       console.error(err)
@@ -376,6 +329,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
   }
 
   // ── 1. CÁLCULO DE KPIS RÁPIDOS ─────────────────────────────────
+  const congregacionActiva = globalConfig?.nombreCongregacion || congregacion || 'Congregación del Recreo'
   const totalPersonas = personas.length
   const totalActivos = personas.filter(p => p.activo).length
   const mesActual = getMesActualNombre()
@@ -441,7 +395,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
     return prog.total > 0 && prog.confirmadas < prog.total
   })
 
-  const proximaReunion = getProximaReunion()
+  const proximaReunion = getProximaReunion(globalConfig)
 
   // ── 2. MOTOR DE REGLAS — ALERTAS PROACTIVAS ────────────────────
   const alertas = []
@@ -549,7 +503,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
       const semanasNorm = buildDatosDesdeSupabase(semanasParaDocx, partes, asignaciones, personas)
 
       await generarYDescargarS140({
-        congregacion: congregacion || 'Congregacion del Recreo',
+        congregacion: congregacionActiva,
         semanas: semanasNorm,
       })
       success('Documento S-140 generado y descargado con éxito.')
@@ -605,8 +559,24 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
             <h1 className="text-xl font-semibold tracking-tight text-text1">
               Panel Principal
             </h1>
-            <Badge variant="neutral" size="sm">
-              {congregacion}
+            <Badge
+              variant="neutral"
+              size="sm"
+              className="cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              onClick={() => {
+                if (rol === 'admin') {
+                  onNavigate?.('configuracion')
+                } else {
+                  openWizard(1)
+                }
+              }}
+              title={
+                rol === 'admin'
+                  ? 'Configuración del Sistema (Nombre, Días y Horarios de Reunión)'
+                  : 'Modificar congregación o año'
+              }
+            >
+              {congregacionActiva}
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-1">
@@ -630,13 +600,22 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
       {/* ── 1. CHECKLIST DE ONBOARDING (CONDICIONAL) ── */}
       {mostrarChecklist && (
         <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 shadow-2xs relative">
-          <div className="absolute top-3.5 right-3.5 flex items-center gap-2">
+          <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleDismissWizard}
               className="text-xs text-text3 hover:text-text1 hover:underline transition-colors cursor-pointer px-1 py-0.5"
             >
               Saltar por ahora
+            </button>
+            <button
+              type="button"
+              onClick={handleDismissWizard}
+              className="p-1 rounded-lg text-text3 hover:text-text1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              title="Cerrar aviso"
+              aria-label="Cerrar aviso de bienvenida"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
 
@@ -687,7 +666,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
                       Nombre de congregación
                     </h3>
                     <p className="text-[11px] text-text3 mt-0.5">
-                      {paso1Completo ? congregacion : 'Personaliza el nombre oficial y año'}
+                      {paso1Completo ? congregacionActiva : 'Personaliza el nombre oficial y año'}
                     </p>
                   </div>
                   {!paso1Completo && (
@@ -695,7 +674,13 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
                       variant="accent"
                       size="xs"
                       icon={ArrowRight}
-                      onClick={() => openWizard(1)}
+                      onClick={() => {
+                        if (rol === 'admin') {
+                          onNavigate?.('configuracion')
+                        } else {
+                          openWizard(1)
+                        }
+                      }}
                       className="mt-3 w-full text-[11px]"
                     >
                       Configurar →
@@ -869,14 +854,16 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
         {/* KPI 4: Próxima Reunión */}
         <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-text3">
-            <span className="text-xs font-medium">Próxima reunión</span>
-            <CalendarDays className="w-4 h-4 text-purple-500" />
+            <span className="text-xs font-medium truncate" title={proximaReunion.nombreReunion}>
+              Próx: {proximaReunion.nombreReunion || 'Reunión'}
+            </span>
+            <CalendarDays className="w-4 h-4 text-purple-500 shrink-0" />
           </div>
           <div className="text-lg font-bold text-text1 tracking-tight truncate leading-tight pt-1">
             {proximaReunion.textoFormateado}
           </div>
           <div className="flex items-center justify-between pt-0.5">
-            <span className="text-[11px] text-text3">Agenda semanal</span>
+            <span className="text-[11px] text-text3">{proximaReunion.horaFormateada}</span>
             <Badge variant={proximaReunion.badgeVariant} size="xs">
               {proximaReunion.badgeTexto}
             </Badge>
@@ -1445,6 +1432,22 @@ export default function Home({ onNavigate, onOpenRegistrosCreate }) {
                   placeholder="Ej. 2026"
                 />
               </div>
+
+              {rol === 'admin' && (
+                <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-text2 flex items-center justify-between">
+                  <span>¿Deseas personalizar días, horarios o circuito?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWizardOpen(false)
+                      onNavigate?.('configuracion')
+                    }}
+                    className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline text-[11px] cursor-pointer ml-2"
+                  >
+                    Abrir Configuración →
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

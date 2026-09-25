@@ -241,8 +241,9 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
 
   useEffect(() => {
     if (!open) return
+    const year = new Date().getFullYear()
     setNuevoTipo('')
-    setNuevaFecha(`2026-${MES_CODE[mesIdx]}-01`)
+    setNuevaFecha(`${year}-${MES_CODE[mesIdx]}-01`)
     setNuevaObs('')
   }, [open, mesIdx])
 

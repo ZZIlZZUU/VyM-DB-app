@@ -212,10 +212,17 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
     compression: 'DEFLATE',
   })
 
+  const primerFecha = semanas[0]?.fecha_inicio || semanas[0]?.fecha?.slice(0, 10)
+  const periodoStr = primerFecha ? primerFecha.slice(0, 7) : new Date().toISOString().slice(0, 7)
+  const congSlug = (congregacion || 'Congregacion')
+    .trim()
+    .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]/g, '_')
+    .replace(/_+/g, '_')
+
   const url = URL.createObjectURL(blob)
   const a   = document.createElement('a')
   a.href     = url
-  a.download = `S-140_${new Date().toISOString().slice(0, 7)}.docx`
+  a.download = `S-140_${congSlug}_${periodoStr}.docx`
   a.click()
   URL.revokeObjectURL(url)
 }

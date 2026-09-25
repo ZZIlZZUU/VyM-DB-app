@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -11,13 +11,33 @@ export default function Login() {
   const [resetLoading, setResetLoading] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    // Si ya existe una sesión activa y autorizada, redirigir directo al dashboard
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user?.email) {
+        const cleanEmail = session.user.email.trim().toLowerCase()
+        const { data } = await supabase
+          .from('usuarios_autorizados')
+          .select('activo')
+          .eq('email', cleanEmail)
+          .single()
+
+        if (data?.activo) {
+          navigate('/', { replace: true })
+        }
+      }
+    })
+  }, [navigate])
+
   async function handleLogin(e) {
     e.preventDefault()
     setError('')
     setResetMessage('')
+    const emailClean = email.trim().toLowerCase()
+    if (!emailClean) return
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({ email: emailClean, password })
 
     if (error) {
       setError('Correo o contraseña incorrectos.')
@@ -29,7 +49,7 @@ export default function Login() {
     const { data } = await supabase
       .from('usuarios_autorizados')
       .select('activo')
-      .eq('email', email)
+      .eq('email', emailClean)
       .single()
 
     if (!data?.activo) {
@@ -43,7 +63,8 @@ export default function Login() {
   }
 
   async function handleResetPassword() {
-    if (!email.trim()) {
+    const emailClean = email.trim().toLowerCase()
+    if (!emailClean) {
       setError('Ingresa tu correo electrónico para restablecer o definir tu contraseña.')
       return
     }
@@ -51,8 +72,9 @@ export default function Login() {
     setResetMessage('')
     setResetLoading(true)
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://vy-m-db-app-flame.vercel.app/set-password',
+    const redirectUrl = `${window.location.origin}/set-password`
+    const { error } = await supabase.auth.resetPasswordForEmail(emailClean, {
+      redirectTo: redirectUrl,
     })
 
     if (error) {

@@ -119,24 +119,26 @@ export function calcularHorariosVC(partesVC, horaBase = '19:50') {
 
 /**
  * Calcula todas las marcas horarias en formato 12h para la vista S-140 de una semana.
- * Devuelve marcas fijas para lo estático y dinámicas para lo variable.
+ * Devuelve marcas fijas para lo estático y dinámicas para lo variable, relativas a horaInicioReunion.
  */
-export function obtenerHorariosS140(semana) {
+export function obtenerHorariosS140(semana, horaInicioReunion = '19:00') {
+  const baseMins = timeToMinutes(horaInicioReunion)
+
   // 1. Estáticos de Apertura y Tesoros
   const apertura = {
-    cancion: '7:00',
-    intro: '7:04',
+    cancion: formatHora12(baseMins),
+    intro: formatHora12(baseMins + 4),
   }
 
   const tb = {
-    discurso: '7:05',
-    perlas: '7:15',
-    lectura: '7:25',
+    discurso: formatHora12(baseMins + 5),
+    perlas: formatHora12(baseMins + 15),
+    lectura: formatHora12(baseMins + 25),
   }
 
-  // 2. SMT (dinámico desde 7:30)
+  // 2. SMT (dinámico desde +30m)
   const partesSMT = (semana?.smt || []).filter(p => p && p.titulo && String(p.titulo).trim() !== '')
-  let cursorSMT = timeToMinutes('19:30') // 19:30 = 7:30
+  let cursorSMT = baseMins + 30
   const smtHoras = []
 
   for (let i = 0; i < partesSMT.length; i++) {
@@ -146,10 +148,10 @@ export function obtenerHorariosS140(semana) {
     cursorSMT += dur + 1 // +1 min margen
   }
 
-  // 3. VC y EBC (dinámico desde 7:50)
-  const cancionVC = '7:45'
+  // 3. VC y EBC (dinámico desde +50m)
+  const cancionVC = formatHora12(baseMins + 45)
   const partesVC = (semana?.vc || []).filter(v => v && v.titulo && String(v.titulo).trim() !== '')
-  let cursorVC = timeToMinutes('19:50') // 19:50 = 7:50
+  let cursorVC = baseMins + 50
   const vcHoras = []
 
   for (let i = 0; i < partesVC.length; i++) {
@@ -164,8 +166,8 @@ export function obtenerHorariosS140(semana) {
 
   // 4. Cierre
   const cierre = {
-    conclu: '8:37',
-    cancion: '8:40',
+    conclu: formatHora12(baseMins + 97),
+    cancion: formatHora12(baseMins + 100),
   }
 
   return {

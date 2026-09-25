@@ -8,6 +8,7 @@ import {
   FileEdit,
   CalendarRange,
   ShieldCheck,
+  Settings,
   ArrowUpDown,
   BarChart3,
   History,
@@ -19,17 +20,18 @@ import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 
 export const NAV_ITEMS = [
-  { id: 'home',         icon: Home,          label: 'Inicio',             section: 'Vistas',       shortcut: '0' },
-  { id: 'semanal',      icon: CalendarDays,  label: 'Vista semanal',      section: 'Vistas',       shortcut: 'W' },
-  { id: 'editable',     icon: LayoutGrid,    label: 'Vista editable',     section: 'Vistas',       shortcut: '1' },
-  { id: 'sql',          icon: Database,      label: 'Vista SQL',          section: 'Vistas',       shortcut: '2' },
-  { id: 'personas',     icon: Users,         label: 'Personas',           section: 'Gestión',      shortcut: '3' },
-  { id: 'registros',    icon: FileEdit,      label: 'Registros',          section: 'Gestión',      shortcut: '4' },
-  { id: 'programa',     icon: CalendarRange, label: 'Programa (S-140)',   section: 'Gestión',      shortcut: '5', badgeKey: 'semanasPendientes' },
-  { id: 'usuarios',     icon: ShieldCheck,   label: 'Usuarios',          section: 'Gestión',      shortcut: '6', adminOnly: true },
-  { id: 'exportar',     icon: ArrowUpDown,   label: 'Exportar / Importar',section: 'Herramientas', shortcut: '7' },
-  { id: 'estadisticas', icon: BarChart3,     label: 'Estadísticas',       section: 'Herramientas', shortcut: '8' },
-  { id: 'historial',    icon: History,       label: 'Historial Cambios', section: 'Herramientas', shortcut: '9' },
+  { id: 'home',          icon: Home,          label: 'Inicio',             section: 'Vistas',       shortcut: '0' },
+  { id: 'semanal',       icon: CalendarDays,  label: 'Vista semanal',      section: 'Vistas',       shortcut: 'W' },
+  { id: 'editable',      icon: LayoutGrid,    label: 'Vista editable',     section: 'Vistas',       shortcut: '1' },
+  { id: 'sql',           icon: Database,      label: 'Vista SQL',          section: 'Vistas',       shortcut: '2' },
+  { id: 'personas',      icon: Users,         label: 'Personas',           section: 'Gestión',      shortcut: '3' },
+  { id: 'registros',     icon: FileEdit,      label: 'Registros',          section: 'Gestión',      shortcut: '4' },
+  { id: 'programa',      icon: CalendarRange, label: 'Programa (S-140)',   section: 'Gestión',      shortcut: '5', badgeKey: 'semanasPendientes' },
+  { id: 'usuarios',      icon: ShieldCheck,   label: 'Usuarios',           section: 'Gestión',      shortcut: '6', adminOnly: true },
+  { id: 'configuracion', icon: Settings,      label: 'Configuración',      section: 'Gestión',      shortcut: 'C', adminOnly: true },
+  { id: 'exportar',      icon: ArrowUpDown,   label: 'Exportar / Importar',section: 'Herramientas', shortcut: '7' },
+  { id: 'estadisticas',  icon: BarChart3,     label: 'Estadísticas',       section: 'Herramientas', shortcut: '8' },
+  { id: 'historial',     icon: History,       label: 'Historial Cambios',  section: 'Herramientas', shortcut: '9' },
 ]
 
 export function Sidebar({

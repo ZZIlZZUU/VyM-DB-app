@@ -61,6 +61,7 @@ export function useKeyboardShortcuts({
           r: 'registros',
           o: 'programa',
           u: 'usuarios',
+          c: 'configuracion',
           x: 'exportar',
           t: 'estadisticas',
           h: 'historial',

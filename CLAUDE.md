@@ -120,14 +120,22 @@ clave  VARCHAR(50) PRIMARY KEY
 valor  TEXT NOT NULL
 ```
 
-**Registros actuales:**
+**Registros y claves de configuración:**
 
-| clave | valor |
-|---|---|
-| `nombre_congregacion` | `Congregacion del Recreo` |
-| `anio_en_curso` | `2026` |
+| clave | valor por defecto | descripción |
+|---|---|---|
+| `nombre_congregacion` | `Congregacion del Recreo` | Nombre oficial de la congregación |
+| `anio_en_curso` | `2026` | Año de servicio activo |
+| `dia_reunion_entre_semana` | `Martes` | Día de la reunión Vida y Ministerio |
+| `hora_reunion_entre_semana` | `19:30` | Hora de inicio de la reunión entre semana |
+| `dia_reunion_fin_semana` | `Sábado` | Día de la reunión Discurso Público / Atalaya |
+| `hora_reunion_fin_semana` | `18:00` | Hora de inicio de la reunión de fin de semana |
+| `circuito` | `''` | Identificador de circuito (ej. Circuito 12) |
+| `sala_auxiliar_habilitada` | `'false'` | Habilitación de segunda sala de clases (Sala B) |
+| `direccion_salon` | `''` | Dirección física del Salón del Reino |
+| `configuracion_inicial_completada` | `'true'` | Indicador de onboarding completado |
 
-> RLS habilitado con policy de lectura pública. Para editar el nombre de congregación, actualizar directamente en Supabase Table Editor o via SQL: `UPDATE configuracion SET valor = 'Nuevo Nombre' WHERE clave = 'nombre_congregacion'`.
+> RLS: Políticas en `supabase/migrations/20260921_configuracion_rls.sql`. Lectura para todos los usuarios autenticados/anónimos y modificación (INSERT/UPDATE/UPSERT) restringida a usuarios con rol `admin` en `usuarios_autorizados`.
 
 ### Esquema `personas`
 

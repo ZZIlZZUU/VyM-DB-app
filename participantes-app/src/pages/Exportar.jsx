@@ -63,21 +63,38 @@ function downloadJSON(content, filename) {
   a.click()
 }
 
+function downloadSQL(content, filename) {
+  const blob = new Blob([content], { type: 'application/sql;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+}
+
 function copyToClipboard(text, cb) {
   navigator.clipboard.writeText(text).then(cb)
 }
 
 function parseCSVLine(line) {
+  if (!line && line !== '') return []
   const parts = []
-  let cur = '',
-    inQ = false
-  for (const ch of line) {
+  let cur = ''
+  let inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
     if (ch === '"') {
-      inQ = !inQ
+      if (inQ && line[i + 1] === '"') {
+        cur += '"'
+        i++ // salta comilla escapada RFC 4180
+      } else {
+        inQ = !inQ
+      }
     } else if (ch === ',' && !inQ) {
       parts.push(cur.trim())
       cur = ''
-    } else cur += ch
+    } else {
+      cur += ch
+    }
   }
   parts.push(cur.trim())
   return parts
@@ -93,7 +110,8 @@ const HEADERS_PARTIC = ['clave', 'tipo', 'fecha', 'mes', 'nombre', 'lista']
 
 function HeadersWarning({ type, headers }) {
   const required = type === 'part' ? HEADERS_PART : HEADERS_PARTIC
-  const missing = required.filter(h => !headers.includes(h))
+  const lowerHeaders = (headers || []).map(h => String(h || '').toLowerCase().trim())
+  const missing = required.filter(h => !lowerHeaders.includes(h.toLowerCase()))
 
   if (missing.length === 0) {
     return (
@@ -222,7 +240,7 @@ export default function Exportar() {
       const body = rows
         .map(
           p =>
-            `${p.clave},${p.lista},"${p.nombre}",${p.sexo},${p.estatus},${p.activo}`
+            `${p.clave},${p.lista},"${(p.nombre || '').replace(/"/g, '""')}",${p.sexo},${p.estatus},${p.activo}`
         )
         .join('\n')
       const fullCsv = header + '\n' + body
@@ -255,7 +273,7 @@ export default function Exportar() {
       const body = rows
         .map(
           r =>
-            `${r.id},${r.clave},"${r.nombre}",${r.lista},${r.fecha},${r.mes},${r.tipo},${r.peso},"${r.observaciones || ''}"`
+            `${r.id},${r.clave},"${(r.nombre || '').replace(/"/g, '""')}",${r.lista},${r.fecha},${r.mes},${r.tipo},${r.peso},"${(r.observaciones || '').replace(/"/g, '""')}"`
         )
         .join('\n')
       const fullCsv = header + '\n' + body
@@ -283,16 +301,31 @@ export default function Exportar() {
   async function exportSQL() {
     setLoading('sql')
     try {
-      const rows = await fetchParticipaciones()
-      const sql = rows
+      const [personas, participaciones] = await Promise.all([
+        fetchPersonas(),
+        fetchParticipaciones(),
+      ])
+
+      const sqlPersonas = personas
         .map(
-          r =>
-            `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${escapeSql(r.clave)}', '${escapeSql(r.nombre)}', '${escapeSql(r.lista)}', '${escapeSql(r.fecha)}', '${escapeSql(r.mes)}', '${escapeSql(r.tipo)}', ${r.peso}, ${r.observaciones ? `'${escapeSql(r.observaciones)}'` : 'NULL'});`
+          p =>
+            `INSERT INTO personas (clave, lista, nombre, sexo, estatus, activo) VALUES ('${escapeSql(p.clave)}', '${escapeSql(p.lista)}', '${escapeSql(p.nombre)}', '${escapeSql(p.sexo)}', '${escapeSql(p.estatus)}', ${p.activo ? 'TRUE' : 'FALSE'}) ON CONFLICT (clave) DO UPDATE SET lista = EXCLUDED.lista, nombre = EXCLUDED.nombre, sexo = EXCLUDED.sexo, estatus = EXCLUDED.estatus, activo = EXCLUDED.activo;`
         )
         .join('\n')
-      copyToClipboard(sql, () => {
+
+      const sqlParticipaciones = participaciones
+        .map(
+          r =>
+            `INSERT INTO participaciones (clave, nombre, lista, fecha, mes, tipo, peso, observaciones) VALUES ('${escapeSql(r.clave)}', '${escapeSql(r.nombre)}', '${escapeSql(r.lista)}', '${escapeSql(r.fecha)}', '${escapeSql(r.mes)}', '${escapeSql(r.tipo)}', ${r.peso ?? 1}, ${r.observaciones ? `'${escapeSql(r.observaciones)}'` : 'NULL'});`
+        )
+        .join('\n')
+
+      const fullSql = `-- VyM DB App - Respaldo SQL\n-- Generado: ${new Date().toISOString()}\n\n-- 1. Catálogo de Personas\n${sqlPersonas}\n\n-- 2. Historial de Participaciones\n${sqlParticipaciones}\n`
+
+      downloadSQL(fullSql, 'respaldo.sql')
+      copyToClipboard(fullSql, () => {
         setLoading('')
-        success('Sentencias SQL copiadas al portapapeles')
+        success('Respaldo SQL descargado y copiado al portapapeles')
       })
     } catch (err) {
       console.error(err)
@@ -330,19 +363,36 @@ export default function Exportar() {
   }
 
   async function processFile(file, type) {
-    const text = await file.text()
-    const lines = text.replace(/^\uFEFF/, '').split('\n').filter(Boolean)
-    const headers = parseCSVLine(lines[0])
-    const rows = lines.slice(1, 6).map(line => {
-      const vals = parseCSVLine(line)
-      const obj = {}
-      headers.forEach(
-        (h, i) => (obj[h.trim()] = (vals[i] || '').replace(/^"|"$/g, '').trim())
-      )
-      return obj
-    })
+    if (!file) return
+    try {
+      const text = await file.text()
+      const lines = text
+        .replace(/^\uFEFF/, '')
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(Boolean)
 
-    setPreview({ type, headers, rows, file })
+      if (lines.length < 2) {
+        toastError('El archivo CSV está vacío o no contiene suficientes filas')
+        return
+      }
+
+      const rawHeaders = parseCSVLine(lines[0])
+      const headers = rawHeaders.map(h => h.trim().toLowerCase())
+      const rows = lines.slice(1, 6).map(line => {
+        const vals = parseCSVLine(line)
+        const obj = {}
+        headers.forEach(
+          (h, i) => (obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim())
+        )
+        return obj
+      })
+
+      setPreview({ type, headers, rows, file })
+    } catch (err) {
+      console.error('Error al procesar archivo:', err)
+      toastError('Error al leer el archivo CSV')
+    }
   }
 
   async function handleFileSelect(e, type) {
@@ -364,87 +414,146 @@ export default function Exportar() {
   async function importPartCSV(file) {
     if (!file) return
     setLoading('import-part')
-    const text = await file.text()
-    const lines = text.replace(/^\uFEFF/, '').split('\n').filter(Boolean)
-    const header = parseCSVLine(lines[0])
-    const rows = lines
-      .slice(1)
-      .map(line => {
-        const vals = parseCSVLine(line)
-        const obj = {}
-        header.forEach(
-          (h, i) => (obj[h.trim()] = (vals[i] || '').replace(/^"|"$/g, '').trim())
+    try {
+      const text = await file.text()
+      const lines = text
+        .replace(/^\uFEFF/, '')
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(Boolean)
+
+      if (lines.length < 2) {
+        toastError('El archivo CSV no contiene registros para importar')
+        return
+      }
+
+      const rawHeaders = parseCSVLine(lines[0])
+      const header = rawHeaders.map(h => h.trim().toLowerCase())
+      const rows = lines
+        .slice(1)
+        .map(line => {
+          const vals = parseCSVLine(line)
+          const obj = {}
+          header.forEach(
+            (h, i) => (obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim())
+          )
+          return obj
+        })
+        .filter(r => r.clave && r.nombre)
+
+      if (rows.length === 0) {
+        warning('No se encontraron filas válidas con clave y nombre')
+        return
+      }
+
+      let inserted = 0
+      let errorsCount = 0
+      for (const row of rows) {
+        const activoStr = String(row.activo || '').toLowerCase().trim()
+        const isActivo = !['false', '0', 'f', 'no'].includes(activoStr)
+        const { error } = await supabase.from('personas').upsert(
+          {
+            clave: row.clave.trim(),
+            lista: row.lista ? row.lista.trim() : 'Mat',
+            nombre: row.nombre.trim(),
+            sexo: row.sexo ? row.sexo.trim().toUpperCase().slice(0, 1) : 'H',
+            estatus: row.estatus ? row.estatus.trim() : 'Publicador',
+            activo: isActivo,
+          },
+          { onConflict: 'clave' }
         )
-        return obj
-      })
-      .filter(r => r.clave && r.nombre)
+        if (!error) inserted++
+        else errorsCount++
+      }
 
-    let inserted = 0
-    let errorsCount = 0
-    for (const row of rows) {
-      const { error } = await supabase.from('personas').upsert(
-        {
-          clave: row.clave,
-          lista: row.lista,
-          nombre: row.nombre,
-          sexo: row.sexo,
-          estatus: row.estatus,
-          activo: row.activo !== 'false',
-        },
-        { onConflict: 'clave' }
-      )
-      if (!error) inserted++
-      else errorsCount++
-    }
-
-    setLoading('')
-    if (errorsCount > 0) {
-      warning(`${inserted} importados/actualizados · ${errorsCount} fallaron`)
-    } else {
-      success(`${inserted} personas importadas / actualizadas`)
+      if (errorsCount > 0) {
+        warning(`${inserted} importados/actualizados · ${errorsCount} fallaron`)
+      } else {
+        success(`${inserted} personas importadas / actualizadas`)
+      }
+    } catch (err) {
+      console.error('Error al importar personas:', err)
+      toastError('Error al importar personas: ' + (err?.message || 'Error desconocido'))
+    } finally {
+      setLoading('')
     }
   }
 
   async function importParticCSV(file) {
     if (!file) return
     setLoading('import-partic')
-    const text = await file.text()
-    const lines = text.replace(/^\uFEFF/, '').split('\n').filter(Boolean)
-    const header = parseCSVLine(lines[0])
-    const rows = lines
-      .slice(1)
-      .map(line => {
-        const vals = parseCSVLine(line)
-        const obj = {}
-        header.forEach(
-          (h, i) => (obj[h.trim()] = (vals[i] || '').replace(/^"|"$/g, '').trim())
-        )
-        return obj
-      })
-      .filter(r => r.clave && r.tipo)
+    try {
+      const text = await file.text()
+      const lines = text
+        .replace(/^\uFEFF/, '')
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(Boolean)
 
-    let inserted = 0
-    let errorsCount = 0
-    for (const row of rows) {
-      const { error } = await supabase.from('participaciones').insert({
-        clave: row.clave,
-        nombre: row.nombre,
-        lista: row.lista,
-        fecha: row.fecha,
-        mes: row.mes,
-        tipo: row.tipo,
-        peso: parseInt(row.peso) || PESO_MAP[row.tipo] || 1,
-        observaciones: row.observaciones || null,
-      })
-      if (!error) inserted++
-      else errorsCount++
-    }
+      if (lines.length < 2) {
+        toastError('El archivo CSV no contiene registros para importar')
+        return
+      }
 
-    setLoading('')
-    if (errorsCount > 0) {
-      warning(`${inserted} importados · ${errorsCount} fallaron`)
-    } else {
-      success(`${inserted} registros de participaciones importados`)
+      const rawHeaders = parseCSVLine(lines[0])
+      const header = rawHeaders.map(h => h.trim().toLowerCase())
+      const rows = lines
+        .slice(1)
+        .map(line => {
+          const vals = parseCSVLine(line)
+          const obj = {}
+          header.forEach(
+            (h, i) => (obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim())
+          )
+          return obj
+        })
+        .filter(r => r.clave && r.tipo)
+
+      if (rows.length === 0) {
+        warning('No se encontraron filas válidas con clave y tipo de asignación')
+        return
+      }
+
+      let inserted = 0
+      let errorsCount = 0
+      for (const row of rows) {
+        const parsedPeso = parseInt(row.peso, 10)
+        const peso = !isNaN(parsedPeso)
+          ? parsedPeso
+          : (PESO_MAP[row.tipo] !== undefined ? PESO_MAP[row.tipo] : 1)
+
+        let mesVal = row.mes
+        if (!mesVal && row.fecha) {
+          const f = new Date(row.fecha + 'T00:00:00')
+          if (!isNaN(f.getTime())) {
+            mesVal = MESES[f.getMonth()]
+          }
+        }
+
+        const { error } = await supabase.from('participaciones').insert({
+          clave: row.clave.trim(),
+          nombre: row.nombre ? row.nombre.trim() : '',
+          lista: row.lista ? row.lista.trim() : 'Mat',
+          fecha: row.fecha,
+          mes: mesVal || null,
+          tipo: row.tipo.trim(),
+          peso: peso,
+          observaciones: row.observaciones ? row.observaciones.trim() : null,
+        })
+        if (!error) inserted++
+        else errorsCount++
+      }
+
+      if (errorsCount > 0) {
+        warning(`${inserted} importados · ${errorsCount} fallaron`)
+      } else {
+        success(`${inserted} registros de participaciones importados`)
+      }
+    } catch (err) {
+      console.error('Error al importar participaciones:', err)
+      toastError('Error al importar participaciones: ' + (err?.message || 'Error desconocido'))
+    } finally {
+      setLoading('')
     }
   }
 

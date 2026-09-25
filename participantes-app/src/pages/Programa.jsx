@@ -1903,6 +1903,17 @@ export default function Programa() {
   // Función centralizada para procesar un archivo EPUB (sea de File input o Blob de Storage)
   // Borra limpiamente las semanas previas antes de insertar las nuevas
   async function procesarArchivoEPUB(fileOrBlob, filename) {
+    if (semanas && semanas.length > 0) {
+      const ok = await confirm({
+        title: '¿Reemplazar el programa actual?',
+        message: `Actualmente hay ${semanas.length} semanas registradas en el programa. Al importar una nueva Guía de Actividades se borrarán las semanas y asignaciones actuales de la vista de programa. (El historial de participaciones previas confirmadas se conservará).`,
+        danger: true,
+      })
+      if (!ok) {
+        return
+      }
+    }
+
     setUploading(true)
     showToast('Eliminando semanas anteriores y cargando las nuevas...')
 
@@ -2724,6 +2735,10 @@ export default function Programa() {
 
   // ── Generar documento S-140 (Completo) ───────────────────
   async function handleGenerarDocx() {
+    if (!semanas || semanas.length === 0) {
+      toastError('No hay semanas en el programa para generar el documento S-140.')
+      return
+    }
     try {
       showToast('Generando documento S-140...')
       const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
@@ -2759,14 +2774,28 @@ export default function Programa() {
       danger: true,
     })
     if (!ok) return
-    await supabase.from('programa_semanas').delete().eq('id', semanaId)
-    setExpandedWeeks(prev => {
-      const next = { ...prev }
-      delete next[semanaId]
-      return next
-    })
-    showToast('Semana eliminada')
-    await fetchData()
+
+    try {
+      const partesSem = partes.filter(p => p.semana_id === semanaId)
+      const partesIds = partesSem.map(p => p.id)
+      if (partesIds.length > 0) {
+        await supabase.from('programa_asignaciones').delete().in('parte_id', partesIds)
+        await supabase.from('programa_partes').delete().eq('semana_id', semanaId)
+      }
+      const { error: delSemErr } = await supabase.from('programa_semanas').delete().eq('id', semanaId)
+      if (delSemErr) throw delSemErr
+
+      setExpandedWeeks(prev => {
+        const next = { ...prev }
+        delete next[semanaId]
+        return next
+      })
+      showToast('Semana eliminada')
+      await fetchData()
+    } catch (err) {
+      console.error('Error al eliminar semana:', err)
+      toastError('Error al eliminar semana: ' + (err?.message || 'Error de conexión'))
+    }
   }
 
   if (loading) {

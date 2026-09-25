@@ -9,13 +9,20 @@ export default function SetPassword() {
   const [successMsg, setSuccessMsg]           = useState('')
   const [loading, setLoading]                 = useState(false)
   const [ready, setReady]                     = useState(false)
+  const [timedOut, setTimedOut]               = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
+    // Timeout de 5 segundos para detectar enlaces inválidos o expirados
+    const timer = setTimeout(() => {
+      setTimedOut(true)
+    }, 5000)
+
     // Verificar si la sesión ya existe en el SDK
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setReady(true)
+        clearTimeout(timer)
       }
     })
 
@@ -24,11 +31,15 @@ export default function SetPassword() {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         if (session) {
           setReady(true)
+          clearTimeout(timer)
         }
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timer)
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function handleSetPassword(e) {
@@ -80,9 +91,29 @@ export default function SetPassword() {
           <div className="text-sm font-medium text-text1 mb-5">Establecer nueva contraseña</div>
 
           {!ready ? (
-            <div className="text-center py-6 text-sm text-text3">
-              Verificando enlace de acceso...
-            </div>
+            timedOut ? (
+              <div className="text-center py-4 flex flex-col items-center gap-3">
+                <div className="text-2xl">⚠️</div>
+                <div className="text-sm font-semibold text-text1">
+                  Enlace inválido o expirado
+                </div>
+                <p className="text-xs text-text3 leading-relaxed">
+                  El enlace de recuperación es inválido, ha expirado o ya fue utilizado anteriormente.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="mt-2 w-full bg-accent text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-hover transition-colors"
+                >
+                  Volver a Iniciar Sesión
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-sm text-text3 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                Verificando enlace de acceso...
+              </div>
+            )
           ) : (
             <form onSubmit={handleSetPassword} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">

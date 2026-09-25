@@ -264,6 +264,19 @@ export default function Registros({ initialOpenCreate = false, onSheetClosed } =
       toastError('Por favor completa los campos requeridos (participante, fecha y tipo)')
       return
     }
+
+    const yaTieneEnFecha = participaciones.find(
+      r => r.clave === form.clave && r.fecha === form.fecha && r.id !== editId
+    )
+    if (yaTieneEnFecha) {
+      const proceed = await confirm({
+        title: 'Participación en la misma fecha',
+        message: `${personaSeleccionada?.nombre || form.clave} ya tiene una participación registrada el ${formatFechaLegible(form.fecha)} (${yaTieneEnFecha.tipo}). ¿Deseas registrar esta asignación adicional de todas formas?`,
+        danger: false,
+      })
+      if (!proceed) return
+    }
+
     setSaving(true)
     const p = personaSeleccionada
     const mes = getMes(form.fecha)
@@ -313,6 +326,11 @@ export default function Registros({ initialOpenCreate = false, onSheetClosed } =
     })
     if (!ok) return
     try {
+      await supabase
+        .from('programa_asignaciones')
+        .update({ confirmado: false, participacion_id: null })
+        .eq('participacion_id', id)
+
       const { error: err } = await supabase.from('participaciones').delete().eq('id', id)
       if (err) throw err
       success('Registro eliminado')
@@ -334,6 +352,11 @@ export default function Registros({ initialOpenCreate = false, onSheetClosed } =
     })
     if (!ok) return
     try {
+      await supabase
+        .from('programa_asignaciones')
+        .update({ confirmado: false, participacion_id: null })
+        .in('participacion_id', ids)
+
       const { error: err } = await supabase.from('participaciones').delete().in('id', ids)
       if (err) throw err
       success(

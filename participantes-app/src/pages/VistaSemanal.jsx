@@ -21,6 +21,7 @@ import { supabase } from '../lib/supabase'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma, MESES } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
+import { useEventosReunion } from '../hooks/useEventosReunion'
 import Toast from '../components/Toast'
 
 import { Button } from '../components/ui/Button'
@@ -149,6 +150,7 @@ function SkeletonSemana() {
 }
 
 export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
+  const { eventos } = useEventosReunion()
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
@@ -433,7 +435,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     if (!semanaActiva) return
     setExportingDocx(true)
     try {
-      const semanasNorm = buildDatosDesdeSupabase([semanaActiva], partes, asignaciones, personas)
+      const semanasNorm = buildDatosDesdeSupabase([semanaActiva], partes, asignaciones, personas, eventos)
       await generarYDescargarS140({
         congregacion: congregacion || 'Congregacion del Recreo',
         semanas: semanasNorm,

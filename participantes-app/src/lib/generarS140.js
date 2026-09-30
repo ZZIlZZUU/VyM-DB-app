@@ -94,8 +94,9 @@ export function buildDatosPlantilla(congregacion, semanas) {
 
 // ── Construir datos desde las estructuras de Supabase ────────
 // Convierte las tablas programa_semanas / programa_partes /
-// programa_asignaciones / personas al formato esperado arriba.
-export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas) {
+// programa_asignaciones / personas al formato esperado arriba,
+// aplicando eventos especiales (asambleas, desplazamientos, cancelaciones).
+export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos = []) {
   const nombrePorClave = clave => personas.find(p => p.clave === clave)?.nombre || ''
 
   return semanas.map(s => {
@@ -110,6 +111,14 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
 
     const fechaInicio = String(s.fecha_inicio || '').slice(0, 10)
     const fechaFin    = String(s.fecha_fin    || '').slice(0, 10)
+
+    // Buscar si existe un evento programado para esta semana
+    const evento = (eventos || []).find(e => {
+      if (e.semana_id && e.semana_id === s.id) return true
+      if (e.fecha_original && fechaInicio && fechaFin && e.fecha_original >= fechaInicio && e.fecha_original <= fechaFin) return true
+      if (e.fecha_efectiva && fechaInicio && fechaFin && e.fecha_efectiva >= fechaInicio && e.fecha_efectiva <= fechaFin) return true
+      return false
+    })
 
     // SMT (4 partes: SMT_EST con ayudante + SMT_DSC sin ayudante)
     const smtPartes = partesSemana
@@ -143,8 +152,92 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       }
     }).slice(0, 2) // max 2 slots VC en la plantilla
 
+    // Si la semana es una asamblea o reunión cancelada
+    const esAsamblea = evento && (evento.tipo_evento === 'asamblea_circuito' || evento.tipo_evento === 'asamblea_regional')
+    const esCancelada = evento && evento.tipo_evento === 'reunion_cancelada'
+    const esDesplazada = evento && evento.tipo_evento === 'reunion_desplazada'
+    const esVisitaSC = evento && evento.tipo_evento === 'visita_sc'
+
+    let fechaFormateada = `${fechaInicio} — ${fechaFin}`
+    if (esDesplazada && evento.fecha_efectiva) {
+      fechaFormateada = `${fechaInicio} — ${fechaFin} (Reunión: ${evento.fecha_efectiva})`
+    }
+
+    if (esAsamblea) {
+      const tituloAsamblea = evento.titulo_evento
+        ? evento.titulo_evento.toUpperCase()
+        : (evento.tipo_evento === 'asamblea_circuito' ? 'ASAMBLEA DE CIRCUITO' : 'ASAMBLEA REGIONAL')
+
+      return {
+        id:           s.id,
+        fecha:        fechaFormateada,
+        fecha_inicio: fechaInicio,
+        fecha_fin:    fechaFin,
+        presidente:   '',
+        can_ap:       '',
+        oracion_ap:   '',
+        tb_titulo:    tituloAsamblea,
+        tb_cond:      '',
+        pe_cond:      '',
+        lb_est:       '',
+        smt:          [],
+        can_vc:       '',
+        vc:           [],
+        ebc_cond:     '',
+        ebc_lect:     '',
+        ebc_hora_inicio: null,
+        can_ci:       '',
+        oracion_ci:   '',
+        esAsamblea:   true,
+        tipo_evento:  evento.tipo_evento,
+        evento,
+      }
+    }
+
+    if (esCancelada) {
+      const tituloCancelada = evento.titulo_evento
+        ? `REUNIÓN CANCELADA (${evento.titulo_evento.toUpperCase()})`
+        : 'REUNIÓN CANCELADA'
+
+      return {
+        id:           s.id,
+        fecha:        fechaFormateada,
+        fecha_inicio: fechaInicio,
+        fecha_fin:    fechaFin,
+        presidente:   '',
+        can_ap:       '',
+        oracion_ap:   '',
+        tb_titulo:    tituloCancelada,
+        tb_cond:      '',
+        pe_cond:      '',
+        lb_est:       '',
+        smt:          [],
+        can_vc:       '',
+        vc:           [],
+        ebc_cond:     '',
+        ebc_lect:     '',
+        ebc_hora_inicio: null,
+        can_ci:       '',
+        oracion_ci:   '',
+        esCancelada:  true,
+        tipo_evento:  evento.tipo_evento,
+        evento,
+      }
+    }
+
+    // Caso de Visita del SC
+    let ebcCond = asigDe('EBC_CON')
+    let ebcLect = asigDe('LEBC')
+    let ebcTitulo = partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.titulo || ''
+    if (esVisitaSC) {
+      ebcCond = ebcCond || 'Superintendente de Circuito'
+      ebcLect = '' // SC no requiere lector en su discurso de servicio
+      ebcTitulo = 'Discurso de servicio (30 min)'
+    }
+
     return {
-      fecha:        `${fechaInicio} — ${fechaFin}`,
+      id:           s.id,
+      fecha:        fechaFormateada,
       fecha_inicio: fechaInicio,
       fecha_fin:    fechaFin,
       presidente:   asigDe('P'),
@@ -157,11 +250,18 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
       smt,
       can_vc:       String(s.cancion_vc || ''),
       vc,
-      ebc_cond:     asigDe('EBC_CON'),
-      ebc_lect:     asigDe('LEBC'),
+      ebc_cond:     ebcCond,
+      ebc_lect:     ebcLect,
+      ebc_titulo:   ebcTitulo,
       ebc_hora_inicio: partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.hora_inicio || null,
       can_ci:       String(s.cancion_cierre || ''),
       oracion_ci:   asigDe('ORACION_C'),
+      esDesplazada: Boolean(esDesplazada),
+      fecha_efectiva: evento?.fecha_efectiva || null,
+      hora_efectiva: evento?.hora_efectiva || null,
+      esVisitaSC:   Boolean(esVisitaSC),
+      tipo_evento:  evento?.tipo_evento || null,
+      evento:       evento || null,
     }
   })
 }
@@ -266,11 +366,12 @@ export async function exportarS140SemanaActual() {
   }
 
   // 1. Cargar datos en paralelo
-  const [partesRes, asigRes, personasRes, configRes] = await Promise.all([
+  const [partesRes, asigRes, personasRes, configRes, eventosRes] = await Promise.all([
     supabase.from('programa_partes').select('*').eq('semana_id', semanaActual.id),
     supabase.from('programa_asignaciones').select('*'),
     supabase.from('personas').select('*'),
     supabase.from('configuracion').select('clave, valor'),
+    supabase.from('eventos_reunion').select('*'),
   ])
 
   if (partesRes.error) throw partesRes.error
@@ -279,8 +380,9 @@ export async function exportarS140SemanaActual() {
   const asignaciones = (asigRes.data || []).filter(a => partes.some(p => p.id === a.parte_id))
   const personas = personasRes.data || []
   const congregacion = configRes.data?.find(c => c.clave === 'nombre_congregacion')?.valor || 'Congregación del Recreo'
+  const eventos = eventosRes?.data || []
 
-  const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas)
+  const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas, eventos)
 
   await generarYDescargarS140({
     congregacion,

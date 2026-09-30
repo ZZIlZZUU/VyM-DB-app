@@ -268,4 +268,94 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
       expect(res.badgeTexto).toBe('Mañana')
     })
   })
+
+  describe('getProximaReunion con Excepciones y Eventos Especiales', () => {
+    const configDefault = {
+      diaReunionEntreSemana: 'Martes',
+      horaReunionEntreSemana: '19:30',
+      diaReunionFinSemana: 'Sábado',
+      horaReunionFinSemana: '18:00',
+    }
+
+    it('ajusta la fecha y día cuando la reunión es desplazada', () => {
+      // Domingo 27 Sep 2026. La reunión normal de martes 29 se desplazó al lunes 28
+      const domingo = new Date(2026, 8, 27, 10, 0)
+      const eventos = [
+        {
+          id: 'evt-1',
+          tipo_evento: 'reunion_desplazada',
+          titulo_evento: 'Reunión desplazada al lunes',
+          fecha_original: '2026-09-29',
+          fecha_efectiva: '2026-09-28',
+          hora_efectiva: '19:00',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+
+      const res = getProximaReunion(configDefault, domingo, eventos)
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.nombreDia).toBe('Lunes')
+      expect(res.diasRestantes).toBe(1)
+      expect(res.hora).toBe('19:00')
+      expect(res.esDesplazada).toBe(true)
+      expect(res.badgeTexto).toBe('Mañana (Desplazada)')
+      expect(res.badgeVariant).toBe('warning')
+    })
+
+    it('muestra aviso y badge de asamblea cuando coincide con la fecha de reunión', () => {
+      // Domingo 27 Sep 2026. Hay asamblea de circuito el martes 29
+      const domingo = new Date(2026, 8, 27, 10, 0)
+      const eventos = [
+        {
+          id: 'evt-2',
+          tipo_evento: 'asamblea_circuito',
+          titulo_evento: 'Asamblea de Circuito con Representante',
+          fecha_original: '2026-09-29',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+
+      const res = getProximaReunion(configDefault, domingo, eventos)
+      expect(res.esAsamblea).toBe(true)
+      expect(res.nombreReunion).toBe('Asamblea de Circuito con Representante')
+      expect(res.badgeTexto).toBe('Asamblea')
+      expect(res.badgeVariant).toBe('purple')
+    })
+
+    it('identifica correctamente cuando la reunión ha sido cancelada', () => {
+      // Domingo 27 Sep 2026. Martes 29 cancelada por remodelación
+      const domingo = new Date(2026, 8, 27, 10, 0)
+      const eventos = [
+        {
+          id: 'evt-3',
+          tipo_evento: 'reunion_cancelada',
+          titulo_evento: 'Remodelación del Salón del Reino',
+          fecha_original: '2026-09-29',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+
+      const res = getProximaReunion(configDefault, domingo, eventos)
+      expect(res.esCancelada).toBe(true)
+      expect(res.badgeTexto).toBe('Cancelada')
+      expect(res.badgeVariant).toBe('danger')
+    })
+
+    it('identifica visita del SC', () => {
+      const domingo = new Date(2026, 8, 27, 10, 0)
+      const eventos = [
+        {
+          id: 'evt-4',
+          tipo_evento: 'visita_sc',
+          titulo_evento: 'Visita del Superintendente de Circuito',
+          fecha_original: '2026-09-29',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+
+      const res = getProximaReunion(configDefault, domingo, eventos)
+      expect(res.esVisitaSC).toBe(true)
+      expect(res.nombreReunion).toContain('Visita SC')
+    })
+  })
 })

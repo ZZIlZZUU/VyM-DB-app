@@ -247,13 +247,15 @@ const DIAS_SEMANA_MAP = {
 
 /**
  * Calcula la reunión más próxima (rotando dinámicamente entre reunión de entre semana
- * y reunión de fin de semana) según los días y horas configurados.
+ * y reunión de fin de semana) según los días y horas configurados, considerando
+ * también excepciones y eventos especiales (asambleas, reuniones desplazadas o canceladas).
  *
  * @param {Object} [config]
  * @param {Date} [fechaReferencia] Fecha base para cálculo (permite pruebas deterministas)
+ * @param {Array} [eventos=[]] Lista de eventos o excepciones de reunión
  * @returns {Object}
  */
-export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
+export function getProximaReunion(config = {}, fechaReferencia = new Date(), eventos = []) {
   const hoy = new Date(fechaReferencia)
 
   const diaEntre = (config?.diaReunionEntreSemana || 'Martes').toLowerCase().trim()
@@ -267,6 +269,13 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
   function parseHora(str) {
     const parts = (str || '19:00').split(':').map(Number)
     return { h: parts[0] || 0, m: parts[1] || 0 }
+  }
+
+  function toIsoDate(d) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dia = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dia}`
   }
 
   function calcularOcurrencia(targetDay, horaStr) {
@@ -291,16 +300,63 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
     }
   }
 
-  const candEntre = calcularOcurrencia(targetDayEntre, horaEntre)
-  const candFin = calcularOcurrencia(targetDayFin, horaFin)
+  let candEntre = calcularOcurrencia(targetDayEntre, horaEntre)
+  let candFin = calcularOcurrencia(targetDayFin, horaFin)
+
+  // Evaluar eventos especiales que afecten o desplacen las reuniones
+  const listaEventos = Array.isArray(eventos) ? eventos : []
+
+  function aplicarEvento(cand, tipoReunion) {
+    const candIso = toIsoDate(cand.fecha)
+    const evt = listaEventos.find(e => {
+      const afecta = e.afecta_reunion || 'entre_semana'
+      if (afecta !== 'ambas' && afecta !== tipoReunion) return false
+      return e.fecha_original === candIso || e.fecha_efectiva === candIso
+    })
+
+    if (!evt) return { cand, evento: null }
+
+    if (evt.tipo_evento === 'reunion_desplazada' && evt.fecha_efectiva) {
+      const [ey, em, ed] = evt.fecha_efectiva.split('-').map(Number)
+      const horaEfStr = evt.hora_efectiva || cand.horaStr
+      const { h, m } = parseHora(horaEfStr)
+      const fechaDesplazada = new Date(ey, em - 1, ed, h, m, 0)
+
+      if (fechaDesplazada.getTime() >= hoy.getTime()) {
+        const msPerDay = 1000 * 60 * 60 * 24
+        const midHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
+        const midTarget = new Date(ey, em - 1, ed).getTime()
+        const diasRestantes = Math.max(0, Math.round((midTarget - midHoy) / msPerDay))
+
+        return {
+          cand: {
+            fecha: fechaDesplazada,
+            diasRestantes,
+            diffMs: fechaDesplazada.getTime() - hoy.getTime(),
+            horaStr: horaEfStr,
+          },
+          evento: evt,
+        }
+      }
+    }
+
+    return { cand, evento: evt }
+  }
+
+  const resEntre = aplicarEvento(candEntre, 'entre_semana')
+  const resFin = aplicarEvento(candFin, 'fin_semana')
+
+  candEntre = resEntre.cand
+  candFin = resFin.cand
 
   const esEntreSemana = candEntre.diffMs <= candFin.diffMs
   const ganador = esEntreSemana ? candEntre : candFin
+  const eventoActivo = esEntreSemana ? resEntre.evento : resFin.evento
 
-  const nombreReunion = esEntreSemana ? 'Vida y Ministerio' : 'Reunión Pública'
-  const nombreDia = esEntreSemana
-    ? (config?.diaReunionEntreSemana || 'Martes')
-    : (config?.diaReunionFinSemana || 'Sábado')
+  const DIAS_NOMBRES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+  const nombreDia = DIAS_NOMBRES[ganador.fecha.getDay()] || (esEntreSemana ? (config?.diaReunionEntreSemana || 'Martes') : (config?.diaReunionFinSemana || 'Sábado'))
+
+  let nombreReunion = esEntreSemana ? 'Vida y Ministerio' : 'Reunión Pública'
 
   const diaNum = ganador.fecha.getDate()
   const mesNom = MESES[ganador.fecha.getMonth()]
@@ -318,6 +374,35 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
     badgeVariant = 'neutral'
   }
 
+  // Modificadores de evento especial
+  let esDesplazada = false
+  let esCancelada = false
+  let esAsamblea = false
+  let esVisitaSC = false
+
+  if (eventoActivo) {
+    if (eventoActivo.tipo_evento === 'reunion_desplazada') {
+      esDesplazada = true
+      badgeVariant = 'warning'
+      badgeTexto = ganador.diasRestantes === 0
+        ? 'Hoy (Desplazada)'
+        : (ganador.diasRestantes === 1 ? 'Mañana (Desplazada)' : 'Desplazada')
+    } else if (eventoActivo.tipo_evento === 'reunion_cancelada') {
+      esCancelada = true
+      nombreReunion = `${nombreReunion} (Cancelada)`
+      badgeVariant = 'danger'
+      badgeTexto = 'Cancelada'
+    } else if (eventoActivo.tipo_evento === 'asamblea_circuito' || eventoActivo.tipo_evento === 'asamblea_regional') {
+      esAsamblea = true
+      nombreReunion = eventoActivo.titulo_evento || (eventoActivo.tipo_evento === 'asamblea_circuito' ? 'Asamblea de Circuito' : 'Asamblea Regional')
+      badgeVariant = 'purple'
+      badgeTexto = 'Asamblea'
+    } else if (eventoActivo.tipo_evento === 'visita_sc') {
+      esVisitaSC = true
+      nombreReunion = `${nombreReunion} (Visita SC)`
+    }
+  }
+
   return {
     tipo: esEntreSemana ? 'entre_semana' : 'fin_semana',
     nombreReunion,
@@ -328,6 +413,11 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date()) {
     diasRestantes: ganador.diasRestantes,
     badgeTexto,
     badgeVariant,
+    eventoEspecial: eventoActivo,
+    esDesplazada,
+    esCancelada,
+    esAsamblea,
+    esVisitaSC,
   }
 }
 

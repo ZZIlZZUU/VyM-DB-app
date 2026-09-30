@@ -11,6 +11,16 @@ export const CONFIG_DEFAULTS = {
   circuito: '',
   salaAuxiliarHabilitada: false,
   direccionSalon: '',
+  // Parámetros avanzados de horarios y marcas de tiempo
+  horarioModoTb: 'estatico',           // 'estatico' | 'dinamico'
+  horarioOffsetSmt: 30,                // Minutos desde inicio hasta SMT
+  horarioModoSmt: 'dinamico',          // 'estatico' | 'dinamico'
+  horarioOffsetCancionVc: 45,          // Minutos desde inicio hasta cántico VC
+  horarioOffsetVc: 50,                 // Minutos desde inicio hasta primer discurso VC
+  horarioModoVc: 'estatico',           // 'estatico' | 'dinamico'
+  margenTransicionMin: 1,              // Margen entre partes (0, 1, 2 min)
+  duracionCierreMin: 8,                // Duración de conclusión + cántico + oración final
+  horarioPersonalizadoFilas: null,     // Configuración personalizada por fila { [filaId]: { modo, hora } }
 }
 
 export function parseConfigRows(rows) {
@@ -23,6 +33,17 @@ export function parseConfigRows(rows) {
     }
   })
 
+  let horarioFilas = null
+  if (map.horario_personalizado_filas) {
+    try {
+      horarioFilas = typeof map.horario_personalizado_filas === 'string'
+        ? JSON.parse(map.horario_personalizado_filas)
+        : map.horario_personalizado_filas
+    } catch (e) {
+      console.warn('[useConfiguracion] Error parseando horario_personalizado_filas:', e)
+    }
+  }
+
   return {
     nombreCongregacion: map.nombre_congregacion?.trim() || CONFIG_DEFAULTS.nombreCongregacion,
     diaReunionEntreSemana: map.dia_reunion_entre_semana?.trim() || CONFIG_DEFAULTS.diaReunionEntreSemana,
@@ -33,6 +54,15 @@ export function parseConfigRows(rows) {
     circuito: map.circuito?.trim() || '',
     salaAuxiliarHabilitada: map.sala_auxiliar_habilitada === 'true',
     direccionSalon: map.direccion_salon?.trim() || '',
+    horarioModoTb: map.horario_modo_tb?.trim() || CONFIG_DEFAULTS.horarioModoTb,
+    horarioOffsetSmt: map.horario_offset_smt != null ? Number(map.horario_offset_smt) : CONFIG_DEFAULTS.horarioOffsetSmt,
+    horarioModoSmt: map.horario_modo_smt?.trim() || CONFIG_DEFAULTS.horarioModoSmt,
+    horarioOffsetCancionVc: map.horario_offset_cancion_vc != null ? Number(map.horario_offset_cancion_vc) : CONFIG_DEFAULTS.horarioOffsetCancionVc,
+    horarioOffsetVc: map.horario_offset_vc != null ? Number(map.horario_offset_vc) : CONFIG_DEFAULTS.horarioOffsetVc,
+    horarioModoVc: map.horario_modo_vc?.trim() || CONFIG_DEFAULTS.horarioModoVc,
+    margenTransicionMin: map.margen_transicion_min != null ? Number(map.margen_transicion_min) : CONFIG_DEFAULTS.margenTransicionMin,
+    duracionCierreMin: map.duracion_cierre_min != null ? Number(map.duracion_cierre_min) : CONFIG_DEFAULTS.duracionCierreMin,
+    horarioPersonalizadoFilas: horarioFilas,
   }
 }
 
@@ -101,6 +131,15 @@ export function useConfiguracion() {
         { clave: 'circuito', valor: String(nuevosValores.circuito || '').trim() },
         { clave: 'sala_auxiliar_habilitada', valor: nuevosValores.salaAuxiliarHabilitada ? 'true' : 'false' },
         { clave: 'direccion_salon', valor: String(nuevosValores.direccionSalon || '').trim() },
+        { clave: 'horario_modo_tb', valor: String(nuevosValores.horarioModoTb || CONFIG_DEFAULTS.horarioModoTb).trim() },
+        { clave: 'horario_offset_smt', valor: String(nuevosValores.horarioOffsetSmt ?? CONFIG_DEFAULTS.horarioOffsetSmt) },
+        { clave: 'horario_modo_smt', valor: String(nuevosValores.horarioModoSmt || CONFIG_DEFAULTS.horarioModoSmt).trim() },
+        { clave: 'horario_offset_cancion_vc', valor: String(nuevosValores.horarioOffsetCancionVc ?? CONFIG_DEFAULTS.horarioOffsetCancionVc) },
+        { clave: 'horario_offset_vc', valor: String(nuevosValores.horarioOffsetVc ?? CONFIG_DEFAULTS.horarioOffsetVc) },
+        { clave: 'horario_modo_vc', valor: String(nuevosValores.horarioModoVc || CONFIG_DEFAULTS.horarioModoVc).trim() },
+        { clave: 'margen_transicion_min', valor: String(nuevosValores.margenTransicionMin ?? CONFIG_DEFAULTS.margenTransicionMin) },
+        { clave: 'duracion_cierre_min', valor: String(nuevosValores.duracionCierreMin ?? CONFIG_DEFAULTS.duracionCierreMin) },
+        { clave: 'horario_personalizado_filas', valor: JSON.stringify(nuevosValores.horarioPersonalizadoFilas || {}) },
         { clave: 'configuracion_inicial_completada', valor: 'true' },
       ]
 
@@ -120,6 +159,15 @@ export function useConfiguracion() {
         circuito: nuevosValores.circuito?.trim() || '',
         salaAuxiliarHabilitada: !!nuevosValores.salaAuxiliarHabilitada,
         direccionSalon: nuevosValores.direccionSalon?.trim() || '',
+        horarioModoTb: nuevosValores.horarioModoTb || CONFIG_DEFAULTS.horarioModoTb,
+        horarioOffsetSmt: nuevosValores.horarioOffsetSmt != null ? Number(nuevosValores.horarioOffsetSmt) : CONFIG_DEFAULTS.horarioOffsetSmt,
+        horarioModoSmt: nuevosValores.horarioModoSmt || CONFIG_DEFAULTS.horarioModoSmt,
+        horarioOffsetCancionVc: nuevosValores.horarioOffsetCancionVc != null ? Number(nuevosValores.horarioOffsetCancionVc) : CONFIG_DEFAULTS.horarioOffsetCancionVc,
+        horarioOffsetVc: nuevosValores.horarioOffsetVc != null ? Number(nuevosValores.horarioOffsetVc) : CONFIG_DEFAULTS.horarioOffsetVc,
+        horarioModoVc: nuevosValores.horarioModoVc || CONFIG_DEFAULTS.horarioModoVc,
+        margenTransicionMin: nuevosValores.margenTransicionMin != null ? Number(nuevosValores.margenTransicionMin) : CONFIG_DEFAULTS.margenTransicionMin,
+        duracionCierreMin: nuevosValores.duracionCierreMin != null ? Number(nuevosValores.duracionCierreMin) : CONFIG_DEFAULTS.duracionCierreMin,
+        horarioPersonalizadoFilas: nuevosValores.horarioPersonalizadoFilas || null,
       }
 
       setConfig(updated)

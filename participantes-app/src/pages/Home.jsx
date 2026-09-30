@@ -36,6 +36,7 @@ import {
 } from '../lib/fechas'
 import { formatMesYYYYMM, getMesActualYYYYMM } from '../lib/generarReporteMensual'
 import { useConfiguracion } from '../hooks/useConfiguracion'
+import { useEventosReunion } from '../hooks/useEventosReunion'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
 
@@ -95,6 +96,7 @@ function getProximoMesInfo() {
 
 export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
   const { config: globalConfig, guardarConfiguracion: guardarGlobalConfig } = useConfiguracion()
+  const { eventos: eventosReunion } = useEventosReunion()
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
 
@@ -395,7 +397,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
     return prog.total > 0 && prog.confirmadas < prog.total
   })
 
-  const proximaReunion = getProximaReunion(globalConfig)
+  const proximaReunion = getProximaReunion(globalConfig, new Date(), eventosReunion)
 
   // ── 2. MOTOR DE REGLAS — ALERTAS PROACTIVAS ────────────────────
   const alertas = []
@@ -437,6 +439,26 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
       mensaje: `${personasSinActividad2Meses.length} participante(s) activo(s) llevan más de 2 meses consecutivos sin ninguna asignación registrada.`,
       linkTexto: 'Ver personas →',
       onAction: () => onNavigate?.('personas'),
+    })
+  }
+
+  // Alerta especial: Evento o excepción de reunión programada
+  const hoyIsoStr = new Date().toISOString().slice(0, 10)
+  const eventoProximo = (eventosReunion || []).find(e => {
+    const f = e.fecha_efectiva || e.fecha_original
+    return f && f >= hoyIsoStr
+  })
+  if (eventoProximo) {
+    const esDesp = eventoProximo.tipo_evento === 'reunion_desplazada'
+    alertas.push({
+      id: `evento_${eventoProximo.id}`,
+      tipo: 'info',
+      titulo: `Evento programado: ${eventoProximo.titulo_evento}`,
+      mensaje: esDesp
+        ? `Reunión trasladada al ${formatFechaLegible(eventoProximo.fecha_efectiva, true)}${eventoProximo.hora_efectiva ? ` a las ${eventoProximo.hora_efectiva} hrs` : ''}.`
+        : (eventoProximo.descripcion || `Excepción programada para ${formatFechaLegible(eventoProximo.fecha_original || eventoProximo.fecha_efectiva, true)}.`),
+      linkTexto: 'Gestionar eventos →',
+      onAction: () => onNavigate?.('configuracion'),
     })
   }
 
@@ -500,7 +522,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
     try {
       // Filtrar las semanas del mes actual o tomar las 4-5 primeras
       let semanasParaDocx = semanasMesActual.length > 0 ? semanasMesActual : semanas.slice(0, 5)
-      const semanasNorm = buildDatosDesdeSupabase(semanasParaDocx, partes, asignaciones, personas)
+      const semanasNorm = buildDatosDesdeSupabase(semanasParaDocx, partes, asignaciones, personas, eventosReunion)
 
       await generarYDescargarS140({
         congregacion: congregacionActiva,

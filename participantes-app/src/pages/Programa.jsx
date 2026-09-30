@@ -36,6 +36,7 @@ import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS1
 import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
+import { useEventosReunion } from '../hooks/useEventosReunion'
 import Toast from '../components/Toast'
 import { SkeletonPrograma } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -1524,6 +1525,7 @@ function calcularEstadoSemana(semanaId, todasPartes, todasAsignaciones, todoHist
 
 // ── Componente Principal ──────────────────────────────────────
 export default function Programa() {
+  const { eventos } = useEventosReunion()
   const [semanas, setSemanas] = useState([])
   const [partes, setPartes] = useState([])
   const [asignaciones, setAsignaciones] = useState([])
@@ -2741,7 +2743,7 @@ export default function Programa() {
     }
     try {
       showToast('Generando documento S-140...')
-      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
+      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos)
       await generarYDescargarS140({
         congregacion,
         semanas: semanasData,
@@ -2757,7 +2759,7 @@ export default function Programa() {
   function handleAbrirVistaS140() {
     setMenuS140TopOpen(false)
     setMenuS140FabOpen(false)
-    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas)
+    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos)
     navigate('/s140-preview', {
       state: {
         semanas: semanasData,

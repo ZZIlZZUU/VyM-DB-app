@@ -63,11 +63,58 @@ function PageHeader({ nombreCongregacion }) {
 /**
  * Bloque individual de una semana del formulario S-140 (4 columnas fijas, sin bordes)
  */
-function SemanaBloque({ semana }) {
+function SemanaBloque({ semana, config = null }) {
   if (!semana) return null
 
   const fechaTexto = formatearFechaSemana(semana)
-  const horarios = obtenerHorariosS140(semana)
+
+  // Si la semana es una asamblea o reunión cancelada, renderizar bloque de aviso oficial
+  if (semana.esAsamblea || semana.esCancelada) {
+    const esAsamb = semana.esAsamblea
+    return (
+      <div className="s140-semana-bloque text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug select-text">
+        <table className="w-full border-collapse table-fixed bg-white">
+          <colgroup>
+            <col style={{ width: '6.5%' }} />
+            <col style={{ width: '43.5%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '33%' }} />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td colSpan={4} className="py-[3px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950 border-b border-zinc-200 pb-2">
+                {fechaTexto}
+              </td>
+            </tr>
+            <tr>
+              <td
+                colSpan={4}
+                className={`py-8 px-4 text-center rounded-lg border my-2 ${
+                  esAsamb
+                    ? 'bg-purple-50/50 border-purple-200 text-purple-950'
+                    : 'bg-zinc-50 border-zinc-200 text-zinc-700'
+                }`}
+              >
+                <div className="text-[10.5px] font-bold uppercase tracking-widest text-zinc-500 mb-1">
+                  {esAsamb ? 'Evento Especial — Sin reunión ordinaria de entre semana' : 'Aviso Oficial'}
+                </div>
+                <div className="text-[15px] sm:text-[16px] font-bold tracking-tight">
+                  {semana.tb_titulo || (esAsamb ? 'ASAMBLEA DE CIRCUITO' : 'REUNIÓN CANCELADA')}
+                </div>
+                {semana.evento?.descripcion && (
+                  <p className="text-xs text-zinc-600 mt-1 max-w-md mx-auto">
+                    {semana.evento.descripcion}
+                  </p>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  const horarios = obtenerHorariosS140(semana, config || '19:00')
 
   // Filtrar partes con contenido real
   const smtPartes = (semana.smt || []).filter(p => p && p.titulo && String(p.titulo).trim() !== '').slice(0, 4)
@@ -100,7 +147,12 @@ function SemanaBloque({ semana }) {
           {/* ── FILA 1: FECHA Y PRESIDENTE ── */}
           <tr>
             <td colSpan={2} className="py-[2.5px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950">
-              {fechaTexto}
+              <span className="align-middle">{fechaTexto}</span>
+              {semana.esDesplazada && semana.fecha_efectiva && (
+                <span className="ml-2 inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-zinc-400 print:bg-zinc-100 print:text-zinc-900 align-middle">
+                  Reunión: {semana.fecha_efectiva}
+                </span>
+              )}
             </td>
             <td className="py-[2.5px]">
               <div className="text-right font-bold text-[10.5px] text-zinc-600">
@@ -344,25 +396,31 @@ function SemanaBloque({ semana }) {
             )
           })}
 
-          {/* Estudio Bíblico de la Congregación */}
+          {/* Estudio Bíblico de la Congregación o Discurso de Servicio (Visita SC) */}
           <tr>
             <td className="py-[2.5px] text-left font-bold text-[11.5px] text-zinc-700">
               {horarios.vc.ebcHora || (semana.ebc_hora_inicio ? formatHora12(semana.ebc_hora_inicio) : '8:XX')}
             </td>
             <td className="py-[2.5px] text-zinc-950 text-[13px] sm:text-[13.5px] leading-snug">
-              {numeroEBC}. Estudio bíblico de la congregación <span className="text-[11.5px] text-zinc-600 font-normal">(30 mins.)</span>
+              {semana.esVisitaSC ? (
+                <span>{numeroEBC}. Discurso de servicio <span className="text-[11.5px] text-zinc-600 font-normal">(30 mins.)</span></span>
+              ) : (
+                <span>{numeroEBC}. Estudio bíblico de la congregación <span className="text-[11.5px] text-zinc-600 font-normal">(30 mins.)</span></span>
+              )}
             </td>
             <td className="py-[2.5px]">
               <div className="text-right font-bold text-[10.5px] text-zinc-600">
-                Conductor/Lector:
+                {semana.esVisitaSC ? 'Discursante:' : 'Conductor/Lector:'}
               </div>
             </td>
             <td className={`py-[2.5px] text-left font-normal ${semana.ebc_cond && semana.ebc_lect ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
-              {semana.ebc_cond || semana.ebc_lect ? (
+              {semana.esVisitaSC ? (
+                abreviarNombre(semana.ebc_cond || 'Superintendente de Circuito', 26)
+              ) : (semana.ebc_cond || semana.ebc_lect ? (
                 formatearParParticipantes(semana.ebc_cond, semana.ebc_lect, 28)
               ) : (
                 ' / '
-              )}
+              ))}
             </td>
           </tr>
 
@@ -407,7 +465,7 @@ function SemanaBloque({ semana }) {
  * Componente principal S140Vista:
  * Renderiza todas las semanas organizadas en pares de 2 por hoja Letter.
  */
-export default function S140Vista({ semanas = [], nombreCongregacion = '' }) {
+export default function S140Vista({ semanas = [], nombreCongregacion = '', config = null }) {
   if (!semanas || semanas.length === 0) {
     return (
       <div className="p-8 text-center text-zinc-500 bg-white rounded-lg border border-zinc-200">
@@ -434,10 +492,10 @@ export default function S140Vista({ semanas = [], nombreCongregacion = '' }) {
                 <PageHeader nombreCongregacion={nombreCongregacion} />
 
                 <div className="flex flex-col justify-start gap-6 sm:gap-7">
-                  <SemanaBloque semana={semana1} />
+                  <SemanaBloque semana={semana1} config={config} />
 
                   {semana2 ? (
-                    <SemanaBloque semana={semana2} />
+                    <SemanaBloque semana={semana2} config={config} />
                   ) : (
                     /* Si el total de semanas es impar, la mitad inferior queda vacía sin filas falsas */
                     <div className="flex-1 min-h-[140px] pointer-events-none" />

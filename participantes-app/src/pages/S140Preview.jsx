@@ -6,10 +6,12 @@ import S140Vista from '../components/S140Vista'
 import { supabase } from '../lib/supabase'
 import { buildDatosDesdeSupabase, generarYDescargarS140 } from '../lib/generarS140'
 import { Button } from '../components/ui/Button'
+import { useConfiguracion } from '../hooks/useConfiguracion'
 
 export default function S140Preview() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { config } = useConfiguracion()
 
   const [semanas, setSemanas] = useState(() => location.state?.semanas || [])
   const [congregacion, setCongregacion] = useState(
@@ -25,12 +27,13 @@ export default function S140Preview() {
     async function cargarDatosDesdeSupabase() {
       try {
         setLoading(true)
-        const [semRes, parRes, asigRes, perRes, cfgRes] = await Promise.all([
+        const [semRes, parRes, asigRes, perRes, cfgRes, evtRes] = await Promise.all([
           supabase.from('programa_semanas').select('*').order('fecha_inicio', { ascending: true }),
           supabase.from('programa_partes').select('*').order('numero_parte', { ascending: true }),
           supabase.from('programa_asignaciones').select('*'),
           supabase.from('personas').select('*'),
           supabase.from('configuracion').select('*'),
+          supabase.from('eventos_reunion').select('*'),
         ])
 
         const semData = semRes.data || []
@@ -38,12 +41,13 @@ export default function S140Preview() {
         const asigData = asigRes.data || []
         const perData = perRes.data || []
         const cfgData = cfgRes.data || []
+        const evtData = evtRes?.data || []
 
         const nombreCfg = cfgData.find(c => c.clave === 'nombre_congregacion')?.valor || 'Congregación del Recreo'
         setCongregacion(nombreCfg)
 
         if (semData.length > 0) {
-          const semanasNorm = buildDatosDesdeSupabase(semData, parData, asigData, perData)
+          const semanasNorm = buildDatosDesdeSupabase(semData, parData, asigData, perData, evtData)
           setSemanas(semanasNorm)
         }
       } catch (err) {
@@ -155,7 +159,11 @@ export default function S140Preview() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto print:max-w-none print:m-0 print:p-0">
-            <S140Vista semanas={semanas} nombreCongregacion={congregacion} />
+            <S140Vista
+              semanas={semanas}
+              nombreCongregacion={congregacion || config?.nombreCongregacion}
+              config={config}
+            />
           </div>
         )}
       </main>

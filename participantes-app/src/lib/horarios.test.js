@@ -7,6 +7,8 @@ import {
   calcularHorariosSMT,
   calcularHorariosVC,
   obtenerHorariosS140,
+  simularCronogramaReunion,
+  parseHoraFlexible,
 } from './horarios'
 
 describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
@@ -159,6 +161,141 @@ describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
       expect(h.vc.ebcHora).toBe('8:36')
       expect(h.cierre.conclu).toBe('9:07')
       expect(h.cierre.cancion).toBe('9:10')
+    })
+
+    it('soporta hora de inicio matutina (AM) ej: 09:30', () => {
+      const h = obtenerHorariosS140(semanaEjemplo, '09:30')
+      expect(h.apertura.cancion).toBe('9:30')
+      expect(h.apertura.intro).toBe('9:34')
+      expect(h.tb.discurso).toBe('9:35')
+      expect(h.meta.horaInicio).toBe('09:30')
+    })
+  })
+
+  describe('Control fino de horarios con objeto de configuración avanzado', () => {
+    it('simularCronogramaReunion genera el cronograma completo con metadatos oficiales', () => {
+      const config = {
+        horaReunionEntreSemana: '19:00',
+        horarioModoTb: 'estatico',
+        horarioOffsetSmt: 30,
+        horarioModoSmt: 'dinamico',
+        horarioOffsetCancionVc: 45,
+        horarioOffsetVc: 50,
+        horarioModoVc: 'estatico',
+        margenTransicionMin: 1,
+      }
+      const sim = simularCronogramaReunion(config)
+      expect(sim.apertura.cancion).toBe('7:00')
+      expect(sim.tb.discurso).toBe('7:05')
+      expect(sim.smtHoras[0]).toBe('7:30')
+      expect(sim.vc.cancion).toBe('7:45')
+      expect(sim.vc.partesHoras[0]).toBe('7:50')
+      expect(sim.meta).toBeDefined()
+      expect(sim.meta.duracionTotalMin).toBeLessThanOrEqual(105)
+      expect(sim.meta.esExceso105Min).toBe(false)
+    })
+
+    it('detecta correctamente exceso del umbral de 105 minutos', () => {
+      const configExcesiva = {
+        horaReunionEntreSemana: '19:00',
+        horarioModoTb: 'dinamico',
+        horarioOffsetSmt: 50,
+        horarioModoSmt: 'dinamico',
+        horarioOffsetCancionVc: 75,
+        horarioOffsetVc: 85,
+        horarioModoVc: 'dinamico',
+        margenTransicionMin: 3,
+      }
+      const sim = simularCronogramaReunion(configExcesiva)
+      expect(sim.meta.duracionTotalMin).toBeGreaterThan(105)
+      expect(sim.meta.esExceso105Min).toBe(true)
+      expect(sim.meta.diferencia105Min).toBeGreaterThan(0)
+    })
+  })
+
+  describe('parseHoraFlexible e inferencia inteligente de AM/PM', () => {
+    it('infiere tarde (PM) si la reunión base es vespertina', () => {
+      // Base a las 19:30, usuario escribe 7:05 -> 19:05
+      expect(parseHoraFlexible('7:05', '19:30')).toBe(19 * 60 + 5)
+      expect(parseHoraFlexible('7:32', '19:00')).toBe(19 * 60 + 32)
+      expect(parseHoraFlexible('19:05', '19:30')).toBe(19 * 60 + 5)
+    })
+
+    it('respeta mañana (AM) si la reunión base es matutina', () => {
+      // Base a las 09:30, usuario escribe 9:35 -> 09:35
+      expect(parseHoraFlexible('9:35', '09:30')).toBe(9 * 60 + 35)
+      expect(parseHoraFlexible('10:15', '09:30')).toBe(10 * 60 + 15)
+    })
+
+    it('respeta sufijos explícitos am / pm', () => {
+      expect(parseHoraFlexible('7:00 am', '19:00')).toBe(7 * 60)
+      expect(parseHoraFlexible('7:00 pm', '09:00')).toBe(19 * 60)
+    })
+  })
+
+  describe('Lienzo S-140 con personalización fina por fila (ESTÁTICO / DINÁMICO)', () => {
+    it('retorna filasDetalladas con modo y etiquetas para cada asignación', () => {
+      const sim = simularCronogramaReunion({ horaReunionEntreSemana: '19:30' })
+      expect(sim.filasDetalladas).toBeInstanceOf(Array)
+      expect(sim.filasDetalladas.length).toBeGreaterThan(10)
+
+      const filaCancion = sim.filasDetalladas.find(f => f.id === 'apertura_cancion')
+      expect(filaCancion).toBeDefined()
+      expect(filaCancion.modo).toBe('estatico')
+      expect(filaCancion.hora12).toBe('7:30')
+
+      const filaTb = sim.filasDetalladas.find(f => f.id === 'tb_discurso')
+      expect(filaTb).toBeDefined()
+      expect(filaTb.seccion).toBe('TB')
+      expect(filaTb.hora12).toBe('7:35')
+    })
+
+    it('permite sobrescribir una fila como ESTÁTICO a una hora fija y las siguientes DINÁMICAS recalculan en cascada', () => {
+      // Simulador estándar con 3 partes SMT (3m, 4m, 5m), margen 1m.
+      // SMT normalmente iniciaría a las 7:30.
+      // Si el usuario fija smt_0 a las 7:32:
+      // smt_0: 7:32 (3m + 1m margen) -> termina 7:35 + 1m = 7:36
+      // smt_1: 7:36 (4m + 1m margen) -> termina 7:40 + 1m = 7:41
+      // smt_2: 7:41
+      const configConOverride = {
+        horaReunionEntreSemana: '19:00',
+        horarioPersonalizadoFilas: {
+          smt_0: { modo: 'estatico', hora: '7:32' },
+        },
+      }
+
+      const sim = simularCronogramaReunion(configConOverride)
+      const smt0 = sim.filasDetalladas.find(f => f.id === 'smt_0')
+      const smt1 = sim.filasDetalladas.find(f => f.id === 'smt_1')
+      const smt2 = sim.filasDetalladas.find(f => f.id === 'smt_2')
+
+      expect(smt0.modo).toBe('estatico')
+      expect(smt0.hora12).toBe('7:32')
+
+      expect(smt1.modo).toBe('dinamico')
+      expect(smt1.hora12).toBe('7:36')
+
+      expect(smt2.modo).toBe('dinamico')
+      expect(smt2.hora12).toBe('7:41')
+    })
+
+    it('permite forzar una fila previamente estática a DINÁMICO calculándose desde el cursor previo', () => {
+      // TB normalmente tiene lectura de la biblia como estática (7:25 en reunión 19:00)
+      // Si forzamos tb_lectura a modo: 'dinamico':
+      // tb_discurso (10m) 7:05 -> 7:15
+      // tb_perlas (10m) 7:15 -> 7:25
+      // tb_lectura dinámico = 7:25
+      const configDinamica = {
+        horaReunionEntreSemana: '19:00',
+        horarioPersonalizadoFilas: {
+          tb_lectura: { modo: 'dinamico' },
+        },
+      }
+
+      const sim = simularCronogramaReunion(configDinamica)
+      const tbLectura = sim.filasDetalladas.find(f => f.id === 'tb_lectura')
+      expect(tbLectura.modo).toBe('dinamico')
+      expect(tbLectura.hora12).toBe('7:25')
     })
   })
 })

@@ -34,16 +34,11 @@ import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Dialog } from '../components/ui/Dialog'
+import { TimePickerModal } from '../components/ui/TimePickerModal'
 
 const DIAS_ENTRE_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 const DIAS_FIN_SEMANA = ['Sábado', 'Domingo']
 
-const HORAS_AM_PM = [
-  '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:15',
-  '18:30', '18:45', '19:00', '19:15', '19:30', '19:45', '20:00', '20:15', '20:30',
-]
 
 const ANIOS_DISPONIBLES = ['2025', '2026', '2027', '2028', '2029', '2030']
 
@@ -57,23 +52,14 @@ const TIPOS_EVENTO = [
 
 /**
  * Fila interactiva del lienzo S-140 compacto con selector de badge [ESTÁTICO]/[DINÁMICO]
- * y campo de hora editable directamente.
+ * y botón de hora que abre el Pop-up de reloj interactivo estilo Android Material 3.
  */
 function FilaHorarioS140({
   fila,
   onToggleModo,
-  onHoraChange,
+  onOpenTimePicker,
   dotColor = null,
 }) {
-  const [localHora, setLocalHora] = useState(fila.hora12)
-  const isEditing = useRef(false)
-
-  useEffect(() => {
-    if (!isEditing.current) {
-      setLocalHora(fila.hora12)
-    }
-  }, [fila.hora12])
-
   const esEstatico = fila.modo === 'estatico'
 
   return (
@@ -92,42 +78,25 @@ function FilaHorarioS140({
         ({esEstatico ? 'ESTÁTICO' : 'DINÁMICO'})
       </button>
 
-      {/* 2. Hora modificable */}
+      {/* 2. Hora modificable — abre el Pop-up de reloj tipo Android Material 3 */}
       <div className="relative shrink-0">
-        <input
-          type="text"
-          value={localHora}
-          onFocus={() => {
-            isEditing.current = true
-          }}
-          onChange={e => {
-            setLocalHora(e.target.value)
-          }}
-          onBlur={() => {
-            isEditing.current = false
-            const trimmed = localHora.trim()
-            if (trimmed && trimmed !== fila.hora12) {
-              onHoraChange(fila.id, trimmed)
-            } else {
-              setLocalHora(fila.hora12)
-            }
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.currentTarget.blur()
-            }
-          }}
-          className={`w-14 sm:w-16 font-mono font-bold text-xs text-center rounded px-1 py-0.5 border transition-all ${
+        <button
+          type="button"
+          onClick={() => onOpenTimePicker?.(fila)}
+          className={`w-14 sm:w-16 font-mono font-bold text-xs text-center rounded px-1 py-0.5 border transition-all cursor-pointer flex items-center justify-center gap-1 group/btn ${
             esEstatico
-              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-2xs'
-              : 'bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 cursor-pointer'
+              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-600 hover:border-blue-500 hover:ring-2 hover:ring-blue-500/20 shadow-2xs'
+              : 'bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 hover:bg-zinc-200/50'
           }`}
           title={
             esEstatico
-              ? 'Hora estática editable. Escribe la hora deseada (ej: 7:05 o 19:05)'
-              : 'Hora dinámica calculada. Escribe cualquier hora para fijarla en ESTÁTICO'
+              ? 'Hora estática. Haz clic para cambiar la hora con el reloj estilo Android.'
+              : 'Hora dinámica calculada. Haz clic para fijar una hora con el reloj estilo Android.'
           }
-        />
+        >
+          <span>{fila.hora12}</span>
+          <Clock className="w-2.5 h-2.5 opacity-40 group-hover/btn:opacity-100 transition-opacity text-blue-600 dark:text-blue-400 shrink-0" />
+        </button>
       </div>
 
       {/* 3. Título de la parte */}
@@ -194,6 +163,9 @@ export default function Configuracion({ onNavigate }) {
     afecta_reunion: 'entre_semana',
     descripcion: '',
   })
+
+  // Estado para el modal pop-up de selección de hora estilo Android Material 3
+  const [timePickerTarget, setTimePickerTarget] = useState(null)
 
   // Cargar semanas de la BD para asociar eventos
   useEffect(() => {
@@ -349,6 +321,13 @@ export default function Configuracion({ onNavigate }) {
   const simulacion = useMemo(() => {
     return simularCronogramaReunion(form)
   }, [form])
+
+  const horaBaseLabel = useMemo(() => {
+    const raw = form.horaReunionEntreSemana || '19:30'
+    const h = parseInt(raw.split(':')[0] || '19', 10)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    return `${raw} (${formatHora12(raw)} ${ampm})`
+  }, [form.horaReunionEntreSemana])
 
   // Handlers para personalización fina por fila del lienzo S-140
   function handleToggleModoFila(filaId) {
@@ -748,17 +727,28 @@ export default function Configuracion({ onNavigate }) {
                 <label className="block text-[11px] font-medium text-text3 uppercase tracking-wider mb-1">
                   Hora de inicio (Entre semana)
                 </label>
-                <Select
-                  value={form.horaReunionEntreSemana}
-                  onChange={e => handleChange('horaReunionEntreSemana', e.target.value)}
-                  className="font-semibold text-text1"
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw = form.horaReunionEntreSemana || '19:30'
+                    const h = parseInt(raw.split(':')[0] || '19', 10)
+                    const ampm = h >= 12 ? 'PM' : 'AM'
+                    setTimePickerTarget({
+                      id: '__base_hora__',
+                      titulo: 'Hora de inicio (Entre semana)',
+                      hora12: formatHora12(raw),
+                      hora24: raw,
+                      horaCompleta: `${formatHora12(raw)} ${ampm}`,
+                    })
+                  }}
+                  className="h-9 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:border-blue-400 dark:hover:border-blue-500/50 text-text1 transition-all duration-150 flex items-center gap-2 cursor-pointer shadow-2xs group"
+                  title="Haz clic para modificar la hora con el reloj estilo Android"
                 >
-                  {HORAS_AM_PM.map(h => (
-                    <option key={h} value={h}>
-                      {h} ({formatHora12(h)})
-                    </option>
-                  ))}
-                </Select>
+                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="font-mono font-semibold text-text1 text-xs sm:text-sm">
+                    {horaBaseLabel}
+                  </span>
+                </button>
               </div>
 
               <div>
@@ -844,7 +834,7 @@ export default function Configuracion({ onNavigate }) {
                   key={f.id}
                   fila={f}
                   onToggleModo={handleToggleModoFila}
-                  onHoraChange={handleHoraFilaChange}
+                  onOpenTimePicker={f => setTimePickerTarget(f)}
                   dotColor="#9ca3af"
                 />
               ))}
@@ -876,7 +866,7 @@ export default function Configuracion({ onNavigate }) {
                     key={f.id}
                     fila={f}
                     onToggleModo={handleToggleModoFila}
-                    onHoraChange={handleHoraFilaChange}
+                    onOpenTimePicker={f => setTimePickerTarget(f)}
                   />
                 ))}
               </div>
@@ -908,7 +898,7 @@ export default function Configuracion({ onNavigate }) {
                     key={f.id}
                     fila={f}
                     onToggleModo={handleToggleModoFila}
-                    onHoraChange={handleHoraFilaChange}
+                    onOpenTimePicker={f => setTimePickerTarget(f)}
                   />
                 ))}
               </div>
@@ -940,7 +930,7 @@ export default function Configuracion({ onNavigate }) {
                     key={f.id}
                     fila={f}
                     onToggleModo={handleToggleModoFila}
-                    onHoraChange={handleHoraFilaChange}
+                    onOpenTimePicker={f => setTimePickerTarget(f)}
                     dotColor={f.id === 'vc_cancion' ? '#9ca3af' : null}
                   />
                 ))}
@@ -954,7 +944,7 @@ export default function Configuracion({ onNavigate }) {
                   key={f.id}
                   fila={f}
                   onToggleModo={handleToggleModoFila}
-                  onHoraChange={handleHoraFilaChange}
+                  onOpenTimePicker={f => setTimePickerTarget(f)}
                   dotColor="#9ca3af"
                 />
               ))}
@@ -1265,6 +1255,25 @@ export default function Configuracion({ onNavigate }) {
           </div>
         </form>
       </Dialog>
+
+      {/* ── MODAL POP-UP ESTILO ANDROID MATERIAL 3 (TIME PICKER) ── */}
+      <TimePickerModal
+        isOpen={!!timePickerTarget}
+        onClose={() => setTimePickerTarget(null)}
+        initialTime={timePickerTarget?.horaCompleta || timePickerTarget?.hora12 || '19:00'}
+        baseHourStr={form.horaReunionEntreSemana || '19:00'}
+        title="Seleccionar hora"
+        subtitle={timePickerTarget?.titulo}
+        onConfirm={timeResult => {
+          if (!timePickerTarget) return
+          if (timePickerTarget.id === '__base_hora__') {
+            handleChange('horaReunionEntreSemana', timeResult.hora24)
+          } else {
+            handleHoraFilaChange(timePickerTarget.id, timeResult.hora12)
+          }
+          setTimePickerTarget(null)
+        }}
+      />
     </div>
   )
 }

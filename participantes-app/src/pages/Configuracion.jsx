@@ -65,18 +65,27 @@ function FilaHorarioS140({
   return (
     <div className="flex items-center gap-2 sm:gap-2.5 py-1 px-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
       {/* 1. Selector Badge [ESTÁTICO] / [DINÁMICO] */}
-      <button
-        type="button"
-        onClick={() => onToggleModo(fila.id)}
-        className={`px-1.5 py-0.5 text-[9.5px] font-mono font-bold rounded cursor-pointer select-none transition-all shadow-2xs shrink-0 ${
-          esEstatico
-            ? 'bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900'
-            : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900'
-        }`}
-        title={`Modo: ${esEstatico ? 'ESTÁTICO (fijo al reloj)' : 'DINÁMICO (calculado en cascada)'}. Haz clic para alternar.`}
-      >
-        ({esEstatico ? 'ESTÁTICO' : 'DINÁMICO'})
-      </button>
+      {fila.id === 'apertura_cancion' ? (
+        <span
+          className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold rounded select-none shadow-2xs shrink-0 bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
+          title="La canción de apertura es la hora base de inicio de la reunión"
+        >
+          (ESTÁTICO)
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onToggleModo(fila.id)}
+          className={`px-1.5 py-0.5 text-[9.5px] font-mono font-bold rounded cursor-pointer select-none transition-all shadow-2xs shrink-0 ${
+            esEstatico
+              ? 'bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900'
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900'
+          }`}
+          title={`Modo: ${esEstatico ? 'ESTÁTICO (fijo al reloj)' : 'DINÁMICO (calculado en cascada)'}. Haz clic para alternar.`}
+        >
+          ({esEstatico ? 'ESTÁTICO' : 'DINÁMICO'})
+        </button>
+      )}
 
       {/* 2. Hora modificable — abre el Pop-up de reloj tipo Android Material 3 */}
       <div className="relative shrink-0">
@@ -218,52 +227,23 @@ export default function Configuracion({ onNavigate }) {
     })
   }
 
-  // Presets rápidos
-  function aplicarPreset(tipo) {
-    if (tipo === 'estandar') {
-      setForm(prev => ({
-        ...prev,
-        horarioModoTb: 'estatico',
-        horarioOffsetSmt: 30,
-        horarioModoSmt: 'dinamico',
-        horarioOffsetCancionVc: 45,
-        horarioOffsetVc: 50,
-        horarioModoVc: 'estatico',
-        margenTransicionMin: 1,
-        duracionCierreMin: 8,
-        horarioPersonalizadoFilas: null,
-      }))
-      setHasChanges(true)
-      success('Preset "Estándar / Recreo" cargado en el simulador.')
-    } else if (tipo === 'cascada') {
-      setForm(prev => ({
-        ...prev,
-        horarioModoTb: 'dinamico',
-        horarioModoSmt: 'dinamico',
-        horarioModoVc: 'dinamico',
-        margenTransicionMin: 1,
-        duracionCierreMin: 8,
-        horarioPersonalizadoFilas: null,
-      }))
-      setHasChanges(true)
-      success('Preset "Cascada Pura" cargado en el simulador.')
-    } else if (tipo === 'matutino') {
-      setForm(prev => ({
-        ...prev,
-        horaReunionEntreSemana: '09:30',
-        horarioModoTb: 'estatico',
-        horarioOffsetSmt: 30,
-        horarioModoSmt: 'dinamico',
-        horarioOffsetCancionVc: 45,
-        horarioOffsetVc: 50,
-        horarioModoVc: 'estatico',
-        margenTransicionMin: 1,
-        duracionCierreMin: 8,
-        horarioPersonalizadoFilas: null,
-      }))
-      setHasChanges(true)
-      success('Preset "Matutino (09:30 AM)" cargado.')
-    }
+  // Preset Default
+  function aplicarPreset() {
+    setForm(prev => ({
+      ...prev,
+      horaReunionEntreSemana: '12:00',
+      horarioModoTb: 'estatico',
+      horarioOffsetSmt: 30,
+      horarioModoSmt: 'dinamico',
+      horarioOffsetCancionVc: 45,
+      horarioOffsetVc: 50,
+      horarioModoVc: 'estatico',
+      margenTransicionMin: 1,
+      duracionCierreMin: 8,
+      horarioPersonalizadoFilas: null,
+    }))
+    setHasChanges(true)
+    success('Preset "Default" (12:00 PM) cargado en el simulador.')
   }
 
   async function handleSubmit(e) {
@@ -331,6 +311,11 @@ export default function Configuracion({ onNavigate }) {
 
   // Handlers para personalización fina por fila del lienzo S-140
   function handleToggleModoFila(filaId) {
+    if (filaId === 'apertura_cancion') {
+      // La canción inicial es la hora base de inicio de la reunión
+      return
+    }
+
     const fila = simulacion?.filasDetalladas?.find(f => f.id === filaId)
     if (!fila) return
 
@@ -353,6 +338,22 @@ export default function Configuracion({ onNavigate }) {
 
   function handleHoraFilaChange(filaId, nuevaHoraStr) {
     if (!nuevaHoraStr || !nuevaHoraStr.trim()) return
+
+    if (filaId === 'apertura_cancion') {
+      const mins = parseHoraFlexible(nuevaHoraStr, form.horaReunionEntreSemana)
+      const h24 = minutesToTime(mins)
+      handleChange('horaReunionEntreSemana', h24)
+      setForm(prev => {
+        const prevCustom = { ...(prev.horarioPersonalizadoFilas || {}) }
+        delete prevCustom['apertura_cancion']
+        return {
+          ...prev,
+          horaReunionEntreSemana: h24,
+          horarioPersonalizadoFilas: Object.keys(prevCustom).length > 0 ? prevCustom : null,
+        }
+      })
+      return
+    }
 
     setForm(prev => {
       const prevCustom = { ...(prev.horarioPersonalizadoFilas || {}) }
@@ -772,26 +773,10 @@ export default function Configuracion({ onNavigate }) {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => aplicarPreset('estandar')}
-                title="Bloques anclados con Tesoros fijos (25 min)"
+                onClick={aplicarPreset}
+                title="Configuración por defecto iniciando a las 12:00 PM (Mediodía)"
               >
-                Estándar Recreo
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => aplicarPreset('cascada')}
-                title="Todo calculado en cascada según duración de partes"
-              >
-                Cascada Pura
-              </Button>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => aplicarPreset('matutino')}
-                title="Configuración matutina 09:30 AM"
-              >
-                09:30 AM
+                Default
               </Button>
               {form.horarioPersonalizadoFilas && Object.keys(form.horarioPersonalizadoFilas).length > 0 && (
                 <Button
@@ -1266,8 +1251,17 @@ export default function Configuracion({ onNavigate }) {
         subtitle={timePickerTarget?.titulo}
         onConfirm={timeResult => {
           if (!timePickerTarget) return
-          if (timePickerTarget.id === '__base_hora__') {
+          if (timePickerTarget.id === '__base_hora__' || timePickerTarget.id === 'apertura_cancion') {
             handleChange('horaReunionEntreSemana', timeResult.hora24)
+            setForm(prev => {
+              const prevCustom = { ...(prev.horarioPersonalizadoFilas || {}) }
+              delete prevCustom['apertura_cancion']
+              return {
+                ...prev,
+                horaReunionEntreSemana: timeResult.hora24,
+                horarioPersonalizadoFilas: Object.keys(prevCustom).length > 0 ? prevCustom : null,
+              }
+            })
           } else {
             handleHoraFilaChange(timePickerTarget.id, timeResult.hora12)
           }

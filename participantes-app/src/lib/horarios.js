@@ -198,7 +198,11 @@ export function obtenerHorariosS140(semana, configOpciones = '19:00') {
     const modo = custom.modo || defaultModo
     let horaInicioFilaMins
 
-    if (modo === 'estatico') {
+    if (id === 'apertura_cancion') {
+      // La canción de apertura siempre inicia en la hora base oficial de la reunión
+      horaInicioFilaMins = baseMins
+      cursorMins = horaInicioFilaMins + duracion + (aplicaMargen ? margen : 0)
+    } else if (modo === 'estatico') {
       if (custom.hora) {
         horaInicioFilaMins = parseHoraFlexible(custom.hora, horaInicioStr)
       } else {

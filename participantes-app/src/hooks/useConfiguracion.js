@@ -39,6 +39,9 @@ export function parseConfigRows(rows) {
       horarioFilas = typeof map.horario_personalizado_filas === 'string'
         ? JSON.parse(map.horario_personalizado_filas)
         : map.horario_personalizado_filas
+      if (horarioFilas && typeof horarioFilas === 'object') {
+        delete horarioFilas['apertura_cancion']
+      }
     } catch (e) {
       console.warn('[useConfiguracion] Error parseando horario_personalizado_filas:', e)
     }

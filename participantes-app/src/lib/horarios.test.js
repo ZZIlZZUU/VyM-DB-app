@@ -297,5 +297,23 @@ describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
       expect(tbLectura.modo).toBe('dinamico')
       expect(tbLectura.hora12).toBe('7:25')
     })
+
+    it('asegura que apertura_cancion siempre inicia a la hora base (ej: 20:00 -> 8:00) y apertura_intro a las 8:04 incluso con datos antiguos en horarioPersonalizadoFilas', () => {
+      const configBase20 = {
+        horaReunionEntreSemana: '20:00',
+        horarioPersonalizadoFilas: {
+          apertura_cancion: { modo: 'estatico', hora: '7:00' }, // dato residual antiguo
+        },
+      }
+
+      const sim = simularCronogramaReunion(configBase20)
+      const cancion = sim.filasDetalladas.find(f => f.id === 'apertura_cancion')
+      const intro = sim.filasDetalladas.find(f => f.id === 'apertura_intro')
+
+      expect(cancion.hora12).toBe('8:00')
+      expect(cancion.hora24).toBe('20:00')
+      expect(intro.hora12).toBe('8:04')
+      expect(intro.hora24).toBe('20:04')
+    })
   })
 })

@@ -49,38 +49,64 @@ describe('filtrado de pool por tipo', () => {
     expect(result.every(p => p.lista === 'Anc/SM')).toBe(true)
   })
 
-  it('LB — solo Mat varones', () => {
+  it('LB — incluye Anc/SM y Mat varones', () => {
     const result = sugerirCandidatos('LB', PERSONAS, SIN_HISTORIAL, 'Agosto')
-    expect(result.every(p => p.lista === 'Mat' && p.sexo === 'M')).toBe(true)
-    expect(result.length).toBe(2) // M01, M02
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat' && p.sexo === 'M')).toBe(true)
+    expect(result.every(p => !(p.lista === 'Mat' && p.sexo === 'F'))).toBe(true)
+    expect(result.length).toBe(7) // A01-A05, M01-M02
   })
 
-  it('SMT_EST — solo Mat damas', () => {
+  it('SMT_EST — todos los varones (Anc/SM y Mat M) y damas Mat', () => {
     const result = sugerirCandidatos('SMT_EST', PERSONAS, SIN_HISTORIAL, 'Agosto')
-    expect(result.every(p => p.lista === 'Mat' && p.sexo === 'F')).toBe(true)
-    expect(result.length).toBe(2) // M03, M04
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat' && p.sexo === 'M')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat' && p.sexo === 'F')).toBe(true)
+    expect(result.length).toBe(9) // A01-A05, M01-M04
   })
 
-  it('SMT_EXP — cualquier Mat (varones y damas)', () => {
+  it('SMT_DSC — todos los varones (Anc/SM y Mat M)', () => {
+    const result = sugerirCandidatos('SMT_DSC', PERSONAS, SIN_HISTORIAL, 'Agosto')
+    expect(result.every(p => p.sexo === 'M')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat')).toBe(true)
+    expect(result.length).toBe(7) // A01-A05, M01-M02
+  })
+
+  it('SMT_EXP — todos los varones (Anc/SM y Mat M) y damas Mat', () => {
     const result = sugerirCandidatos('SMT_EXP', PERSONAS, SIN_HISTORIAL, 'Agosto')
-    expect(result.every(p => p.lista === 'Mat')).toBe(true)
-    expect(result.length).toBe(4) // M01-M04
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat' && p.sexo === 'M')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat' && p.sexo === 'F')).toBe(true)
+    expect(result.length).toBe(9) // A01-A05, M01-M04
   })
 
-  it('SMT_EXP_M — solo Mat varones', () => {
+  it('SMT_EXP_M — todos los varones (Anc/SM y Mat M)', () => {
     const result = sugerirCandidatos('SMT_EXP_M', PERSONAS, SIN_HISTORIAL, 'Agosto')
-    expect(result.every(p => p.lista === 'Mat' && p.sexo === 'M')).toBe(true)
+    expect(result.every(p => p.sexo === 'M')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat')).toBe(true)
+    expect(result.length).toBe(7) // A01-A05, M01-M02
   })
 
   it('SMT_EXP_F — solo Mat damas', () => {
     const result = sugerirCandidatos('SMT_EXP_F', PERSONAS, SIN_HISTORIAL, 'Agosto')
     expect(result.every(p => p.lista === 'Mat' && p.sexo === 'F')).toBe(true)
+    expect(result.length).toBe(2) // M03, M04
   })
 
-  it('NC — solo Ancianos (no SM)', () => {
+  it('NC — incluye Ancianos y SM', () => {
     const result = sugerirCandidatos('NC', PERSONAS, SIN_HISTORIAL, 'Agosto')
-    expect(result.every(p => p.estatus === 'Anciano')).toBe(true)
-    expect(result.length).toBe(3) // A01-A03
+    expect(result.every(p => p.lista === 'Anc/SM')).toBe(true)
+    const estatus = result.map(p => p.estatus)
+    expect(estatus).toContain('Anciano')
+    expect(estatus).toContain('Siervo Ministerial')
+    expect(result.length).toBe(5) // A01-A05
   })
 
   it('EBC_CON — incluye Ancianos y SM', () => {
@@ -231,9 +257,18 @@ describe('sugerirAyudante', () => {
     expect(idxM04).toBeGreaterThan(0)
   })
 
-  it('devuelve solo damas Mat', () => {
+  it('devuelve solo damas Mat cuando la titular es mujer', () => {
     const result = sugerirAyudante('M03', PERSONAS, SIN_HISTORIAL, 'Agosto')
     expect(result.every(p => p.lista === 'Mat' && p.sexo === 'F')).toBe(true)
+  })
+
+  it('devuelve todos los varones cuando el titular es varón', () => {
+    const result = sugerirAyudante('M01', PERSONAS, SIN_HISTORIAL, 'Agosto')
+    expect(result.every(p => p.sexo === 'M')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')).toBe(true)
+    expect(result.some(p => p.lista === 'Anc/SM' && p.estatus === 'Siervo Ministerial')).toBe(true)
+    expect(result.some(p => p.lista === 'Mat')).toBe(true)
+    expect(result.length).toBe(7) // A01-A05, M01-M02
   })
 
 })

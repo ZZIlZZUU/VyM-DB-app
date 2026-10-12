@@ -12,6 +12,7 @@ const WIDTH_CLASSES = {
 
 export function Sheet({
   isOpen,
+  open,
   onClose,
   title,
   description,
@@ -20,13 +21,15 @@ export function Sheet({
   width = 'md',
   className = '',
 }) {
+  const visible = Boolean(isOpen ?? open)
+
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && visible) {
         onClose?.()
       }
     }
-    if (isOpen) {
+    if (visible) {
       document.addEventListener('keydown', handleKeyDown)
       document.body.style.overflow = 'hidden'
     }
@@ -34,9 +37,9 @@ export function Sheet({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [isOpen, onClose])
+  }, [visible, onClose])
 
-  if (!isOpen) return null
+  if (!visible) return null
 
   const widthClass = WIDTH_CLASSES[width] || WIDTH_CLASSES.md
 

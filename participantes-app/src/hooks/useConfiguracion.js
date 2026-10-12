@@ -9,6 +9,7 @@ export const CONFIG_DEFAULTS = {
   horaReunionFinSemana: '18:00',
   anioEnCurso: new Date().getFullYear().toString(),
   circuito: '',
+  nombreSuperintendenteCircuito: '',   // Superintendente de Circuito activo del circuito
   salaAuxiliarHabilitada: false,
   direccionSalon: '',
   // Parámetros avanzados de horarios y marcas de tiempo
@@ -55,6 +56,7 @@ export function parseConfigRows(rows) {
     horaReunionFinSemana: map.hora_reunion_fin_semana?.trim() || CONFIG_DEFAULTS.horaReunionFinSemana,
     anioEnCurso: map.anio_en_curso?.trim() || CONFIG_DEFAULTS.anioEnCurso,
     circuito: map.circuito?.trim() || '',
+    nombreSuperintendenteCircuito: map.nombre_sc?.trim() || '',
     salaAuxiliarHabilitada: map.sala_auxiliar_habilitada === 'true',
     direccionSalon: map.direccion_salon?.trim() || '',
     horarioModoTb: map.horario_modo_tb?.trim() || CONFIG_DEFAULTS.horarioModoTb,
@@ -132,6 +134,7 @@ export function useConfiguracion() {
         { clave: 'hora_reunion_fin_semana', valor: String(nuevosValores.horaReunionFinSemana || '18:00').trim() },
         { clave: 'anio_en_curso', valor: String(nuevosValores.anioEnCurso || new Date().getFullYear()).trim() },
         { clave: 'circuito', valor: String(nuevosValores.circuito || '').trim() },
+        { clave: 'nombre_sc', valor: String(nuevosValores.nombreSuperintendenteCircuito || '').trim() },
         { clave: 'sala_auxiliar_habilitada', valor: nuevosValores.salaAuxiliarHabilitada ? 'true' : 'false' },
         { clave: 'direccion_salon', valor: String(nuevosValores.direccionSalon || '').trim() },
         { clave: 'horario_modo_tb', valor: String(nuevosValores.horarioModoTb || CONFIG_DEFAULTS.horarioModoTb).trim() },
@@ -160,6 +163,7 @@ export function useConfiguracion() {
         horaReunionFinSemana: nuevosValores.horaReunionFinSemana || CONFIG_DEFAULTS.horaReunionFinSemana,
         anioEnCurso: nuevosValores.anioEnCurso || CONFIG_DEFAULTS.anioEnCurso,
         circuito: nuevosValores.circuito?.trim() || '',
+        nombreSuperintendenteCircuito: nuevosValores.nombreSuperintendenteCircuito?.trim() || '',
         salaAuxiliarHabilitada: !!nuevosValores.salaAuxiliarHabilitada,
         direccionSalon: nuevosValores.direccionSalon?.trim() || '',
         horarioModoTb: nuevosValores.horarioModoTb || CONFIG_DEFAULTS.horarioModoTb,

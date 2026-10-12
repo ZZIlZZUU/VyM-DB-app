@@ -157,6 +157,8 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
     const esCancelada = evento && evento.tipo_evento === 'reunion_cancelada'
     const esDesplazada = evento && evento.tipo_evento === 'reunion_desplazada'
     const esVisitaSC = evento && evento.tipo_evento === 'visita_sc'
+    const esVisitaSucursal = evento && evento.tipo_evento === 'visita_sucursal'
+    const esVisita = esVisitaSC || esVisitaSucursal
 
     let fechaFormateada = `${fechaInicio} — ${fechaFin}`
     if (esDesplazada && evento.fecha_efectiva) {
@@ -225,14 +227,25 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
       }
     }
 
-    // Caso de Visita del SC
+    // Caso de Visita del SC o Representante de Sucursal
     let ebcCond = asigDe('EBC_CON')
     let ebcLect = asigDe('LEBC')
     let ebcTitulo = partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.titulo || ''
-    if (esVisitaSC) {
-      ebcCond = ebcCond || 'Superintendente de Circuito'
-      ebcLect = '' // SC no requiere lector en su discurso de servicio
-      ebcTitulo = 'Discurso de servicio (30 min)'
+    let oracionCi = asigDe('ORACION_C')
+
+    if (esVisita) {
+      const nombreVisitante =
+        evento.nombre_visitante ||
+        (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal')
+      ebcCond = nombreVisitante
+      ebcLect = '' // La visita no requiere lector en su discurso de servicio
+      ebcTitulo = esVisitaSC
+        ? 'Discurso del Superintendente (30 mins.)'
+        : 'Discurso del Representante de la Sucursal (30 mins.)'
+
+      if (evento.oracion_visitante !== false) {
+        oracionCi = nombreVisitante
+      }
     }
 
     return {
@@ -255,11 +268,14 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
       ebc_titulo:   ebcTitulo,
       ebc_hora_inicio: partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.hora_inicio || null,
       can_ci:       String(s.cancion_cierre || ''),
-      oracion_ci:   asigDe('ORACION_C'),
+      oracion_ci:   oracionCi,
       esDesplazada: Boolean(esDesplazada),
       fecha_efectiva: evento?.fecha_efectiva || null,
       hora_efectiva: evento?.hora_efectiva || null,
       esVisitaSC:   Boolean(esVisitaSC),
+      esVisitaSucursal: Boolean(esVisitaSucursal),
+      esVisita:     Boolean(esVisita),
+      nombreVisitante: esVisita ? (evento.nombre_visitante || '') : null,
       tipo_evento:  evento?.tipo_evento || null,
       evento:       evento || null,
     }

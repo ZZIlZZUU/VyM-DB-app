@@ -397,9 +397,9 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date(), eve
       nombreReunion = eventoActivo.titulo_evento || (eventoActivo.tipo_evento === 'asamblea_circuito' ? 'Asamblea de Circuito' : 'Asamblea Regional')
       badgeVariant = 'purple'
       badgeTexto = 'Asamblea'
-    } else if (eventoActivo.tipo_evento === 'visita_sc') {
+    } else if (eventoActivo.tipo_evento === 'visita_sc' || eventoActivo.tipo_evento === 'visita_sucursal') {
       esVisitaSC = true
-      nombreReunion = `${nombreReunion} (Visita SC)`
+      nombreReunion = `${nombreReunion} (${eventoActivo.tipo_evento === 'visita_sc' ? 'Visita SC' : 'Visita Sucursal'})`
     }
   }
 

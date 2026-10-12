@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Printer,
+  Briefcase,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
@@ -67,6 +68,8 @@ const TIPO_LABEL = {
   LB: 'Lectura de la Biblia',
   SMT_EST: 'Estudiante',
   SMT_EXP: 'Explique sus creencias',
+  SMT_EXP_M: 'Ayudante',
+  SMT_EXP_F: 'Ayudante',
   SMT_DSC: 'Discurso',
   SMT_AYU: 'Ayudante',
   VC: 'Vida Cristiana',
@@ -213,8 +216,9 @@ function evaluarConflictosPersona(persona, tipo, historial, mes, fechaSemana) {
     const participacionesMesAnt = (historial || []).filter(h => h.clave === clave && h.mes === mesAnt)
     const tuvoMismaParte = participacionesMesAnt.some(h => {
       if (h.tipo === tipo) return true
-      if (tipo === 'SMT_EST' && (h.tipo === 'T' || h.tipo === 'SMT_EST')) return true
-      if (tipo === 'SMT_AYU' && (h.tipo === 'A' || h.tipo === 'SMT_AYU')) return true
+      if ((tipo === 'SMT_EST' || tipo === 'SMT_EXP') && (h.tipo === 'T' || h.tipo === 'SMT_EST' || h.tipo === 'SMT_EXP')) return true
+      if ((tipo === 'SMT_AYU' || tipo === 'SMT_EXP_M' || tipo === 'SMT_EXP_F') && (h.tipo === 'A' || h.tipo === 'SMT_AYU' || h.tipo === 'SMT_EXP_M' || h.tipo === 'SMT_EXP_F')) return true
+      if (tipo === 'SMT_DSC' && (h.tipo === 'DSC' || h.tipo === 'SMT_DSC')) return true
       if (tipo === 'EBC_CON' && (h.tipo === 'EBC' || h.tipo === 'EBC_CON')) return true
       return false
     })
@@ -232,6 +236,21 @@ function evaluarConflictosPersona(persona, tipo, historial, mes, fechaSemana) {
   return conflictos
 }
 
+// ── Helper para asociar evento de reunión a una semana ────────
+function getEventoParaSemana(s, eventos) {
+  if (!s || !eventos?.length) return null
+  const fechaInicio = String(s.fecha_inicio || '').slice(0, 10)
+  const fechaFin = String(s.fecha_fin || '').slice(0, 10)
+  return (
+    eventos.find(e => {
+      if (e.semana_id && e.semana_id === s.id) return true
+      if (e.fecha_original && fechaInicio && fechaFin && e.fecha_original >= fechaInicio && e.fecha_original <= fechaFin) return true
+      if (e.fecha_efectiva && fechaInicio && fechaFin && e.fecha_efectiva >= fechaInicio && e.fecha_efectiva <= fechaFin) return true
+      return false
+    }) || null
+  )
+}
+
 // ── Selector de Participante Inteligente ──────────────────────
 function PersonaSelector({
   tipo,
@@ -243,12 +262,15 @@ function PersonaSelector({
   fechaSemana,
   yaAsignados,
   disabled,
+  placeholder,
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const [tooltip, setTooltip] = useState(null)
   const inputRef = useRef(null)
   const containerRef = useRef(null)
+  const listRef = useRef(null)
   const triggerRef = useRef(null)
   const hoverTimer = useRef(null)
   const TOOLTIP_W = 260
@@ -301,6 +323,39 @@ function PersonaSelector({
           p.clave.toLowerCase().includes(query.toLowerCase())
       )
     : candidatos
+
+  // Sincronizar índice resaltado al abrir, al cambiar búsqueda o al cambiar valor
+  useEffect(() => {
+    if (!open) return
+    if (query.trim()) {
+      setHighlightedIndex(filtrados.length > 0 ? 0 : -2)
+    } else {
+      const idx = value ? candidatos.findIndex(p => p.clave === value) : -1
+      setHighlightedIndex(idx >= 0 ? idx : -1)
+    }
+  }, [query, open, value])
+
+  // Desplazar automáticamente el elemento resaltado al área visible
+  useEffect(() => {
+    if (!open) return
+    const rafId = requestAnimationFrame(() => {
+      const container = listRef.current
+      if (!container) return
+      const el = container.querySelector(`[data-index="${highlightedIndex}"]`)
+      if (el) {
+        const cTop = container.scrollTop
+        const cBottom = cTop + container.clientHeight
+        const eTop = el.offsetTop
+        const eBottom = eTop + el.offsetHeight
+        if (eTop < cTop) {
+          container.scrollTop = eTop
+        } else if (eBottom > cBottom) {
+          container.scrollTop = eBottom - container.clientHeight
+        }
+      }
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [highlightedIndex, open])
 
   useEffect(() => {
     if (!open) {
@@ -362,6 +417,60 @@ function PersonaSelector({
     setOpen(false)
     setQuery('')
     setTooltip(null)
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setOpen(false)
+      setQuery('')
+      setTooltip(null)
+      return
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      clearTimeout(hoverTimer.current)
+      setTooltip(null)
+      if (filtrados.length === 0) {
+        setHighlightedIndex(-1)
+        return
+      }
+      setHighlightedIndex(prev => {
+        if (prev === -2 || prev === -1) return 0
+        if (prev >= filtrados.length - 1) return -1
+        return prev + 1
+      })
+      return
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      clearTimeout(hoverTimer.current)
+      setTooltip(null)
+      if (filtrados.length === 0) {
+        setHighlightedIndex(-1)
+        return
+      }
+      setHighlightedIndex(prev => {
+        if (prev === -2 || prev === -1) return filtrados.length - 1
+        if (prev <= 0) return -1
+        return prev - 1
+      })
+      return
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlightedIndex === -1) {
+        handleSelect(null)
+      } else if (highlightedIndex >= 0 && highlightedIndex < filtrados.length) {
+        handleSelect(filtrados[highlightedIndex].clave)
+      } else if (filtrados.length > 0) {
+        handleSelect(filtrados[0].clave)
+      }
+      return
+    }
   }
 
   function handleItemMouseEnter(clave, e) {
@@ -465,7 +574,13 @@ function PersonaSelector({
             )}
           </div>
         ) : (
-          <span className="text-text3 text-xs italic flex-1">— Sin asignar —</span>
+          <span
+            className={`${
+              placeholder ? 'text-emerald-700 dark:text-emerald-300 font-medium' : 'text-text3 italic'
+            } text-xs flex-1 truncate`}
+          >
+            {placeholder || '— Sin asignar —'}
+          </span>
         )}
         <ChevronDown className="w-3.5 h-3.5 text-text3 shrink-0 opacity-70" />
       </button>
@@ -501,14 +616,7 @@ function PersonaSelector({
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Escape') {
-                  setOpen(false)
-                  setQuery('')
-                  setTooltip(null)
-                }
-                if (e.key === 'Enter' && filtrados.length > 0) handleSelect(filtrados[0].clave)
-              }}
+              onKeyDown={handleKeyDown}
               placeholder="Buscar nombre o clave..."
               icon={Search}
               size="sm"
@@ -517,11 +625,21 @@ function PersonaSelector({
           </div>
 
           {/* Opciones */}
-          <div className="max-h-48 overflow-y-auto py-1">
+          <div ref={listRef} className="relative max-h-48 overflow-y-auto py-1">
             <button
               type="button"
+              data-index="-1"
               onClick={() => handleSelect(null)}
-              className="w-full text-left px-3 py-1.5 text-xs text-text3 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
+              onMouseMove={() => setHighlightedIndex(-1)}
+              onMouseEnter={() => {
+                clearTimeout(hoverTimer.current)
+                setTooltip(null)
+              }}
+              className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer ${
+                highlightedIndex === -1
+                  ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1 font-medium'
+                  : 'text-text3 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+              }`}
             >
               — Sin asignar —
             </button>
@@ -531,21 +649,28 @@ function PersonaSelector({
                 Sin participantes disponibles
               </div>
             ) : (
-              filtrados.map(p => {
+              filtrados.map((p, idx) => {
                 const ind = getIndicador(p)
                 const IndIcon = ind.icon
                 const isSelected = p.clave === value
+                const isHighlighted = highlightedIndex === idx
 
                 return (
                   <button
                     key={p.clave}
                     type="button"
+                    data-index={idx}
                     onClick={() => handleSelect(p.clave)}
+                    onMouseMove={() => setHighlightedIndex(idx)}
                     onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
                     onMouseLeave={handleItemMouseLeave}
                     className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium'
+                        ? isHighlighted
+                          ? 'bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-100 font-medium ring-1 ring-inset ring-emerald-500/30'
+                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium'
+                        : isHighlighted
+                        ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1'
                         : 'hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 text-text1'
                     }`}
                   >
@@ -662,12 +787,20 @@ function FilaParte({
   onConfirmar,
   clavePresidente,
   modoLectura,
+  evento,
 }) {
   const [flashing, setFlashing] = useState(false)
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
   const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
   const principal = asig[0] || null
   const ayudante = asigAyu[0] || null
+
+  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
+  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
+  const esVisita = esVisitaSC || esVisitaSucursal
+  const nombreVisitante = esVisita
+    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
+    : null
 
   const principalPartRecord = principal?.participacion_id
     ? historial.find(h => h.id === principal.participacion_id)
@@ -764,6 +897,87 @@ function FilaParte({
     )
   }
 
+  // Discurso de la Visita (sustituye al EBC)
+  if (esVisita && parte.tipo_asignacion === 'EBC_CON') {
+    const tituloDiscurso = esVisitaSC
+      ? 'Discurso del Superintendente (30 mins.)'
+      : 'Discurso del Representante de la Sucursal (30 mins.)'
+
+    return (
+      <div
+        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
+          modoLectura
+            ? 'grid-cols-[auto_1fr_1fr]'
+            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+        }`}
+      >
+        <div className="text-xs font-mono text-text3 whitespace-nowrap">
+          {parte.hora_inicio || ''}
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-text1 leading-snug truncate">
+            {tituloDiscurso}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
+              DISCURSO SC
+            </span>
+            <span className="text-[11px] text-text3 font-mono">30 min</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 min-w-0">
+          <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span className="text-xs font-medium truncate">{nombreVisitante}</span>
+          <Badge variant="success" size="xs" className="ml-auto shrink-0">
+            Visitante
+          </Badge>
+        </div>
+
+        {!modoLectura && <div />}
+      </div>
+    )
+  }
+
+  // Lector de EBC — En visita no se requiere lector
+  if (esVisita && parte.tipo_asignacion === 'LEBC') {
+    return (
+      <div
+        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center opacity-70 ${
+          modoLectura
+            ? 'grid-cols-[auto_1fr_1fr]'
+            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+        }`}
+      >
+        <div className="text-xs font-mono text-text3 whitespace-nowrap">
+          {parte.hora_inicio || ''}
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-text3 leading-snug line-through truncate">
+            {parte.titulo}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-zinc-100 dark:bg-zinc-800 text-text3">
+              LEBC
+            </span>
+          </div>
+        </div>
+
+        <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-zinc-50/50 dark:bg-zinc-900/30 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+          No requiere lector (Discurso de 30 min)
+        </div>
+
+        {!modoLectura && <div />}
+      </div>
+    )
+  }
+
+  const esOracionVisitantePredeterminada =
+    esVisita &&
+    parte.tipo_asignacion === 'ORACION_C' &&
+    evento?.oracion_visitante !== false &&
+    !principal?.clave
+
   return (
     <div
       id={`parte-${parte.id}`}
@@ -800,35 +1014,47 @@ function FilaParte({
       {/* Asignaciones: Modo Lectura vs Modo Edición */}
       {modoLectura ? (
         <div className="flex flex-col gap-0.5 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className={`text-xs truncate ${
-                principal?.clave ? 'font-medium text-text1' : 'text-text3 italic'
-              }`}
-            >
-              {principal?.clave
-                ? personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave
-                : '— Sin asignar'}
-            </span>
-            {principal?.clave && (
-              <Badge
-                variant={
-                  principal?.confirmado && !necesitaReconfirmar
-                    ? 'success'
-                    : necesitaReconfirmar
-                    ? 'warning'
-                    : 'neutral'
-                }
-                size="xs"
-              >
-                {principal?.confirmado && !necesitaReconfirmar
-                  ? 'Confirmado'
-                  : necesitaReconfirmar
-                  ? 'Reconfirmar'
-                  : 'Pendiente'}
+          {esOracionVisitantePredeterminada ? (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 truncate">
+                {nombreVisitante}
+              </span>
+              <Badge variant="success" size="xs">
+                Visitante
               </Badge>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={`text-xs truncate ${
+                  principal?.clave ? 'font-medium text-text1' : 'text-text3 italic'
+                }`}
+              >
+                {principal?.clave
+                  ? personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave
+                  : '— Sin asignar'}
+              </span>
+              {principal?.clave && (
+                <Badge
+                  variant={
+                    principal?.confirmado && !necesitaReconfirmar
+                      ? 'success'
+                      : necesitaReconfirmar
+                      ? 'warning'
+                      : 'neutral'
+                  }
+                  size="xs"
+                >
+                  {principal?.confirmado && !necesitaReconfirmar
+                    ? 'Confirmado'
+                    : necesitaReconfirmar
+                    ? 'Reconfirmar'
+                    : 'Pendiente'}
+                </Badge>
+              )}
+            </div>
+          )}
           {parte.requiere_ayudante && (
             <span className="text-[11px] text-text3 truncate">
               {ayudante?.clave
@@ -853,15 +1079,19 @@ function FilaParte({
               fechaSemana={fechaSemana}
               yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
               disabled={false}
+              placeholder={
+                esVisita && evento?.oracion_visitante !== false && parte.tipo_asignacion === 'ORACION_C'
+                  ? `${nombreVisitante} (Visitante)`
+                  : undefined
+              }
             />
             {parte.requiere_ayudante &&
               (() => {
+                const titularSexo = personas.find(p => p.clave === principal?.clave)?.sexo
                 const tipoAyu =
-                  parte.tipo_asignacion === 'SMT_EXP'
-                    ? personas.find(p => p.clave === principal?.clave)?.sexo === 'M'
-                      ? 'SMT_EXP_M'
-                      : 'SMT_EXP_F'
-                    : parte.tipo_asignacion
+                  titularSexo === 'M'
+                    ? 'SMT_EXP_M'
+                    : 'SMT_EXP_F'
                 return (
                   <PersonaSelector
                     tipo={tipoAyu}
@@ -913,6 +1143,10 @@ function FilaParte({
                   ? 'Confirmado'
                   : 'Confirmar'}
               </Button>
+            ) : esOracionVisitantePredeterminada ? (
+              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                Predeterminada
+              </span>
             ) : null}
           </div>
         </>
@@ -937,8 +1171,16 @@ function TarjetaSemana({
   modoLectura,
   onRevisarSemana,
   onSugerirSemana,
+  evento,
 }) {
   const mes = semana.mes
+
+  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
+  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
+  const esVisita = esVisitaSC || esVisitaSucursal
+  const nombreVisitante = esVisita
+    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
+    : null
 
   const semanaAsignados = asignaciones
     .filter(a => partes.some(p => p.id === a.parte_id))
@@ -950,11 +1192,12 @@ function TarjetaSemana({
     : null
   const clavePresidente = asigPresidente?.clave || null
 
-  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU', ...(esVisita ? ['LEBC'] : [])]
   const partesContables = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
   const totalPartes = partesContables.length
 
   const hayReconfirmaciones = partesContables.some(p => {
+    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
     const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
     const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
     if (!asigP?.clave) return false
@@ -972,8 +1215,15 @@ function TarjetaSemana({
   })
 
   const confirmadas = partesContables.filter(p => {
-    const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
+    if (esVisita && p.tipo_asignacion === 'EBC_CON') {
+      return true
+    }
     const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+    if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false && !asigP?.clave) {
+      return true
+    }
+
+    const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
     const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
 
     const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
@@ -989,6 +1239,7 @@ function TarjetaSemana({
   }).length
 
   const hayAsignaciones = partesContables.some(p => {
+    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
     const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
     return !!asigP?.clave
   })
@@ -996,6 +1247,8 @@ function TarjetaSemana({
   const todasAsignadas =
     totalPartes > 0 &&
     partesContables.every(p => {
+      if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
+      if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false) return true
       const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
       return !!asigP?.clave
     })
@@ -1003,6 +1256,8 @@ function TarjetaSemana({
   const todasSugeridas =
     totalPartes > 0 &&
     partesContables.every(p => {
+      if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
+      if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false) return true
       const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
       return asigP?.clave && asigP.sugerido_por_app === true
     })
@@ -1038,6 +1293,14 @@ function TarjetaSemana({
               <BookOpen className="w-3.5 h-3.5 opacity-60" />
               <span>{semana.capitulo_biblico}</span>
             </div>
+            {esVisita && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  {esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}: {nombreVisitante}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Canciones y Progreso */}
@@ -1127,6 +1390,27 @@ function TarjetaSemana({
       {/* Contenido Expandido */}
       {expandida && (
         <div className="px-5 py-4 space-y-5 animate-view-fade">
+          {esVisita && (
+            <div className="flex items-start sm:items-center gap-2.5 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-200">
+              <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span className="font-semibold">
+                  {esVisitaSC
+                    ? 'Semana de Visita del Superintendente de Circuito'
+                    : 'Semana de Visita de Representante de la Sucursal'}
+                  :{' '}
+                </span>
+                <span className="font-medium">{nombreVisitante}</span>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                  El Estudio Bíblico y su lector se sustituyen por el Discurso de servicio de 30 minutos a cargo de la visita.{' '}
+                  {evento.oracion_visitante !== false
+                    ? 'La oración de conclusión también la ofrece el visitante.'
+                    : ''}
+                </p>
+              </div>
+            </div>
+          )}
+
           {secciones.map(sec => {
             const partesSeccion = partes.filter(p => p.seccion === sec)
             if (!partesSeccion.length) return null
@@ -1150,6 +1434,7 @@ function TarjetaSemana({
                     onConfirmar={onConfirmar}
                     clavePresidente={clavePresidente}
                     modoLectura={modoLectura}
+                    evento={evento}
                   />
                 ))}
               </div>
@@ -1210,8 +1495,22 @@ function RevisarSemanaModal({
   onConfirmarBatch,
   onAsignarManual,
   isBatchSaving,
+  evento,
 }) {
-  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
+  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
+  const esVisita = esVisitaSC || esVisitaSucursal
+  const nombreVisitante = esVisita
+    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
+    : null
+
+  const TIPOS_SOLO_VISUAL = [
+    'SMT_VACIO',
+    'ORACION',
+    'CONCLU',
+    ...(esVisita ? ['EBC_CON', 'LEBC'] : []),
+    ...(esVisita && evento?.oracion_visitante !== false && !asignaciones.some(a => partes.some(p => p.id === a.parte_id && p.tipo_asignacion === 'ORACION_C' && a.clave)) ? ['ORACION_C'] : []),
+  ]
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
 
   const partesSemana = (partes || []).filter(
@@ -1350,6 +1649,14 @@ function RevisarSemanaModal({
       }
     >
       <div className="space-y-4">
+        {esVisita && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
+            <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              <strong>{esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}:</strong> {nombreVisitante} (Discurso de 30 min y oración final a cargo de la visita).
+            </span>
+          </div>
+        )}
         {secciones.map(sec => {
           const partesSec = partesEvaluadas.filter(item => item.parte.seccion === sec)
           if (!partesSec.length) return null
@@ -2503,7 +2810,16 @@ export default function Programa() {
     const semana = semanas.find(s => s.id === semanaId)
     if (!semana) return
 
-    const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+    const evSemana = getEventoParaSemana(semana, eventos)
+    const esVisita = evSemana && (evSemana.tipo_evento === 'visita_sc' || evSemana.tipo_evento === 'visita_sucursal')
+
+    const TIPOS_SOLO_VISUAL = [
+      'SMT_VACIO',
+      'ORACION',
+      'CONCLU',
+      ...(esVisita ? ['EBC_CON', 'LEBC'] : []),
+      ...(esVisita && evSemana.oracion_visitante !== false ? ['ORACION_C'] : []),
+    ]
     const partesSemana = partes
       .filter(p => p.semana_id === semanaId && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
       .sort((a, b) => (a.numero_parte || 0) - (b.numero_parte || 0))
@@ -3212,6 +3528,7 @@ export default function Programa() {
                     modoLectura={modoLectura}
                     onRevisarSemana={setSemanaParaRevisar}
                     onSugerirSemana={handleCompletarConSugerencias}
+                    evento={getEventoParaSemana(s, eventos)}
                   />
                 )
               })
@@ -3271,6 +3588,20 @@ export default function Programa() {
                         <div className="font-semibold text-text1 text-xs">
                           {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
                         </div>
+                        {(() => {
+                          const ev = getEventoParaSemana(s, eventos)
+                          if (ev && (ev.tipo_evento === 'visita_sc' || ev.tipo_evento === 'visita_sucursal')) {
+                            return (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                                  <Briefcase className="w-2.5 h-2.5" />
+                                  {ev.tipo_evento === 'visita_sc' ? 'Visita SC' : 'Visita Sucursal'}
+                                </span>
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
                       </td>
                       <td className="px-4 py-3 font-mono text-text2">{s.capitulo_biblico}</td>
                       <td className="px-3 py-3 font-mono text-center text-text3">
@@ -3385,6 +3716,7 @@ export default function Programa() {
         isOpen={!!semanaParaRevisar}
         onClose={() => setSemanaParaRevisar(null)}
         semana={semanaParaRevisar}
+        evento={getEventoParaSemana(semanaParaRevisar, eventos)}
         partes={partes}
         asignaciones={asignaciones}
         personas={personas}

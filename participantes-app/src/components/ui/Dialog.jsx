@@ -12,6 +12,7 @@ const SIZES = {
 
 export function Dialog({
   isOpen,
+  open,
   onClose,
   title,
   description,
@@ -20,13 +21,15 @@ export function Dialog({
   size = 'md',
   className = '',
 }) {
+  const visible = Boolean(isOpen ?? open)
+
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && visible) {
         onClose?.()
       }
     }
-    if (isOpen) {
+    if (visible) {
       document.addEventListener('keydown', handleKeyDown)
       document.body.style.overflow = 'hidden'
     }
@@ -34,9 +37,9 @@ export function Dialog({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [isOpen, onClose])
+  }, [visible, onClose])
 
-  if (!isOpen) return null
+  if (!visible) return null
 
   const sizeClass = SIZES[size] || SIZES.md
 

@@ -21,6 +21,7 @@ import {
   HelpCircle,
   X,
   ExternalLink,
+  Briefcase,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useConfiguracion, CONFIG_DEFAULTS } from '../hooks/useConfiguracion'
@@ -34,7 +35,9 @@ import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Dialog } from '../components/ui/Dialog'
+import { Sheet } from '../components/ui/Sheet'
 import { TimePickerModal } from '../components/ui/TimePickerModal'
+import { CalendarioEventos } from '../components/CalendarioEventos'
 
 const DIAS_ENTRE_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 const DIAS_FIN_SEMANA = ['Sábado', 'Domingo']
@@ -45,7 +48,8 @@ const ANIOS_DISPONIBLES = ['2025', '2026', '2027', '2028', '2029', '2030']
 const TIPOS_EVENTO = [
   { id: 'asamblea_circuito', label: 'Asamblea de Circuito', color: 'purple', desc: '1 día de asamblea (sustituye reunión de fin de semana)' },
   { id: 'asamblea_regional', label: 'Asamblea Regional', color: 'blue', desc: '3 días de asamblea (sin reunión de fin de semana)' },
-  { id: 'visita_sc', label: 'Visita del Superintendente de Circuito', color: 'emerald', desc: 'Discurso de servicio sustituye el EBC de 30m' },
+  { id: 'visita_sc', label: 'Visita del Superintendente de Circuito', color: 'emerald', desc: 'Discurso de servicio de 30m sustituye el EBC' },
+  { id: 'visita_sucursal', label: 'Visita de Representante de Sucursal', color: 'emerald', desc: 'Discurso especial de 30m sustituye el EBC' },
   { id: 'reunion_desplazada', label: 'Reunión Desplazada de Día/Hora', color: 'amber', desc: 'Por feriado o evento, la reunión se traslada de fecha' },
   { id: 'reunion_cancelada', label: 'Reunión Cancelada', color: 'red', desc: 'Semana sin reunión ordinaria' },
 ]
@@ -144,6 +148,7 @@ export default function Configuracion({ onNavigate }) {
     horaReunionFinSemana: '18:00',
     anioEnCurso: new Date().getFullYear().toString(),
     circuito: '',
+    nombreSuperintendenteCircuito: '',
     salaAuxiliarHabilitada: false,
     direccionSalon: '',
     horarioModoTb: 'estatico',
@@ -171,6 +176,8 @@ export default function Configuracion({ onNavigate }) {
     hora_efectiva: '',
     afecta_reunion: 'entre_semana',
     descripcion: '',
+    nombre_visitante: '',
+    oracion_visitante: true,
   })
 
   // Estado para el modal pop-up de selección de hora estilo Android Material 3
@@ -203,6 +210,7 @@ export default function Configuracion({ onNavigate }) {
         horaReunionFinSemana: config.horaReunionFinSemana || '18:00',
         anioEnCurso: config.anioEnCurso || new Date().getFullYear().toString(),
         circuito: config.circuito || '',
+        nombreSuperintendenteCircuito: config.nombreSuperintendenteCircuito || '',
         salaAuxiliarHabilitada: !!config.salaAuxiliarHabilitada,
         direccionSalon: config.direccionSalon || '',
         horarioModoTb: config.horarioModoTb || 'estatico',
@@ -412,17 +420,43 @@ export default function Configuracion({ onNavigate }) {
   }
 
   // Manejo de Modal de Eventos
-  function openCrearEvento() {
+  function openCrearEvento(initData = {}) {
     setEditingEvento(null)
+    const semDefault = initData.semana_id
+      ? semanas.find(s => s.id === initData.semana_id)
+      : semanas[0]
+
+    const tipo = initData.tipo_evento || 'visita_sc'
+    const opt = TIPOS_EVENTO.find(t => t.id === tipo)
+
     setEventoForm({
-      semana_id: semanas[0]?.id || '',
-      tipo_evento: 'asamblea_circuito',
-      titulo_evento: 'Asamblea de Circuito',
-      fecha_original: semanas[0]?.fecha_inicio || '',
-      fecha_efectiva: '',
+      semana_id: semDefault?.id || '',
+      tipo_evento: tipo,
+      titulo_evento: opt?.label || 'Visita del Superintendente de Circuito',
+      fecha_original: semDefault?.fecha_inicio || '',
+      fecha_efectiva: initData.fecha_efectiva || '',
       hora_efectiva: '',
       afecta_reunion: 'entre_semana',
       descripcion: '',
+      nombre_visitante: tipo === 'visita_sc' ? (config?.nombreSuperintendenteCircuito || '') : '',
+      oracion_visitante: true,
+    })
+    setModalEventoOpen(true)
+  }
+
+  function openEditarEvento(evt) {
+    setEditingEvento(evt)
+    setEventoForm({
+      semana_id: evt.semana_id || '',
+      tipo_evento: evt.tipo_evento || 'asamblea_circuito',
+      titulo_evento: evt.titulo_evento || '',
+      fecha_original: evt.fecha_original || '',
+      fecha_efectiva: evt.fecha_efectiva || '',
+      hora_efectiva: evt.hora_efectiva || '',
+      afecta_reunion: evt.afecta_reunion || 'entre_semana',
+      descripcion: evt.descripcion ? evt.descripcion.replace(/\[VISITANTE:[^\]]+\]/, '').trim() : '',
+      nombre_visitante: evt.nombre_visitante || '',
+      oracion_visitante: evt.oracion_visitante !== false,
     })
     setModalEventoOpen(true)
   }
@@ -431,6 +465,11 @@ export default function Configuracion({ onNavigate }) {
     e?.preventDefault?.()
     if (!eventoForm.titulo_evento.trim()) {
       toastError('Debes indicar un título para el evento.')
+      return
+    }
+
+    if ((eventoForm.tipo_evento === 'visita_sc' || eventoForm.tipo_evento === 'visita_sucursal') && !eventoForm.nombre_visitante?.trim()) {
+      toastError('Debes indicar el nombre del orador visitante.')
       return
     }
 
@@ -452,6 +491,7 @@ export default function Configuracion({ onNavigate }) {
     const res = await eliminarEvento(id)
     if (res.ok) {
       success('Evento eliminado.')
+      setModalEventoOpen(false)
     } else {
       toastError('No se pudo eliminar: ' + res.error?.message)
     }
@@ -619,6 +659,20 @@ export default function Configuracion({ onNavigate }) {
                       ))}
                     </Select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-text1 mb-1">
+                    Superintendente de Circuito actual <span className="text-text3 font-normal">(opcional)</span>
+                  </label>
+                  <Input
+                    value={form.nombreSuperintendenteCircuito}
+                    onChange={e => handleChange('nombreSuperintendenteCircuito', e.target.value)}
+                    placeholder="Ej. Alejandro Guanaco Giordani"
+                  />
+                  <span className="text-[11px] text-text3 mt-1 block">
+                    Se autocompletará en las semanas agendadas como Visita del SC durante sus años en el circuito.
+                  </span>
                 </div>
 
                 <div>
@@ -1005,126 +1059,94 @@ export default function Configuracion({ onNavigate }) {
       {/* ── PESTAÑA 3: CALENDARIO Y EXCEPCIONES                      ── */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'eventos' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <div>
-                <h3 className="text-sm font-semibold text-text1">Calendario de Eventos y Excepciones</h3>
-                <p className="text-[11px] text-text3">
-                  Programa asambleas, visitas del superintendente de circuito o reuniones desplazadas con semanas de anticipación.
-                </p>
-              </div>
+        <CalendarioEventos
+          eventos={eventos}
+          semanas={semanas}
+          diaReunionEntreSemana={form.diaReunionEntreSemana}
+          diaReunionFinSemana={form.diaReunionFinSemana}
+          onCrearEvento={openCrearEvento}
+          onEditarEvento={openEditarEvento}
+          onEliminarEvento={handleDeleteEvento}
+          tiposEvento={TIPOS_EVENTO}
+        />
+      )}
 
+      {/* ── SIDE-SHEET: REGISTRAR / EDITAR EVENTO (ESTILO NOTION CALENDAR) ── */}
+      <Sheet
+        isOpen={modalEventoOpen}
+        onClose={() => setModalEventoOpen(false)}
+        width="md"
+        title={editingEvento ? 'Editar Evento' : 'Nuevo Evento'}
+        description={
+          editingEvento
+            ? 'Modifica los detalles del evento o excepción'
+            : 'Programa una visita, asamblea o ajuste de reunión'
+        }
+        footer={
+          <div className="flex items-center justify-between w-full">
+            {editingEvento ? (
+              <Button
+                variant="dangerGhost"
+                size="sm"
+                icon={Trash2}
+                onClick={() => handleDeleteEvento(editingEvento.id, eventoForm.titulo_evento)}
+              >
+                Eliminar
+              </Button>
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setModalEventoOpen(false)}
+              >
+                Cancelar
+              </Button>
               <Button
                 variant="accent"
                 size="sm"
-                icon={Plus}
-                onClick={openCrearEvento}
+                loading={savingEventos}
+                onClick={handleSaveEvento}
               >
-                Nuevo Evento o Excepción
+                {editingEvento ? 'Guardar Cambios' : 'Crear Evento'}
               </Button>
             </div>
-
-            {/* Listado de eventos */}
-            {eventos.length === 0 ? (
-              <div className="py-12 text-center space-y-2">
-                <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-text3 flex items-center justify-center mx-auto">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-medium text-text1">No hay eventos o excepciones programadas</p>
-                <p className="text-[11px] text-text3 max-w-sm mx-auto">
-                  Si tu congregación tiene una Asamblea de Circuito, Asamblea Regional o necesita desplazar una reunión por día feriado, regístrala aquí.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2">
-                {eventos.map(evt => {
-                  const metaTipo = TIPOS_EVENTO.find(t => t.id === evt.tipo_evento) || {
-                    label: evt.tipo_evento,
-                    color: 'neutral',
-                  }
-                  return (
-                    <div
-                      key={evt.id}
-                      className="p-4 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between space-y-3"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Badge variant={metaTipo.color} size="xs">
-                            {metaTipo.label}
-                          </Badge>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteEvento(evt.id, evt.titulo_evento)}
-                            className="text-text3 hover:text-red-500 transition-colors cursor-pointer p-1"
-                            title="Eliminar evento"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        <h4 className="text-xs font-semibold text-text1">{evt.titulo_evento}</h4>
-
-                        {evt.tipo_evento === 'reunion_desplazada' ? (
-                          <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Desplazada al: {evt.fecha_efectiva} {evt.hora_efectiva ? `a las ${evt.hora_efectiva}` : ''}
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-text3">
-                            Semana programada: {evt.fecha_original || 'Fecha por confirmar'}
-                          </p>
-                        )}
-
-                        {evt.descripcion && (
-                          <p className="text-[11px] text-text3 italic leading-relaxed">
-                            "{evt.descripcion}"
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50 flex items-center justify-between text-[10px] text-text3 font-mono">
-                        <span>Afecta: {evt.afecta_reunion}</span>
-                        <span className="text-emerald-600 dark:text-emerald-400">Reflejado en S-140</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </div>
-        </div>
-      )}
-
-      {/* ── MODAL: REGISTRAR EVENTO O EXCEPCIÓN ── */}
-      <Dialog
-        open={modalEventoOpen}
-        onClose={() => setModalEventoOpen(false)}
-        title="Registrar Evento o Excepción de Reunión"
-        footer={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalEventoOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="accent"
-              size="sm"
-              loading={savingEventos}
-              onClick={handleSaveEvento}
-            >
-              Guardar Evento
-            </Button>
-          </>
         }
       >
-        <form onSubmit={handleSaveEvento} className="space-y-4 text-xs">
+        <form onSubmit={handleSaveEvento} className="space-y-5 text-xs">
+          {/* Título del evento estilo Notion Calendar */}
           <div>
-            <label className="block text-xs font-medium text-text1 mb-1">
-              Tipo de Evento o Excepción <span className="text-red-500">*</span>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-text3 mb-1">
+              Título del evento <span className="text-red-500">*</span>
             </label>
+            <input
+              type="text"
+              value={eventoForm.titulo_evento}
+              onChange={e => setEventoForm(prev => ({ ...prev, titulo_evento: e.target.value }))}
+              placeholder="Ej. Visita del Superintendente de Circuito"
+              className="w-full text-base font-semibold text-text1 placeholder:text-text3/50 bg-transparent border-b border-zinc-200 dark:border-zinc-800 pb-2 focus:outline-none focus:border-emerald-500 transition-colors"
+              required
+            />
+          </div>
+
+          {/* Tipo de evento */}
+          <div className="p-3.5 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-medium text-text1">
+                Tipo de Evento o Excepción <span className="text-red-500">*</span>
+              </label>
+              {(() => {
+                const opt = TIPOS_EVENTO.find(t => t.id === eventoForm.tipo_evento)
+                return opt ? (
+                  <Badge variant={opt.color} size="xs">
+                    {opt.label}
+                  </Badge>
+                ) : null
+              })()}
+            </div>
             <Select
               value={eventoForm.tipo_evento}
               onChange={e => {
@@ -1134,6 +1156,10 @@ export default function Configuracion({ onNavigate }) {
                   ...prev,
                   tipo_evento: tipo,
                   titulo_evento: opt?.label || prev.titulo_evento,
+                  nombre_visitante:
+                    tipo === 'visita_sc'
+                      ? prev.nombre_visitante || config?.nombreSuperintendenteCircuito || ''
+                      : prev.nombre_visitante,
                 }))
               }}
             >
@@ -1143,24 +1169,72 @@ export default function Configuracion({ onNavigate }) {
                 </option>
               ))}
             </Select>
+            {(() => {
+              const opt = TIPOS_EVENTO.find(t => t.id === eventoForm.tipo_evento)
+              return opt?.desc ? (
+                <p className="text-[10px] text-text3 leading-normal mt-0.5">{opt.desc}</p>
+              ) : null
+            })()}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-text1 mb-1">
-              Título del evento para el S-140 <span className="text-red-500">*</span>
-            </label>
-            <Input
-              value={eventoForm.titulo_evento}
-              onChange={e => setEventoForm(prev => ({ ...prev, titulo_evento: e.target.value }))}
-              placeholder="Ej. Asamblea de Circuito con SC"
-              required
-            />
-          </div>
+          {/* Campos específicos para Visita del SC o Representante de Sucursal */}
+          {(eventoForm.tipo_evento === 'visita_sc' || eventoForm.tipo_evento === 'visita_sucursal') && (
+            <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold text-xs">
+                  <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Detalles del Orador Visitante</span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                  {eventoForm.tipo_evento === 'visita_sc' ? 'Superintendente' : 'Sucursal'}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-text1 mb-1">
+                  Nombre completo <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={eventoForm.nombre_visitante}
+                  onChange={e =>
+                    setEventoForm(prev => ({ ...prev, nombre_visitante: e.target.value }))
+                  }
+                  placeholder={
+                    eventoForm.tipo_evento === 'visita_sc'
+                      ? 'Ej. Alejandro Guanaco Giordani'
+                      : 'Ej. Carlos Mendoza (Sucursal)'
+                  }
+                  required
+                />
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-400/90 mt-1 block">
+                  Se asignará automáticamente al Discurso de 30 min en el S-140.
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer text-text1 select-none font-medium text-[11px]">
+                  <input
+                    type="checkbox"
+                    checked={eventoForm.oracion_visitante}
+                    onChange={e =>
+                      setEventoForm(prev => ({ ...prev, oracion_visitante: e.target.checked }))
+                    }
+                    className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span>El orador visitante realiza la oración final</span>
+                </label>
+                <p className="text-[10px] text-text3 ml-5">
+                  El Estudio Bíblico (EBC) y su lector se omiten automáticamente en esta semana.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Selector de semana */}
-          <div>
-            <label className="block text-xs font-medium text-text1 mb-1">
-              Semana del Programa afectada
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-medium text-text2 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-text3" />
+              <span>Semana del Programa vinculada</span>
             </label>
             <Select
               value={eventoForm.semana_id}
@@ -1174,19 +1248,24 @@ export default function Configuracion({ onNavigate }) {
                 }))
               }}
             >
+              <option value="">— Ninguna / Seleccionar semana —</option>
               {semanas.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.fecha_inicio} — {s.fecha_fin} ({s.mes} {s.anio})
                 </option>
               ))}
             </Select>
+            <span className="text-[10px] text-text3">
+              Vincula el evento con las partes del programa de esa semana en el módulo Programa.
+            </span>
           </div>
 
           {/* Campos específicos si se desplaza la reunión */}
           {eventoForm.tipo_evento === 'reunion_desplazada' && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
-              <span className="text-amber-700 dark:text-amber-300 font-semibold block">
-                Detalles del Desplazamiento
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-3">
+              <span className="text-amber-800 dark:text-amber-300 font-semibold block text-xs flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Detalles del Traslado</span>
               </span>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1196,7 +1275,9 @@ export default function Configuracion({ onNavigate }) {
                   <Input
                     type="date"
                     value={eventoForm.fecha_efectiva}
-                    onChange={e => setEventoForm(prev => ({ ...prev, fecha_efectiva: e.target.value }))}
+                    onChange={e =>
+                      setEventoForm(prev => ({ ...prev, fecha_efectiva: e.target.value }))
+                    }
                     required
                   />
                 </div>
@@ -1207,20 +1288,23 @@ export default function Configuracion({ onNavigate }) {
                   <Input
                     type="time"
                     value={eventoForm.hora_efectiva}
-                    onChange={e => setEventoForm(prev => ({ ...prev, hora_efectiva: e.target.value }))}
+                    onChange={e =>
+                      setEventoForm(prev => ({ ...prev, hora_efectiva: e.target.value }))
+                    }
                   />
                 </div>
               </div>
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-text1 mb-1">
-              Reunión afectada
-            </label>
+          {/* Reunión afectada */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-medium text-text2">Reunión afectada</label>
             <Select
               value={eventoForm.afecta_reunion}
-              onChange={e => setEventoForm(prev => ({ ...prev, afecta_reunion: e.target.value }))}
+              onChange={e =>
+                setEventoForm(prev => ({ ...prev, afecta_reunion: e.target.value }))
+              }
             >
               <option value="entre_semana">Reunión de Entre Semana (Vida y Ministerio)</option>
               <option value="fin_semana">Reunión de Fin de Semana (Pública y Atalaya)</option>
@@ -1228,18 +1312,25 @@ export default function Configuracion({ onNavigate }) {
             </Select>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-text1 mb-1">
-              Notas o descripción interna <span className="text-text3 font-normal">(opcional)</span>
+          {/* Notas o descripción interna */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-medium text-text2 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-text3" />
+              <span>Notas o descripción interna</span>
+              <span className="text-text3 font-normal">(opcional)</span>
             </label>
-            <Input
+            <textarea
+              rows={3}
               value={eventoForm.descripcion}
-              onChange={e => setEventoForm(prev => ({ ...prev, descripcion: e.target.value }))}
-              placeholder="Ej. La reunión se traslada al miércoles por el feriado del martes."
+              onChange={e =>
+                setEventoForm(prev => ({ ...prev, descripcion: e.target.value }))
+              }
+              placeholder="Ej. La reunión se traslada al miércoles por el feriado del martes..."
+              className="w-full text-xs text-text1 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none transition-colors"
             />
           </div>
         </form>
-      </Dialog>
+      </Sheet>
 
       {/* ── MODAL POP-UP ESTILO ANDROID MATERIAL 3 (TIME PICKER) ── */}
       <TimePickerModal

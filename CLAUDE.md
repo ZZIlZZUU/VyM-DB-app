@@ -178,13 +178,13 @@ observaciones TEXT
 | `TB` | `TB` | Tesoros de la Biblia | Anc/SM |
 | `PE` | `PE` | Perlas escondidas | Anc/SM |
 | `VC` | `VC` | Vida Cristiana | Anc/SM |
-| `NC` | `NC` | Necesidades de la congregación | Solo Ancianos |
+| `NC` | `NC` | Necesidades de la congregación | Anc/SM |
 | `EBC` | `EBC_CON` | Conductor EBC | Ancianos pref., SM |
-| `LB` | `LB` | Lectura bíblica | Varones Mat |
-| `DSC` | `SMT_DSC` | Discurso SMT | Varones Mat |
-| `T` | `SMT_EST` | Estudiante SMT (damas) | Damas Mat |
-| `T` | `SMT_EXP` | Explique sus creencias (ambos sexos) | Todos los Mat |
-| `A` | `SMT_AYU` | Ayudante SMT | Mismo sexo que titular |
+| `LB` | `LB` | Lectura bíblica | Anc/SM o varones Mat |
+| `DSC` | `SMT_DSC` | Discurso SMT | Todos los varones (Anc/SM y Mat M) |
+| `T` | `SMT_EST` | Estudiante SMT (Empiece conversaciones, Haga revisitas, etc.) | Todos los varones (Anc/SM y Mat M) y damas Mat |
+| `T` | `SMT_EXP` | Explique sus creencias (ambos sexos) | Todos los varones (Anc/SM y Mat M) y damas Mat |
+| `A` | `SMT_AYU` | Ayudante SMT | Mismo sexo que titular (todos los varones o damas Mat) |
 | `LEBC` | `LEBC` | Lector EBC | Varones Mat |
 | `OC` | `ORACION_C` | Oración de cierre | Anc/SM o varón Mat — peso=0 |
 
@@ -215,7 +215,30 @@ programa_asignaciones:
   sugerido_por_app BOOLEAN,
   confirmado BOOLEAN,
   participacion_id INT→participaciones
+
+eventos_reunion:
+  id UUID PRIMARY KEY,
+  semana_id UUID→programa_semanas,
+  fecha_original DATE,
+  fecha_efectiva DATE,
+  hora_efectiva TIME,
+  tipo_evento VARCHAR(30), -- 'visita_sc'|'visita_sucursal'|'asamblea_circuito'|'asamblea_regional'|'reunion_cancelada'|'reunion_desplazada'
+  titulo_evento VARCHAR(120),
+  nombre_visitante VARCHAR(120),
+  oracion_visitante BOOLEAN DEFAULT TRUE,
+  descripcion TEXT
 ```
+
+### Eventos especiales y Oradores Visitantes (`visita_sc` y `visita_sucursal`)
+- **Desacople de la BD:** Los oradores visitantes (Superintendente de Circuito y Representante de la Sucursal) **NO** se registran en la tabla `personas` ni en `participaciones` para no contaminar el catálogo local ni las métricas de rotación.
+- **Configuración global del SC:** El nombre del Superintendente de Circuito activo se almacena en `configuracion` bajo la clave `nombre_sc` (`nombreSuperintendenteCircuito`).
+- **Comportamiento en el programa:**
+  - `EBC_CON`: Pasa a ser el discurso del visitante (30 mins.) a cargo de `nombre_visitante`.
+  - `LEBC`: Se omite / no requiere lector.
+  - `ORACION_C`: Si `oracion_visitante !== false` (predeterminado), la oración de conclusión la ofrece el visitante.
+  - El motor de sugerencias (`handleCompletarConSugerencias`) y la revisión modal (`RevisarSemanaModal`) excluyen automáticamente estas partes para no asignar hermanos locales indebidamente.
+  - `generarS140.js` refleja esta estructura al exportar la plantilla oficial.
+- **Calendario Visual:** Disponible en la pestaña *Eventos y Excepciones* de Configuración (`CalendarioEventos.jsx`), con vista mensual en cuadrícula de 7 columnas y vista de lista, permitiendo programar visitas y asambleas interactivamente.
 
 ### Tipos de asignación (`tipo_asignacion` en programa_partes) — estado actual
 
@@ -227,19 +250,19 @@ programa_asignaciones:
 | `ORACION_C` | CIERRE | Anc/SM o varón Mat bautizado, distinto al Presidente | ✅ tipo `OC`, peso=0 |
 | `TB` | TB | Anc/SM | ✅ tipo `TB` |
 | `PE` | TB | Anc/SM | ✅ tipo `PE` |
-| `LB` | TB | Varones Mat | ✅ tipo `LB` |
-| `SMT_EST` | SMT | Damas Mat (requiere_ayudante=true) | ✅ tipo `T` |
-| `SMT_EXP` | SMT | Todos los Mat (requiere_ayudante=true, ayudante mismo sexo) | ✅ tipo `T` |
-| `SMT_DSC` | SMT | Varones Mat | ✅ tipo `DSC` |
+| `LB` | TB | Anc/SM o varones Mat | ✅ tipo `LB` |
+| `SMT_EST` | SMT | Todos los varones (Anc/SM y Mat M) y damas Mat (requiere_ayudante=true, ayudante mismo sexo) | ✅ tipo `T` |
+| `SMT_EXP` | SMT | Todos los varones (Anc/SM y Mat M) y damas Mat (requiere_ayudante=true, ayudante mismo sexo) | ✅ tipo `T` |
+| `SMT_DSC` | SMT | Todos los varones (Anc/SM y Mat M) | ✅ tipo `DSC` |
 | `SMT_VACIO` | SMT | Slot vacío — no asignable | ❌ no se guarda |
 | `VC` | VC | Anc/SM | ✅ tipo `VC` |
-| `NC` | VC | Solo Ancianos | ✅ tipo `NC` |
+| `NC` | VC | Anc/SM | ✅ tipo `NC` |
 | `EBC_CON` | VC | Ancianos pref., SM | ✅ tipo `EBC` |
 | `LEBC` | VC | Varones Mat | ✅ tipo `LEBC` |
 
 > **`INTRO` fue eliminado.** El tipo existía para "Palabras de introducción" pero se removió — esa función cae dentro del rol del Presidente.
 
-> **Regla `SMT_EXP` — ayudante mismo sexo:** Cuando el titular es varón, el selector de ayudante filtra solo varones Mat (`SMT_EXP_M`). Cuando es dama, solo damas Mat (`SMT_EXP_F`). Esto se resuelve en `FilaParte` leyendo el sexo del principal de `personas` antes de pasar `tipo` al `PersonaSelector` del ayudante.
+> **Regla ayudante SMT — mismo sexo:** Cuando el titular de cualquier parte de SMT es varón, el selector de ayudante filtra todos los varones (`SMT_EXP_M`: Anc/SM y Mat M). Cuando es dama, solo damas Mat (`SMT_EXP_F`). Esto se resuelve en `FilaParte` leyendo el sexo del principal de `personas` antes de pasar `tipo` al `PersonaSelector` del ayudante.
 
 > **Regla `handleConfirmarTodo`:** Solo itera sobre asignaciones con `rol === 'principal'` para evitar procesar el ayudante dos veces. `handleConfirmar` también tiene guard `if (principal.rol === 'ayudante') return`.
 

@@ -70,27 +70,41 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── Lectura de la Biblia (LB) ───────────────────────────
     case 'LB': {
-      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
+      // Ancianos, Siervos Ministeriales y Matriculados varones
+      pool = personas.filter(p =>
+        p.lista === 'Anc/SM' || (p.lista === 'Mat' && p.sexo === 'M')
+      )
       break
     }
 
-    // ── SMT — Estudiante dama (con ayudante) ─────────────────
+    // ── SMT — Estudiante (Empiece conversaciones, Haga revisitas, etc. con ayudante) ──
     case 'SMT_EST': {
-      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'F')
+      // Habilitado para todos los varones (Anc/SM y Mat M) y damas Mat
+      pool = personas.filter(p =>
+        p.lista === 'Anc/SM' || p.lista === 'Mat'
+      )
       break
     }
 
-    // ── SMT — "Explique sus creencias" (varones y damas Mat, con ayudante) ──
+    // ── SMT — "Explique sus creencias" (todos los varones y damas Mat, con ayudante) ──
     case 'SMT_EXP': {
-      pool = personas.filter(p => p.lista === 'Mat')
+      // Habilitado para todos los varones (Anc/SM y Mat M) y damas Mat
+      pool = personas.filter(p =>
+        p.lista === 'Anc/SM' || p.lista === 'Mat'
+      )
       break
     }
 
-    // Ayudante SMT_EXP — mismo sexo que el principal
+    // Ayudante SMT — mismo sexo que el principal
+    case 'SMT_AYU_M':
     case 'SMT_EXP_M': {
-      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
+      // Todos los varones (Anc/SM y Mat M)
+      pool = personas.filter(p =>
+        p.lista === 'Anc/SM' || (p.lista === 'Mat' && p.sexo === 'M')
+      )
       break
     }
+    case 'SMT_AYU_F':
     case 'SMT_EXP_F': {
       pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'F')
       break
@@ -98,7 +112,10 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── SMT — Discurso varón ─────────────────────────────────
     case 'SMT_DSC': {
-      pool = personas.filter(p => p.lista === 'Mat' && p.sexo === 'M')
+      // Todos los varones (Anc/SM y Mat M)
+      pool = personas.filter(p =>
+        p.lista === 'Anc/SM' || (p.lista === 'Mat' && p.sexo === 'M')
+      )
       break
     }
 
@@ -110,7 +127,10 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
 
     // ── Necesidades de la congregación (NC) ──────────────────
     case 'NC': {
-      pool = personas.filter(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')
+      // Ancianos y Siervos Ministeriales (Anc/SM)
+      const ancianos = personas.filter(p => p.lista === 'Anc/SM' && p.estatus === 'Anciano')
+      const sm       = personas.filter(p => p.lista === 'Anc/SM' && p.estatus !== 'Anciano')
+      pool = [...ancianos, ...sm]
       break
     }
 
@@ -187,8 +207,10 @@ export function sugerirCandidatos(tipo, personas, historial, mes, yaAsignados = 
  * Excluye al titular (claveEstudiante) del primer lugar vía yaAsignados.
  */
 export function sugerirAyudante(claveEstudiante, personas, historial, mes, yaAsignados = []) {
+  const titular = personas.find(p => p.clave === claveEstudiante)
+  const tipoAyu = titular?.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F'
   return sugerirCandidatos(
-    'SMT_EST',
+    tipoAyu,
     personas,
     historial,
     mes,

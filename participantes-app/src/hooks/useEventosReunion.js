@@ -14,6 +14,18 @@ export function useEventosReunion() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  function extraerMetaVisitante(descripcion) {
+    if (!descripcion) return { nombre_visitante: '', oracion_visitante: true }
+    const match = descripcion.match(/\[VISITANTE:\s*([^\]|]+)(?:\|\s*ORACION:\s*(true|false))?\]/)
+    if (match) {
+      return {
+        nombre_visitante: match[1]?.trim() || '',
+        oracion_visitante: match[2] ? match[2] === 'true' : true,
+      }
+    }
+    return { nombre_visitante: '', oracion_visitante: true }
+  }
+
   const fetchEventos = useCallback(async () => {
     try {
       setError(null)
@@ -28,8 +40,17 @@ export function useEventosReunion() {
         return
       }
 
-      setEventos(data || [])
-      localStorage.setItem('app_eventos_cache', JSON.stringify(data || []))
+      const procesados = (data || []).map(row => {
+        const meta = extraerMetaVisitante(row.descripcion)
+        return {
+          ...row,
+          nombre_visitante: row.nombre_visitante || meta.nombre_visitante || '',
+          oracion_visitante: row.oracion_visitante != null ? row.oracion_visitante : meta.oracion_visitante,
+        }
+      })
+
+      setEventos(procesados)
+      localStorage.setItem('app_eventos_cache', JSON.stringify(procesados))
     } catch (err) {
       console.warn('[useEventosReunion] Excepción al obtener eventos:', err)
       setError(err?.message || 'Error al obtener eventos')
@@ -59,7 +80,20 @@ export function useEventosReunion() {
     setSaving(true)
     setError(null)
     try {
-      const payload = {
+      const nombreVisitante = evento.nombre_visitante?.trim() || ''
+      const oracionVisitante = evento.oracion_visitante !== false
+
+      // Enriquecer descripción con metadatos para redundancia y fallback seguro
+      let descFinal = evento.descripcion?.trim() || ''
+      if (nombreVisitante) {
+        descFinal = descFinal.replace(/\[VISITANTE:[^\]]+\]/, '').trim()
+        const tag = `[VISITANTE: ${nombreVisitante} | ORACION: ${oracionVisitante}]`
+        descFinal = descFinal ? `${descFinal} ${tag}` : tag
+      } else {
+        descFinal = descFinal.replace(/\[VISITANTE:[^\]]+\]/, '').trim()
+      }
+
+      const payloadConColumnas = {
         semana_id: evento.semana_id || null,
         tipo_evento: evento.tipo_evento,
         titulo_evento: evento.titulo_evento?.trim(),
@@ -67,23 +101,47 @@ export function useEventosReunion() {
         fecha_efectiva: evento.fecha_efectiva || null,
         hora_efectiva: evento.hora_efectiva || null,
         afecta_reunion: evento.afecta_reunion || 'entre_semana',
-        descripcion: evento.descripcion?.trim() || null,
+        descripcion: descFinal || null,
+        nombre_visitante: nombreVisitante || null,
+        oracion_visitante: oracionVisitante,
+      }
+
+      const payloadSinColumnas = {
+        semana_id: evento.semana_id || null,
+        tipo_evento: evento.tipo_evento,
+        titulo_evento: evento.titulo_evento?.trim(),
+        fecha_original: evento.fecha_original || null,
+        fecha_efectiva: evento.fecha_efectiva || null,
+        hora_efectiva: evento.hora_efectiva || null,
+        afecta_reunion: evento.afecta_reunion || 'entre_semana',
+        descripcion: descFinal || null,
       }
 
       let res
-      if (evento.id) {
-        res = await supabase
-          .from('eventos_reunion')
-          .update(payload)
-          .eq('id', evento.id)
-          .select()
-          .single()
-      } else {
-        res = await supabase
-          .from('eventos_reunion')
-          .insert([payload])
-          .select()
-          .single()
+      const intentarGuardar = async (payload) => {
+        if (evento.id) {
+          return await supabase
+            .from('eventos_reunion')
+            .update(payload)
+            .eq('id', evento.id)
+            .select()
+            .single()
+        } else {
+          return await supabase
+            .from('eventos_reunion')
+            .insert([payload])
+            .select()
+            .single()
+        }
+      }
+
+      // Intentar primero con las nuevas columnas
+      res = await intentarGuardar(payloadConColumnas)
+
+      // Si falla por columna no encontrada en BD (migración no ejecutada aún), reintentar sin columnas
+      if (res.error && res.error.message?.includes('column') && res.error.message?.includes('visitante')) {
+        console.warn('[useEventosReunion] Columnas nuevas no encontradas en DB, usando fallback en descripcion')
+        res = await intentarGuardar(payloadSinColumnas)
       }
 
       if (res.error) throw res.error

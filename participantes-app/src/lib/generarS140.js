@@ -50,6 +50,23 @@ async function cargarDocxtemplater() {
 //   oracion_ci:    'Felipe Castro',
 // }
 
+export {
+  MESES_S140,
+  CONECTORES_MINUSCULA,
+  SANGRIA_FECHA_CAPITULO,
+  formatearFechaReunionMartes,
+  formatearCapituloBiblico,
+  formatearEncabezadoFechaS140,
+  crearDocxNativo,
+} from './generadorS140Xml.js'
+
+import {
+  formatearFechaReunionMartes,
+  formatearCapituloBiblico,
+  formatearEncabezadoFechaS140,
+  crearDocxNativo,
+} from './generadorS140Xml.js'
+
 export function buildDatosPlantilla(congregacion, semanas) {
   const datos = { congregacion }
 
@@ -59,7 +76,16 @@ export function buildDatosPlantilla(congregacion, semanas) {
     const s = semanas[i - 1] || null
     const pfx = `s${i}`
 
-    datos[`${pfx}_fecha`]       = s?.fecha       || ''
+    let textoFecha = s?.fecha || ''
+    if (s?.fecha_inicio && (!textoFecha || /^\d{4}-\d{2}-\d{2}/.test(textoFecha))) {
+      textoFecha = formatearEncabezadoFechaS140(
+        s.fecha_inicio,
+        s.capitulo_biblico,
+        s.esDesplazada ? s.fecha_efectiva : null
+      )
+    }
+
+    datos[`${pfx}_fecha`]       = textoFecha
     datos[`${pfx}_presidente`]  = s?.presidente  || ''
     datos[`${pfx}_can_ap`]      = s?.can_ap      || ''
     datos[`${pfx}_oracion_ap`]  = s?.oracion_ap  || ''
@@ -111,6 +137,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
 
     const fechaInicio = String(s.fecha_inicio || '').slice(0, 10)
     const fechaFin    = String(s.fecha_fin    || '').slice(0, 10)
+    const capituloFormateado = formatearCapituloBiblico(s.capitulo_biblico)
 
     // Buscar si existe un evento programado para esta semana
     const evento = (eventos || []).find(e => {
@@ -160,10 +187,13 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
     const esVisitaSucursal = evento && evento.tipo_evento === 'visita_sucursal'
     const esVisita = esVisitaSC || esVisitaSucursal
 
-    let fechaFormateada = `${fechaInicio} — ${fechaFin}`
-    if (esDesplazada && evento.fecha_efectiva) {
-      fechaFormateada = `${fechaInicio} — ${fechaFin} (Reunión: ${evento.fecha_efectiva})`
-    }
+    const fechaEfectivaReunion = esDesplazada && evento?.fecha_efectiva ? evento.fecha_efectiva : null
+    const fechaDiaReunion = formatearFechaReunionMartes(fechaInicio, fechaEfectivaReunion)
+    const fechaFormateada = formatearEncabezadoFechaS140(
+      fechaInicio,
+      capituloFormateado,
+      fechaEfectivaReunion
+    )
 
     if (esAsamblea) {
       const tituloAsamblea = evento.titulo_evento
@@ -171,27 +201,29 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
         : (evento.tipo_evento === 'asamblea_circuito' ? 'ASAMBLEA DE CIRCUITO' : 'ASAMBLEA REGIONAL')
 
       return {
-        id:           s.id,
-        fecha:        fechaFormateada,
-        fecha_inicio: fechaInicio,
-        fecha_fin:    fechaFin,
-        presidente:   '',
-        can_ap:       '',
-        oracion_ap:   '',
-        tb_titulo:    tituloAsamblea,
-        tb_cond:      '',
-        pe_cond:      '',
-        lb_est:       '',
-        smt:          [],
-        can_vc:       '',
-        vc:           [],
-        ebc_cond:     '',
-        ebc_lect:     '',
-        ebc_hora_inicio: null,
-        can_ci:       '',
-        oracion_ci:   '',
-        esAsamblea:   true,
-        tipo_evento:  evento.tipo_evento,
+        id:               s.id,
+        fecha:            fechaFormateada,
+        fecha_reunion:    fechaDiaReunion,
+        capitulo_biblico: capituloFormateado,
+        fecha_inicio:     fechaInicio,
+        fecha_fin:        fechaFin,
+        presidente:       '',
+        can_ap:           '',
+        oracion_ap:       '',
+        tb_titulo:        tituloAsamblea,
+        tb_cond:          '',
+        pe_cond:          '',
+        lb_est:           '',
+        smt:              [],
+        can_vc:           '',
+        vc:               [],
+        ebc_cond:         '',
+        ebc_lect:         '',
+        ebc_hora_inicio:  null,
+        can_ci:           '',
+        oracion_ci:       '',
+        esAsamblea:       true,
+        tipo_evento:      evento.tipo_evento,
         evento,
       }
     }
@@ -202,27 +234,29 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
         : 'REUNIÓN CANCELADA'
 
       return {
-        id:           s.id,
-        fecha:        fechaFormateada,
-        fecha_inicio: fechaInicio,
-        fecha_fin:    fechaFin,
-        presidente:   '',
-        can_ap:       '',
-        oracion_ap:   '',
-        tb_titulo:    tituloCancelada,
-        tb_cond:      '',
-        pe_cond:      '',
-        lb_est:       '',
-        smt:          [],
-        can_vc:       '',
-        vc:           [],
-        ebc_cond:     '',
-        ebc_lect:     '',
-        ebc_hora_inicio: null,
-        can_ci:       '',
-        oracion_ci:   '',
-        esCancelada:  true,
-        tipo_evento:  evento.tipo_evento,
+        id:               s.id,
+        fecha:            fechaFormateada,
+        fecha_reunion:    fechaDiaReunion,
+        capitulo_biblico: capituloFormateado,
+        fecha_inicio:     fechaInicio,
+        fecha_fin:        fechaFin,
+        presidente:       '',
+        can_ap:           '',
+        oracion_ap:       '',
+        tb_titulo:        tituloCancelada,
+        tb_cond:          '',
+        pe_cond:          '',
+        lb_est:           '',
+        smt:              [],
+        can_vc:           '',
+        vc:               [],
+        ebc_cond:         '',
+        ebc_lect:         '',
+        ebc_hora_inicio:  null,
+        can_ci:           '',
+        oracion_ci:       '',
+        esCancelada:      true,
+        tipo_evento:      evento.tipo_evento,
         evento,
       }
     }
@@ -249,43 +283,142 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
     }
 
     return {
-      id:           s.id,
-      fecha:        fechaFormateada,
-      fecha_inicio: fechaInicio,
-      fecha_fin:    fechaFin,
-      presidente:   asigDe('P'),
-      can_ap:       String(s.cancion_apertura || ''),
-      oracion_ap:   asigDe('P'),              // mismo Presidente
-      tb_titulo:    partesSemana.find(p => p.tipo_asignacion === 'TB')?.titulo || '',
-      tb_cond:      asigDe('TB'),
-      pe_cond:      asigDe('PE'),
-      lb_est:       asigDe('LB'),
+      id:               s.id,
+      fecha:            fechaFormateada,
+      fecha_reunion:    fechaDiaReunion,
+      capitulo_biblico: capituloFormateado,
+      fecha_inicio:     fechaInicio,
+      fecha_fin:        fechaFin,
+      presidente:       asigDe('P'),
+      can_ap:           String(s.cancion_apertura || ''),
+      oracion_ap:       asigDe('P'),              // mismo Presidente
+      tb_titulo:        partesSemana.find(p => p.tipo_asignacion === 'TB')?.titulo || '',
+      tb_cond:          asigDe('TB'),
+      pe_cond:          asigDe('PE'),
+      lb_est:           asigDe('LB'),
       smt,
-      can_vc:       String(s.cancion_vc || ''),
+      can_vc:           String(s.cancion_vc || ''),
       vc,
-      ebc_cond:     ebcCond,
-      ebc_lect:     ebcLect,
-      ebc_titulo:   ebcTitulo,
-      ebc_hora_inicio: partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.hora_inicio || null,
-      can_ci:       String(s.cancion_cierre || ''),
-      oracion_ci:   oracionCi,
-      esDesplazada: Boolean(esDesplazada),
-      fecha_efectiva: evento?.fecha_efectiva || null,
-      hora_efectiva: evento?.hora_efectiva || null,
-      esVisitaSC:   Boolean(esVisitaSC),
+      ebc_cond:         ebcCond,
+      ebc_lect:         ebcLect,
+      ebc_titulo:       ebcTitulo,
+      ebc_hora_inicio:  partesSemana.find(p => p.tipo_asignacion === 'EBC_CON')?.hora_inicio || null,
+      can_ci:           String(s.cancion_cierre || ''),
+      oracion_ci:       oracionCi,
+      esDesplazada:     Boolean(esDesplazada),
+      fecha_efectiva:   evento?.fecha_efectiva || null,
+      hora_efectiva:    evento?.hora_efectiva || null,
+      esVisitaSC:       Boolean(esVisitaSC),
       esVisitaSucursal: Boolean(esVisitaSucursal),
-      esVisita:     Boolean(esVisita),
-      nombreVisitante: esVisita ? (evento.nombre_visitante || '') : null,
-      tipo_evento:  evento?.tipo_evento || null,
-      evento:       evento || null,
+      esVisita:         Boolean(esVisita),
+      nombreVisitante:  esVisita ? (evento.nombre_visitante || '') : null,
+      tipo_evento:      evento?.tipo_evento || null,
+      evento:           evento || null,
     }
   })
 }
 
 import { supabase } from './supabase'
 
+const REGEX_CAMPOS_SERIF =
+  /\{\$s\d+_(fecha|presidente|oracion_ap|tb_cond|pe_cond|lb_est|smt[1-4]_est|smt[1-4]_ayu|vc[1-2]_cond|ebc_cond|ebc_lect|oracion_ci)\$\}/
+
+function inyectarPropiedadesRun(rPrInner, { font = null, sizeHalfPt = null }) {
+  let inner = rPrInner || ''
+  if (font) {
+    const tagFont = `<w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}"/>`
+    if (/<w:rFonts\b[^>]*\/>/.test(inner)) {
+      inner = inner.replace(/<w:rFonts\b[^>]*\/>/g, tagFont)
+    } else {
+      inner = tagFont + inner
+    }
+  }
+  if (sizeHalfPt) {
+    const tagSz = `<w:sz w:val="${sizeHalfPt}"/><w:szCs w:val="${sizeHalfPt}"/>`
+    inner = inner.replace(/<w:sz\b[^>]*\/>/g, '').replace(/<w:szCs\b[^>]*\/>/g, '')
+    inner += tagSz
+  }
+  return inner
+}
+
+/**
+ * Aplica los ajustes tipográficos sobre el XML de la plantilla S-140:
+ * - Nombre de la congregación (`{$congregacion$}`): 14 pt (w:sz="28") en negrita.
+ * - Fecha + capítulos bíblicos (`{$sN_fecha$}`) y nombres de participantes: fuente Times New Roman.
+ */
+export function aplicarEstilosPlantillaXml(xml) {
+  if (!xml) return xml
+
+  return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, pXml => {
+    const plain = pXml.replace(/<[^>]+>/g, '').trim()
+
+    // 1. Nombre de la congregación: tamaño 14 pt (28 half-points en Word)
+    if (plain.includes('{$congregacion$}')) {
+      let actualizado = pXml.replace(
+        /<w:pPr>([\s\S]*?)<\/w:pPr>/,
+        (m, pPrInner) =>
+          `<w:pPr>${pPrInner.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/, (_, rInner) => `<w:rPr>${inyectarPropiedadesRun(rInner, { sizeHalfPt: 28 })}</w:rPr>`)}</w:pPr>`
+      )
+      actualizado = actualizado.replace(/<w:r\b([^>]*)>([\s\S]*?)<\/w:r>/g, (match, rAttrs, rBody) => {
+        if (/<w:rPr>([\s\S]*?)<\/w:rPr>/.test(rBody)) {
+          return `<w:r${rAttrs}>${rBody.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/, (_, inner) => `<w:rPr>${inyectarPropiedadesRun(inner, { sizeHalfPt: 28 })}</w:rPr>`)}</w:r>`
+        }
+        return `<w:r${rAttrs}><w:rPr><w:b/><w:bCs/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr>${rBody}</w:r>`
+      })
+      return actualizado
+    }
+
+    // 2. Fecha + capítulos bíblicos y Nombres de participantes: fuente Times New Roman
+    if (REGEX_CAMPOS_SERIF.test(plain)) {
+      let actualizado = pXml.replace(/(\$\})\/(\{?)/g, '$1\u00A0/\u00A0$2')
+      actualizado = actualizado.replace(
+        /<w:pPr>([\s\S]*?)<\/w:pPr>/,
+        (m, pPrInner) =>
+          `<w:pPr>${pPrInner.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/, (_, rInner) => `<w:rPr>${inyectarPropiedadesRun(rInner, { font: 'Times New Roman' })}</w:rPr>`)}</w:pPr>`
+      )
+      actualizado = actualizado.replace(/<w:r\b([^>]*)>([\s\S]*?)<\/w:r>/g, (match, rAttrs, rBody) => {
+        if (/<w:rPr>([\s\S]*?)<\/w:rPr>/.test(rBody)) {
+          return `<w:r${rAttrs}>${rBody.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/, (_, inner) => `<w:rPr>${inyectarPropiedadesRun(inner, { font: 'Times New Roman' })}</w:rPr>`)}</w:r>`
+        }
+        return `<w:r${rAttrs}><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/></w:rPr>${rBody}</w:r>`
+      })
+      return actualizado
+    }
+
+    return pXml
+  })
+}
+
+/**
+ * Fallback de seguridad: procesa la plantilla fija de 9 slots con docxtemplater.
+ */
+export async function generarS140PlantillaClasica({ congregacion, semanas, arrayBuffer }) {
+  const datos = buildDatosPlantilla(congregacion, semanas)
+  const { PizZip, Docxtemplater } = await cargarDocxtemplater()
+  const zip = new PizZip(arrayBuffer)
+  const docXmlFile = zip.file('word/document.xml')
+  if (docXmlFile) {
+    zip.file('word/document.xml', aplicarEstilosPlantillaXml(docXmlFile.asText()))
+  }
+
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop:  true,
+    linebreaks:     true,
+    nullGetter:     () => '',
+    delimiters:     { start: '{$', end: '$}' },
+  })
+
+  doc.render(datos)
+  return doc.getZip()
+}
+
 // ── Función principal: genera y descarga el .docx ────────────
-export async function generarYDescargarS140({ congregacion, semanas }) {
+export async function generarYDescargarS140({
+  congregacion,
+  semanas,
+  config = null,
+  modo = 'auto', // 'auto' (nativo con fallback automático) | 'clasico' (plantilla docxtemplater)
+}) {
   // 1. Cargar la plantilla (primero Supabase Storage, luego local)
   let arrayBuffer
   try {
@@ -306,23 +439,35 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
     arrayBuffer = await response.arrayBuffer()
   }
 
-  // 2. Preparar los datos
-  const datos = buildDatosPlantilla(congregacion, semanas)
+  const { PizZip } = await cargarDocxtemplater()
+  let zipFinal = null
 
-  // 3. Procesar con docxtemplater
-  const { PizZip, Docxtemplater } = await cargarDocxtemplater()
-  const zip = new PizZip(arrayBuffer)
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop:  true,
-    linebreaks:     true,
-    nullGetter:     () => '',
-    delimiters:     { start: '{$', end: '$}' },
-  })
+  // 2. Compilar con generador nativo dinámico (si modo !== 'clasico')
+  if (modo !== 'clasico') {
+    try {
+      zipFinal = crearDocxNativo({
+        PizZip,
+        templateArrayBuffer: arrayBuffer,
+        congregacion,
+        semanas,
+        config,
+      })
+    } catch (errNativo) {
+      console.warn(
+        '[generarS140] La compilación nativa dinámica falló. Recurriendo automáticamente a la plantilla clásica...',
+        errNativo
+      )
+      zipFinal = null
+    }
+  }
 
-  doc.render(datos)
+  // 3. Fallback a plantilla clásica si falló el modo nativo o si se solicitó explícitamente
+  if (!zipFinal) {
+    zipFinal = await generarS140PlantillaClasica({ congregacion, semanas, arrayBuffer })
+  }
 
   // 4. Generar blob y descargar
-  const blob = doc.getZip().generate({
+  const blob = zipFinal.generate({
     type:        'blob',
     mimeType:    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     compression: 'DEFLATE',
@@ -335,10 +480,11 @@ export async function generarYDescargarS140({ congregacion, semanas }) {
     .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]/g, '_')
     .replace(/_+/g, '_')
 
+  const sufijoModo = modo === 'clasico' ? '_clasico' : ''
   const url = URL.createObjectURL(blob)
   const a   = document.createElement('a')
   a.href     = url
-  a.download = `S-140_${congSlug}_${periodoStr}.docx`
+  a.download = `S-140_${congSlug}_${periodoStr}${sufijoModo}.docx`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -398,11 +544,13 @@ export async function exportarS140SemanaActual() {
   const congregacion = configRes.data?.find(c => c.clave === 'nombre_congregacion')?.valor || 'Congregación del Recreo'
   const eventos = eventosRes?.data || []
 
+  const horaCfg = configRes.data?.find(c => c.clave === 'hora_reunion')?.valor || '19:00'
   const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas, eventos)
 
   await generarYDescargarS140({
     congregacion,
     semanas: semanasNorm,
+    config: horaCfg,
   })
 
   return semanaActual

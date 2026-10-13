@@ -1,7 +1,7 @@
 // src/pages/S140Preview.jsx — Página de vista previa e impresión aislada del formulario S-140
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Printer, FileDown, Loader2 } from 'lucide-react'
+import { ArrowLeft, Printer, FileDown, Loader2, ChevronDown } from 'lucide-react'
 import S140Vista from '../components/S140Vista'
 import { supabase } from '../lib/supabase'
 import { buildDatosDesdeSupabase, generarYDescargarS140 } from '../lib/generarS140'
@@ -19,6 +19,8 @@ export default function S140Preview() {
   )
   const [loading, setLoading] = useState(!location.state?.semanas?.length)
   const [generatingDocx, setGeneratingDocx] = useState(false)
+  const [menuWordOpen, setMenuWordOpen] = useState(false)
+  const menuWordRef = useRef(null)
 
   // Carga de respaldo si se entra directamente por URL o tras recargar la página
   useEffect(() => {
@@ -81,12 +83,27 @@ export default function S140Preview() {
     }, 1000)
   }
 
-  async function handleDescargarWord() {
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuWordRef.current && !menuWordRef.current.contains(e.target)) {
+        setMenuWordOpen(false)
+      }
+    }
+    if (menuWordOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [menuWordOpen])
+
+  async function handleDescargarWord(modo = 'auto') {
     try {
       setGeneratingDocx(true)
+      setMenuWordOpen(false)
       await generarYDescargarS140({
         congregacion,
         semanas,
+        config,
+        modo,
       })
     } catch (err) {
       console.error('[S140Preview] Error al generar Word:', err)
@@ -125,16 +142,57 @@ export default function S140Preview() {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={FileDown}
-              loading={generatingDocx}
-              onClick={handleDescargarWord}
-              title="Descargar versión editable en Word"
-            >
-              Descargar Word (.docx)
-            </Button>
+            <div className="relative inline-flex items-center rounded-xl" ref={menuWordRef}>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={FileDown}
+                loading={generatingDocx}
+                onClick={() => handleDescargarWord('auto')}
+                className="rounded-r-none border-r-0"
+                title="Descargar versión editable en Word (Formato dinámico)"
+              >
+                Descargar Word (.docx)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={generatingDocx}
+                onClick={() => setMenuWordOpen(prev => !prev)}
+                className="rounded-l-none px-2"
+                title="Opciones de descarga de Word"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+
+              {menuWordOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl p-1.5 z-50 animate-fade-in">
+                  <button
+                    type="button"
+                    onClick={() => handleDescargarWord('auto')}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer"
+                  >
+                    <FileDown className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-zinc-900 dark:text-zinc-100">Formato dinámico</span>
+                      <span className="text-[10px] text-zinc-500 font-normal">Nativo, 2 semanas por pág.</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDescargarWord('clasico')}
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs font-medium rounded-lg text-left text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="font-medium text-[11px]">Plantilla clásica (Respaldo)</span>
+                      <span className="text-[9.5px] text-zinc-500 font-normal">Plantilla fija de 9 semanas</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
 
             <Button
               variant="accent"

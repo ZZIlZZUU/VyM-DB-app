@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsearFechas } from './epubParser'
+import { parsearFechas, inferirTipoParteSMT } from './epubParser'
 
 describe('parsearFechas — Extracción de fechas de la Guía de Actividades', () => {
   describe('Formato mismo mes', () => {
@@ -82,3 +82,64 @@ describe('parsearFechas — Extracción de fechas de la Guía de Actividades', (
     })
   })
 })
+
+describe('inferirTipoParteSMT — Clasificación de partes de Seamos Mejores Maestros', () => {
+  it('clasifica variantes plurales ("Empecemos conversaciones", "Hagamos revisitas", "Hagamos discípulos") como SMT_EST con ayudante', () => {
+    expect(inferirTipoParteSMT('Empecemos conversaciones')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+    expect(inferirTipoParteSMT('Hagamos revisitas')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+    expect(inferirTipoParteSMT('Hagamos discípulos')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+  })
+
+  it('clasifica variantes singulares ("Empiece conversaciones", "Haga revisitas", "Haga discípulos") como SMT_EST con ayudante', () => {
+    expect(inferirTipoParteSMT('Empiece conversaciones')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+    expect(inferirTipoParteSMT('Haga revisitas')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+    expect(inferirTipoParteSMT('Haga discípulos')).toEqual({
+      tipo: 'SMT_EST',
+      requiere_ayudante: true,
+    })
+  })
+
+  it('clasifica "Expliquemos nuestras creencias" y "Explique sus creencias" como SMT_EXP o SMT_DSC según descripción', () => {
+    expect(
+      inferirTipoParteSMT('Expliquemos nuestras creencias', '(4 mins.) Escenificación.')
+    ).toEqual({
+      tipo: 'SMT_EXP',
+      requiere_ayudante: true,
+    })
+    expect(
+      inferirTipoParteSMT('Explique sus creencias', '(4 mins.) DE CASA EN CASA.')
+    ).toEqual({
+      tipo: 'SMT_EXP',
+      requiere_ayudante: true,
+    })
+    expect(
+      inferirTipoParteSMT('Expliquemos nuestras creencias', '(5 mins.) Discurso. Tema...')
+    ).toEqual({
+      tipo: 'SMT_DSC',
+      requiere_ayudante: false,
+    })
+  })
+
+  it('clasifica "Discurso" como SMT_DSC sin ayudante', () => {
+    expect(inferirTipoParteSMT('Discurso')).toEqual({
+      tipo: 'SMT_DSC',
+      requiere_ayudante: false,
+    })
+  })
+})
+

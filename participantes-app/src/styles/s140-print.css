@@ -9,6 +9,10 @@
   font-family: 'Cambria', Georgia, serif;
 }
 
+.s140-fuente-serif {
+  font-family: 'Times New Roman', 'Cambria', Georgia, serif;
+}
+
 .s140-header-line {
   position: relative;
   padding-bottom: 6px;

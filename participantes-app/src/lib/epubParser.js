@@ -12,10 +12,53 @@ const HORARIOS_TB = [
   { inicio: '19:25', fin: '19:29' }, // Lectura 4 min
 ]
   
-  // Identificar tipo de asignación SMT por título
+  // Identificar tipo de asignación SMT por título y descripción
+  export function inferirTipoParteSMT(titulo, descripcion = '') {
+    const t = String(titulo || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+    const desc = String(descripcion || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^\(\d+\s*mins?\.?\)\s*/i, '')
+      .trim()
+
+    // Si el título mismo dice "discurso" → SMT_DSC (sin ayudante)
+    if (t.includes('discurso')) {
+      return { tipo: 'SMT_DSC', requiere_ayudante: false }
+    }
+
+    // "Expliquemos nuestras creencias" / "Explique sus creencias"
+    if (t.includes('expliquemos') || t.includes('explique')) {
+      // Si la descripción de esa parte inicia con "Discurso." es un discurso individual
+      if (desc.startsWith('discurso')) {
+        return { tipo: 'SMT_DSC', requiere_ayudante: false }
+      }
+      return { tipo: 'SMT_EXP', requiere_ayudante: true }
+    }
+
+    // "Empecemos/Empiece conversaciones", "Hagamos/Haga revisitas", "Hagamos/Haga discípulos"
+    if (
+      t.includes('empecemos') ||
+      t.includes('empiece') ||
+      t.includes('conversacion') ||
+      t.includes('hagamos') ||
+      t.includes('haga ') ||
+      t.includes('revisita') ||
+      t.includes('discipulo')
+    ) {
+      return { tipo: 'SMT_EST', requiere_ayudante: true }
+    }
+
+    return { tipo: 'SMT_DSC', requiere_ayudante: false }
+  }
+
   function inferirTipoSMT() {
-  return 'SMT_EST' // tipo provisional, se corrige al hacer push
-}
+    return 'SMT_EST' // tipo provisional, se corrige al hacer push
+  }
   
   // Identificar tipo VC por título
   function inferirTipoVC(titulo) {
@@ -92,9 +135,13 @@ const HORARIOS_TB = [
       if (
         lower.includes('discurso') ||
         lower.includes('empiece') ||
+        lower.includes('empecemos') ||
         lower.includes('haga revisitas') ||
+        lower.includes('hagamos revisitas') ||
         lower.includes('haga disc') ||
+        lower.includes('hagamos disc') ||
         lower.includes('explique') ||
+        lower.includes('expliquemos') ||
         lower.includes('estudiante') ||
         lower.includes('ayudante')
       ) {
@@ -133,8 +180,9 @@ const HORARIOS_TB = [
       // Obtener duración del siguiente div hermano
       let duracion = null
       const nextDiv = heading.nextElementSibling
+      const descTexto = nextDiv?.textContent?.trim() || ''
       if (nextDiv) {
-        const dm = nextDiv.textContent?.match(/\((\d+)\s*min/)
+        const dm = descTexto.match(/\((\d+)\s*min/)
         if (dm) duracion = parseInt(dm[1], 10)
       }
       if (!duracion) {
@@ -158,23 +206,14 @@ const HORARIOS_TB = [
           partesVC.push({ ...parte, titulo: 'Lector — ' + titulo, duracion_min: null, tipo: 'LEBC', requiere_ayudante: false })
         } else {
           if (partesSMT.length < 4) {
-            const t = parte.titulo.toLowerCase()
-
-            // "Explique sus creencias" — varones y damas Mat (con ayudante)
-            const esSMT_EXP = t.includes('explique sus creencias')
-
-            // Resto de asignaciones con ayudante — solo damas Mat
-            const esSMT_EST =
-              t.includes('empiece conversaciones') ||
-              t.includes('haga revisitas') ||
-              t.includes('haga discípulos') ||    // por si aparece
-              t.includes('haga discipulos')       // sin tilde por si acaso
-
-            const tipoCorregido = esSMT_EXP ? 'SMT_EXP' : esSMT_EST ? 'SMT_EST' : 'SMT_DSC'
+            const { tipo: tipoCorregido, requiere_ayudante: reqAyu } = inferirTipoParteSMT(
+              parte.titulo,
+              descTexto
+            )
             partesSMT.push({
               ...parte,
               tipo: tipoCorregido,
-              requiere_ayudante: tipoCorregido === 'SMT_EXP' || tipoCorregido === 'SMT_EST',
+              requiere_ayudante: reqAyu,
             })
           }
         }

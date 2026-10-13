@@ -31,7 +31,7 @@ import {
   Briefcase,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { parsearEPUB } from '../lib/epubParser'
+import { parsearEPUB, inferirTipoParteSMT } from '../lib/epubParser'
 import {
   sugerirCandidatos,
   sugerirAyudante,
@@ -48,6 +48,7 @@ import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useEventosReunion } from '../hooks/useEventosReunion'
+import { useConfiguracion } from '../hooks/useConfiguracion'
 import Toast from '../components/Toast'
 import { SkeletonPrograma } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -2005,6 +2006,7 @@ function calcularEstadoSemana(semanaId, todasPartes, todasAsignaciones, todoHist
 
 // ── Componente Principal ──────────────────────────────────────
 export default function Programa() {
+  const { config } = useConfiguracion()
   const { eventos } = useEventosReunion()
   const [semanas, setSemanas] = useState([])
   const [partes, setPartes] = useState([])
@@ -2158,8 +2160,30 @@ export default function Programa() {
           console.warn('Error al cargar la configuración:', cfgErr)
         }
 
+        const parReparadas = (par || []).map(p => {
+          if (p.seccion === 'SMT' && p.tipo_asignacion === 'SMT_DSC' && p.titulo) {
+            const inferido = inferirTipoParteSMT(p.titulo)
+            if (inferido.tipo !== 'SMT_DSC') {
+              supabase
+                .from('programa_partes')
+                .update({
+                  tipo_asignacion: inferido.tipo,
+                  requiere_ayudante: inferido.requiere_ayudante,
+                })
+                .eq('id', p.id)
+                .then()
+              return {
+                ...p,
+                tipo_asignacion: inferido.tipo,
+                requiere_ayudante: inferido.requiere_ayudante,
+              }
+            }
+          }
+          return p
+        })
+
         setSemanas(sem || [])
-        setPartes(par || [])
+        setPartes(parReparadas)
         setAsignaciones(asi || [])
         setPersonas(per || [])
         setHistorial(his || [])
@@ -2200,7 +2224,7 @@ export default function Programa() {
 
         // ── Detección de programa completado al 100% en la sesión activa ──
         const semList = sem || []
-        const parList = par || []
+        const parList = parReparadas
         const asiList = asi || []
         const hisList = his || []
 
@@ -3284,17 +3308,23 @@ export default function Programa() {
   }
 
   // ── Generar documento S-140 (Completo) ───────────────────
-  async function handleGenerarDocx() {
+  async function handleGenerarDocx(modo = 'auto') {
     if (!semanas || semanas.length === 0) {
       toastError('No hay semanas en el programa para generar el documento S-140.')
       return
     }
     try {
-      showToast('Generando documento S-140...')
+      showToast(
+        modo === 'clasico'
+          ? 'Generando documento S-140 (Plantilla clásica)...'
+          : 'Generando documento S-140...'
+      )
       const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos)
       await generarYDescargarS140({
         congregacion,
         semanas: semanasData,
+        config,
+        modo,
       })
       success('S-140 descargado exitosamente')
     } catch (err) {
@@ -3312,6 +3342,7 @@ export default function Programa() {
       state: {
         semanas: semanasData,
         congregacion,
+        config,
       },
     })
   }
@@ -3655,14 +3686,29 @@ export default function Programa() {
                   type="button"
                   onClick={() => {
                     setMenuS140TopOpen(false)
-                    handleGenerarDocx()
+                    handleGenerarDocx('auto')
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
                 >
                   <FileDown className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                   <div className="flex flex-col">
                     <span className="font-semibold text-text1">Descargar Word (.docx)</span>
-                    <span className="text-[10px] text-text3 font-normal">Plantilla tradicional editable</span>
+                    <span className="text-[10px] text-text3 font-normal">Formato dinámico (2 sem. por pág.)</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuS140TopOpen(false)
+                    handleGenerarDocx('clasico')
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs font-medium rounded-lg text-left text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="font-medium text-text2 text-[11px]">Plantilla clásica (Respaldo)</span>
+                    <span className="text-[9.5px] text-text3 font-normal">Plantilla fija de 9 semanas</span>
                   </div>
                 </button>
               </div>
@@ -3983,14 +4029,29 @@ export default function Programa() {
                 type="button"
                 onClick={() => {
                   setMenuS140FabOpen(false)
-                  handleGenerarDocx()
+                  handleGenerarDocx('auto')
                 }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-left text-text2 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
               >
                 <FileDown className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <div className="flex flex-col">
                   <span className="font-semibold text-text1">Descargar Word (.docx)</span>
-                  <span className="text-[10px] text-text3 font-normal">Plantilla tradicional editable</span>
+                  <span className="text-[10px] text-text3 font-normal">Formato dinámico (2 sem. por pág.)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuS140FabOpen(false)
+                  handleGenerarDocx('clasico')
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs font-medium rounded-lg text-left text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800/70 transition-colors cursor-pointer mt-0.5"
+              >
+                <FileDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-text2 text-[11px]">Plantilla clásica (Respaldo)</span>
+                  <span className="text-[9.5px] text-text3 font-normal">Plantilla fija de 9 semanas</span>
                 </div>
               </button>
             </div>

@@ -5,6 +5,7 @@ import tesorosIcon from '../assets/icons/tesoros.svg'
 import smtIcon from '../assets/icons/smt.svg'
 import nvcIcon from '../assets/icons/nvc.svg'
 import { formatRangoSemanaPrograma } from '../lib/fechas'
+import { formatearFechaReunionMartes, formatearCapituloBiblico } from '../lib/generarS140'
 import { abreviarNombre, formatearParParticipantes } from '../lib/nombres'
 import { obtenerHorariosS140, formatHora12 } from '../lib/horarios'
 
@@ -14,30 +15,41 @@ const COLOR_SMT = '#D58E00'
 const COLOR_VC = '#BE2D11'
 
 /**
- * Formatea el rango de fechas de la semana en formato legible institucional (ej: "7 - 13 DE SEPTIEMBRE")
+ * Obtiene el día exacto de la reunión (Martes por defecto o fecha_efectiva si fue desplazada)
+ * junto con los capítulos bíblicos de la semana.
  */
-function formatearFechaSemana(semana) {
-  // 1. Si vienen fecha_inicio y fecha_fin en formato ISO 'YYYY-MM-DD'
-  if (semana.fecha_inicio && semana.fecha_fin) {
-    const formatted = formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)
-    if (formatted) return formatted.toUpperCase()
+function obtenerEncabezadoSemana(semana) {
+  const fechaReunion =
+    semana.fecha_reunion ||
+    (semana.fecha_inicio
+      ? formatearFechaReunionMartes(
+          semana.fecha_inicio,
+          semana.esDesplazada ? semana.fecha_efectiva : null
+        )
+      : '')
+
+  const capitulo = formatearCapituloBiblico(semana.capitulo_biblico)
+
+  if (fechaReunion) {
+    return { fechaTexto: fechaReunion, capituloTexto: capitulo }
   }
 
-  // 2. Si viene semana.fecha con formato 'YYYY-MM-DD — YYYY-MM-DD' o similar
+  // Fallback si solo viene semana.fecha
   if (semana.fecha) {
     const partes = String(semana.fecha).split(/—| al | - | – /)
     if (partes.length === 2) {
       const p0 = partes[0].trim().slice(0, 10)
-      const p1 = partes[1].trim().slice(0, 10)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(p0) && /^\d{4}-\d{2}-\d{2}$/.test(p1)) {
-        const formatted = formatRangoSemanaPrograma(p0, p1)
-        if (formatted) return formatted.toUpperCase()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(p0)) {
+        return {
+          fechaTexto: formatearFechaReunionMartes(p0),
+          capituloTexto: capitulo,
+        }
       }
     }
-    return String(semana.fecha).toUpperCase()
+    return { fechaTexto: String(semana.fecha), capituloTexto: capitulo }
   }
 
-  return ''
+  return { fechaTexto: '', capituloTexto: capitulo }
 }
 
 /**
@@ -47,7 +59,7 @@ function PageHeader({ nombreCongregacion }) {
   return (
     <div className="flex items-baseline justify-between s140-header-line pb-1.5 mb-3">
       <div className="text-left">
-        <span className="s140-fuente-titulo text-[17px] sm:text-[18px] font-bold tracking-normal text-zinc-900">
+        <span className="s140-fuente-cuerpo text-[14pt] font-bold tracking-normal text-zinc-900">
           {nombreCongregacion || 'Congregación'}
         </span>
       </div>
@@ -66,7 +78,7 @@ function PageHeader({ nombreCongregacion }) {
 function SemanaBloque({ semana, config = null }) {
   if (!semana) return null
 
-  const fechaTexto = formatearFechaSemana(semana)
+  const { fechaTexto, capituloTexto } = obtenerEncabezadoSemana(semana)
 
   // Si la semana es una asamblea o reunión cancelada, renderizar bloque de aviso oficial
   if (semana.esAsamblea || semana.esCancelada) {
@@ -82,8 +94,9 @@ function SemanaBloque({ semana, config = null }) {
           </colgroup>
           <tbody>
             <tr>
-              <td colSpan={4} className="py-[3px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950 border-b border-zinc-200 pb-2">
-                {fechaTexto}
+              <td colSpan={4} className="s140-fuente-serif py-[3px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950 border-b border-zinc-200 pb-2">
+                <span>{fechaTexto}</span>
+                {capituloTexto && <span className="ml-5">{capituloTexto}</span>}
               </td>
             </tr>
             <tr>
@@ -146,11 +159,14 @@ function SemanaBloque({ semana, config = null }) {
         <tbody>
           {/* ── FILA 1: FECHA Y PRESIDENTE ── */}
           <tr>
-            <td colSpan={2} className="py-[2.5px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950">
+            <td colSpan={2} className="s140-fuente-serif py-[2.5px] font-bold text-[13px] sm:text-[13.5px] text-zinc-950">
               <span className="align-middle">{fechaTexto}</span>
+              {capituloTexto && (
+                <span className="ml-5 align-middle">{capituloTexto}</span>
+              )}
               {semana.esDesplazada && semana.fecha_efectiva && (
                 <span className="ml-2 inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-zinc-400 print:bg-zinc-100 print:text-zinc-900 align-middle">
-                  Reunión: {semana.fecha_efectiva}
+                  Reunión desplazada
                 </span>
               )}
             </td>
@@ -159,7 +175,7 @@ function SemanaBloque({ semana, config = null }) {
                 Presidente:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.presidente, 26)}
             </td>
           </tr>
@@ -178,7 +194,7 @@ function SemanaBloque({ semana, config = null }) {
                 Oración:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.oracion_ap, 26)}
             </td>
           </tr>
@@ -234,7 +250,7 @@ function SemanaBloque({ semana, config = null }) {
                 Conductor:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.tb_cond, 26)}
             </td>
           </tr>
@@ -251,7 +267,7 @@ function SemanaBloque({ semana, config = null }) {
                 Conductor:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.pe_cond, 26)}
             </td>
           </tr>
@@ -268,7 +284,7 @@ function SemanaBloque({ semana, config = null }) {
                 Estudiante:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.lb_est, 26)}
             </td>
           </tr>
@@ -328,7 +344,7 @@ function SemanaBloque({ semana, config = null }) {
                     {tieneAyudante || !p.est ? 'Estudiante/Ayudante:' : 'Estudiante:'}
                   </div>
                 </td>
-                <td className={`py-[2.5px] text-left font-normal ${tieneAyudante ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
+                <td className={`s140-fuente-serif py-[2.5px] text-left font-normal ${tieneAyudante ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
                   {participanteTexto}
                 </td>
               </tr>
@@ -389,7 +405,7 @@ function SemanaBloque({ semana, config = null }) {
                     Conductor:
                   </div>
                 </td>
-                <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+                <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
                   {abreviarNombre(v.cond, 26)}
                 </td>
               </tr>
@@ -413,7 +429,7 @@ function SemanaBloque({ semana, config = null }) {
                 {semana.esVisitaSC ? 'Discursante:' : 'Conductor/Lector:'}
               </div>
             </td>
-            <td className={`py-[2.5px] text-left font-normal ${semana.ebc_cond && semana.ebc_lect ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
+            <td className={`s140-fuente-serif py-[2.5px] text-left font-normal ${semana.ebc_cond && semana.ebc_lect ? 'text-[12px] sm:text-[12.5px]' : 'text-[13px] sm:text-[13.5px]'} text-zinc-950 pl-2`}>
               {semana.esVisitaSC ? (
                 abreviarNombre(semana.ebc_cond || 'Superintendente de Circuito', 26)
               ) : (semana.ebc_cond || semana.ebc_lect ? (
@@ -451,7 +467,7 @@ function SemanaBloque({ semana, config = null }) {
                 Oración:
               </div>
             </td>
-            <td className="py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
+            <td className="s140-fuente-serif py-[2.5px] text-left font-normal text-[13px] sm:text-[13.5px] text-zinc-950 pl-2">
               {abreviarNombre(semana.oracion_ci, 26)}
             </td>
           </tr>

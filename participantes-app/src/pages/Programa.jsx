@@ -32,7 +32,17 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB } from '../lib/epubParser'
-import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
+import {
+  sugerirCandidatos,
+  sugerirAyudante,
+  mesAnterior,
+  normalizarTipo,
+  getCargaMensualTipo,
+  tieneRachaDosSemanasSeguidas,
+  tuvoMismoTipoDosMesesSeguidos,
+  obtenerUltimoRolSMTDama,
+  evaluarImpactoMismaSemana,
+} from '../lib/asignacionesSugeridas'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
 import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
@@ -62,6 +72,7 @@ const TIPO_LABEL = {
   P: 'Presidente',
   ORACION: 'Oración apertura',
   ORACION_C: 'Oración cierre',
+  OC: 'Oración cierre',
   CONCLU: 'Palabras de conclusión',
   TB: 'Tesoros de la Biblia',
   PE: 'Perlas escondidas',
@@ -70,11 +81,17 @@ const TIPO_LABEL = {
   SMT_EXP: 'Explique sus creencias',
   SMT_EXP_M: 'Ayudante',
   SMT_EXP_F: 'Ayudante',
+  SMT_AYU_M: 'Ayudante',
+  SMT_AYU_F: 'Ayudante',
   SMT_DSC: 'Discurso',
+  DSC: 'Discurso',
   SMT_AYU: 'Ayudante',
+  A: 'Ayudante',
+  T: 'Estudiante',
   VC: 'Vida Cristiana',
   NC: 'Nec. de la congregación',
   EBC_CON: 'Conductor EBC',
+  EBC: 'Conductor EBC',
   LEBC: 'Lector EBC',
   SMT_VACIO: '—',
 }
@@ -98,9 +115,29 @@ const TIPO_COLOR = {
   SMT_VACIO: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60',
 }
 
+// Pesos en BD (incluye claves tanto de programa_partes como de participaciones)
 const PESO_TIPO = {
-  T: 2, A: 1, LB: 1, SMT_EST: 1, SMT_EXP: 1, SMT_DSC: 1, SMT_AYU: 1,
-  TB: 1, PE: 1, VC: 1, NC: 1, EBC_CON: 1, LEBC: 1, P: 1, ORACION: 0, ORACION_C: 0,
+  T: 2,
+  SMT_EST: 2,
+  SMT_EXP: 2,
+  A: 1,
+  SMT_AYU: 1,
+  SMT_EXP_M: 1,
+  SMT_EXP_F: 1,
+  LB: 1,
+  DSC: 1,
+  SMT_DSC: 1,
+  TB: 1,
+  PE: 1,
+  VC: 1,
+  NC: 1,
+  EBC: 1,
+  EBC_CON: 1,
+  LEBC: 1,
+  P: 1,
+  ORACION: 0,
+  ORACION_C: 0,
+  OC: 0,
 }
 
 // Mapa tipo_asignacion → campo 'tipo' en tabla participaciones
@@ -120,19 +157,6 @@ const TIPO_PARTICIPACION = {
   NC: 'NC',
   EBC_CON: 'EBC',
   LEBC: 'LEBC',
-}
-
-// ── Nombres de meses y helper mes anterior ─────────────────────
-const MESES_NOMBRES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-]
-
-function getMesAnterior(mes) {
-  if (!mes) return null
-  const idx = MESES_NOMBRES.indexOf(mes)
-  if (idx <= 0) return MESES_NOMBRES[11]
-  return MESES_NOMBRES[idx - 1]
 }
 
 // ── Formatear issue bimestral YYYYMM (Brief #31) ─────────────
@@ -157,80 +181,165 @@ function formatearIssueLegible(issue) {
   return `${bimestres[mesNum] || `Bimestre ${mesNum}`} ${anio}`
 }
 
-// ── Detección de Conflictos de Rotación (Brief #28) ────────────
-function evaluarConflictosPersona(persona, tipo, historial, mes, fechaSemana) {
+// ── Construye historial efectivo combinando BD + asignaciones en otras semanas del programa ──
+function buildHistorialParaSemana(semanaActualId, semanas, partes, asignaciones, historialBase) {
+  const base = Array.isArray(historialBase) ? historialBase : []
+  if (!Array.isArray(asignaciones) || !Array.isArray(partes) || !Array.isArray(semanas)) {
+    return base
+  }
+
+  const virtuales = []
+  for (const a of asignaciones) {
+    if (!a.clave) continue
+    const parte = partes.find(p => p.id === a.parte_id)
+    if (!parte || parte.semana_id === semanaActualId) continue
+    if (
+      parte.tipo_asignacion === 'ORACION' ||
+      parte.tipo_asignacion === 'CONCLU' ||
+      parte.tipo_asignacion === 'SMT_VACIO'
+    ) {
+      continue
+    }
+
+    // Si ya está confirmada y su participacion_id existe en historialBase, no duplicar
+    if (a.confirmado && a.participacion_id && base.some(h => h.id === a.participacion_id)) {
+      continue
+    }
+
+    const semOtra = semanas.find(s => s.id === parte.semana_id)
+    if (!semOtra) continue
+
+    const tipoPart =
+      a.rol === 'ayudante' ? 'A' : (TIPO_PARTICIPACION[parte.tipo_asignacion] || parte.tipo_asignacion)
+
+    virtuales.push({
+      id: `prog-${a.id || `${a.parte_id}-${a.rol}`}`,
+      clave: a.clave,
+      fecha: semOtra.fecha_inicio,
+      mes: semOtra.mes,
+      tipo: tipoPart,
+      peso: PESO_TIPO[tipoPart] ?? 1,
+      _virtual: true,
+    })
+  }
+
+  return virtuales.length > 0 ? [...base, ...virtuales] : base
+}
+
+// ── Detección de Conflictos de Rotación Sincronizada ──────────
+function evaluarConflictosPersona(
+  persona,
+  tipo,
+  historial,
+  mes,
+  fechaSemana,
+  yaAsignados = []
+) {
   if (!persona || !persona.clave) return []
   const clave = persona.clave
+  const hist = Array.isArray(historial) ? historial : []
   const conflictos = []
 
-  // 1. Participó hace menos de 2 semanas (< 14 días)
-  const fechaRef = fechaSemana
-    ? new Date(String(fechaSemana).slice(0, 10) + 'T00:00:00')
-    : new Date()
+  // 1. Evaluar asignaciones en la misma semana (permite 1 Bajo Peso + 1 Mayor Peso en varones)
+  const impactoSem = evaluarImpactoMismaSemana(persona, tipo, yaAsignados)
+  if (impactoSem.conflicto) {
+    conflictos.push(impactoSem.conflicto)
+  }
 
-  const participacionesPersona = (historial || [])
-    .filter(h => h.clave === clave && h.fecha)
-    .map(h => ({
-      ...h,
-      dateObj: new Date(String(h.fecha).slice(0, 10) + 'T00:00:00'),
-    }))
-    .filter(h => !isNaN(h.dateObj.getTime()))
-    .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
+  // 2. Participó 2 semanas seguidas (intentar asignarlo por 3.ª semana consecutiva)
+  if (fechaSemana && tieneRachaDosSemanasSeguidas(clave, hist, fechaSemana)) {
+    conflictos.push({
+      tipo: 'rotacion_semanas_seguidas',
+      severity: 'warning',
+      mensaje: 'Participó 2 semanas seguidas',
+    })
+  }
 
-  if (participacionesPersona.length > 0) {
-    const ultPart = participacionesPersona[0]
-    const diffMs = fechaRef.getTime() - ultPart.dateObj.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  // 3. Tuvo la misma asignación por más de 2 meses seguidos (M-1 y M-2)
+  if (mes && tuvoMismoTipoDosMesesSeguidos(clave, tipo, hist, mes)) {
+    const nombreTipo = TIPO_LABEL[tipo] || tipo
+    conflictos.push({
+      tipo: 'mismo_tipo_meses_seguidos',
+      severity: 'warning',
+      mensaje: `Tuvo ${nombreTipo} por más de 2 meses seguidos`,
+    })
+  }
 
-    if (diffDays >= 0 && diffDays < 14) {
-      let tiempoTexto = ''
-      if (diffDays === 0) tiempoTexto = 'hoy'
-      else if (diffDays === 1) tiempoTexto = 'hace 1 día'
-      else if (diffDays < 7) tiempoTexto = `hace ${diffDays} días`
-      else if (diffDays === 7) tiempoTexto = 'hace 1 semana'
-      else tiempoTexto = `hace ${diffDays} días`
+  // 4. Reglas específicas de Matriculados (estatus 'bautizado' aislado/ignorado)
+  if (persona.lista === 'Mat') {
+    const mesAnt = mes ? mesAnterior(mes) : null
+    if (mesAnt) {
+      const participoMesAnt = hist.some(
+        h => h.clave === clave && h.mes === mesAnt && normalizarTipo(h.tipo) !== 'OC'
+      )
+      if (participoMesAnt) {
+        conflictos.push({
+          tipo: 'mat_mes_anterior',
+          severity: 'warning',
+          mensaje: `Participó en ${mesAnt.toLowerCase()} (descanso mensual de matriculados)`,
+        })
+      }
+    }
 
-      conflictos.push({
-        tipo: 'rotacion_corta',
-        severity: 'warning',
-        mensaje: `Participó ${tiempoTexto}`,
-      })
+    if (mes) {
+      const cargaMat = hist
+        .filter(h => h.clave === clave && h.mes === mes)
+        .reduce((acc, h) => acc + getCargaMensualTipo(h.tipo), 0)
+      if (cargaMat >= 1) {
+        conflictos.push({
+          tipo: 'mat_mismo_mes',
+          severity: 'warning',
+          mensaje: `Ya tiene una asignación en ${mes.toLowerCase()}`,
+        })
+      }
+    }
+
+    // Alternancia histórica T ↔ A en Damas
+    if (persona.sexo === 'F') {
+      const esBuscandoAyudanteF =
+        tipo === 'SMT_EXP_F' || tipo === 'SMT_AYU_F' || tipo === 'SMT_AYU' || tipo === 'A'
+      const esBuscandoTitularSMT = tipo === 'SMT_EST' || tipo === 'SMT_EXP' || tipo === 'T'
+      if (esBuscandoTitularSMT || esBuscandoAyudanteF) {
+        const ultRol = obtenerUltimoRolSMTDama(clave, hist, mes ? mesAnterior(mes) : null)
+        if (
+          (esBuscandoTitularSMT && ultRol === 'T') ||
+          (esBuscandoAyudanteF && ultRol === 'A')
+        ) {
+          conflictos.push({
+            tipo: 'dama_repite_rol',
+            severity: 'info',
+            mensaje: `Su última asignación también fue como ${ultRol === 'T' ? 'Titular' : 'Ayudante'}`,
+          })
+        }
+      }
     }
   }
 
-  // 2. Ya tiene 3 o más asignaciones en el mes actual
-  if (mes) {
-    const asignacionesMes = (historial || []).filter(h => h.clave === clave && h.mes === mes)
-    if (asignacionesMes.length >= 3) {
+  // 5. Límite mensual para Ancianos y Siervos Ministeriales (según carga efectiva del mes)
+  if (persona.lista === 'Anc/SM' && mes) {
+    const regsMes = hist.filter(
+      h => h.clave === clave && h.mes === mes && normalizarTipo(h.tipo) !== 'OC'
+    )
+    const cargaMes = regsMes.reduce((acc, h) => acc + getCargaMensualTipo(h.tipo), 0)
+    if (cargaMes >= 3) {
       conflictos.push({
         tipo: 'limite_mensual',
-        severity: 'info',
-        mensaje: `Ya tiene ${asignacionesMes.length} asignaciones este mes`,
+        severity: 'warning',
+        mensaje: `Ya tiene ${regsMes.length} asignaciones este mes`,
       })
     }
   }
 
-  // 3. Tuvo la misma parte el mes anterior
-  if (mes) {
-    const mesAnt = getMesAnterior(mes)
-    const participacionesMesAnt = (historial || []).filter(h => h.clave === clave && h.mes === mesAnt)
-    const tuvoMismaParte = participacionesMesAnt.some(h => {
-      if (h.tipo === tipo) return true
-      if ((tipo === 'SMT_EST' || tipo === 'SMT_EXP') && (h.tipo === 'T' || h.tipo === 'SMT_EST' || h.tipo === 'SMT_EXP')) return true
-      if ((tipo === 'SMT_AYU' || tipo === 'SMT_EXP_M' || tipo === 'SMT_EXP_F') && (h.tipo === 'A' || h.tipo === 'SMT_AYU' || h.tipo === 'SMT_EXP_M' || h.tipo === 'SMT_EXP_F')) return true
-      if (tipo === 'SMT_DSC' && (h.tipo === 'DSC' || h.tipo === 'SMT_DSC')) return true
-      if (tipo === 'EBC_CON' && (h.tipo === 'EBC' || h.tipo === 'EBC_CON')) return true
-      return false
+  // 6. Red de seguridad (Fallback de diagnóstico):
+  // Si el participante cayó a _score < 50 (icono ⚠️ rojo) sin ninguna advertencia explicativa,
+  // avisar al operador sin bloquear la selección.
+  const tieneAdvertencia = conflictos.some(c => c.severity === 'warning')
+  if (typeof persona._score === 'number' && persona._score < 50 && !tieneAdvertencia) {
+    conflictos.push({
+      tipo: 'error_inesperado_score',
+      severity: 'warning',
+      mensaje: `Alerta inesperada en cálculo de puntaje (Score: ${persona._score}) — posible anomalía en historial`,
     })
-
-    if (tuvoMismaParte) {
-      const nombreTipo = TIPO_LABEL[tipo] || tipo
-      conflictos.push({
-        tipo: 'mismo_tipo_mes_ant',
-        severity: 'warning',
-        mensaje: `Tuvo ${nombreTipo} en ${mesAnt ? mesAnt.toLowerCase() : 'el mes anterior'}`,
-      })
-    }
   }
 
   return conflictos
@@ -275,11 +384,18 @@ function PersonaSelector({
   const hoverTimer = useRef(null)
   const TOOLTIP_W = 260
 
-  const candidatosBase = sugerirCandidatos(tipo, personas, historial, mes, yaAsignados)
+  const candidatosBase = sugerirCandidatos(
+    tipo,
+    personas,
+    historial,
+    mes,
+    yaAsignados,
+    { fechaSemana }
+  )
 
-  // Evaluar conflictos para cada persona y ordenar (con conflicto van al final)
+  // Evaluar conflictos para cada persona y ordenar (solo los de severidad 'warning' van al final)
   const candidatosConConflictos = candidatosBase.map(p => {
-    const confs = evaluarConflictosPersona(p, tipo, historial, mes, fechaSemana)
+    const confs = evaluarConflictosPersona(p, tipo, historial, mes, fechaSemana, yaAsignados)
     const conflicto = confs.length > 0
       ? {
           severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
@@ -290,10 +406,10 @@ function PersonaSelector({
     return { ...p, conflicto }
   })
 
-  // Sin conflicto primero, con conflicto al final
+  // Sin advertencia primero (respetando el orden por _score), con advertencia ('warning') al final
   const candidatos = [
-    ...candidatosConConflictos.filter(p => !p.conflicto),
-    ...candidatosConConflictos.filter(p => p.conflicto),
+    ...candidatosConConflictos.filter(p => p.conflicto?.severity !== 'warning'),
+    ...candidatosConConflictos.filter(p => p.conflicto?.severity === 'warning'),
   ]
 
   const seleccionadoRaw =
@@ -301,7 +417,14 @@ function PersonaSelector({
 
   const conflictoSeleccionado = seleccionadoRaw
     ? (() => {
-        const confs = evaluarConflictosPersona(seleccionadoRaw, tipo, historial, mes, fechaSemana)
+        const confs = evaluarConflictosPersona(
+          seleccionadoRaw,
+          tipo,
+          historial,
+          mes,
+          fechaSemana,
+          yaAsignados
+        )
         return confs.length > 0
           ? {
               severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
@@ -379,19 +502,17 @@ function PersonaSelector({
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleOutside)
-    window.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('resize', () => {
+    const handleResize = () => {
       setOpen(false)
       setTooltip(null)
-    })
+    }
+    document.addEventListener('mousedown', handleOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleResize)
     return () => {
       document.removeEventListener('mousedown', handleOutside)
       window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('resize', () => {
-        setOpen(false)
-        setTooltip(null)
-      })
+      window.removeEventListener('resize', handleResize)
     }
   }, [open])
 
@@ -495,8 +616,8 @@ function PersonaSelector({
   }
 
   function getUltimasParticipaciones(clave) {
-    return historial
-      .filter(h => h.clave === clave)
+    return (historial || [])
+      .filter(h => h.clave === clave && !h._virtual)
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
       .slice(0, 3)
   }
@@ -530,10 +651,13 @@ function PersonaSelector({
     return style
   }
 
-  const tooltipPersona = tooltip ? personas.find(p => p.clave === tooltip.clave) : null
+  const tooltipPersona = tooltip
+    ? candidatos.find(p => p.clave === tooltip.clave) || personas.find(p => p.clave === tooltip.clave)
+    : null
   const tooltipParts = tooltip ? getUltimasParticipaciones(tooltip.clave) : []
   const tooltipConflictos = tooltipPersona
-    ? evaluarConflictosPersona(tooltipPersona, tipo, historial, mes, fechaSemana)
+    ? tooltipPersona.conflicto?.detalles ||
+      evaluarConflictosPersona(tooltipPersona, tipo, historial, mes, fechaSemana, yaAsignados)
     : []
 
   return (
@@ -1077,7 +1201,13 @@ function FilaParte({
               historial={historial}
               mes={mes}
               fechaSemana={fechaSemana}
-              yaAsignados={semanaAsignados.filter(c => c !== principal?.clave)}
+              yaAsignados={semanaAsignados
+                .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
+                .map(a =>
+                  a.parte_id === parte.id && a.rol === 'ayudante'
+                    ? { ...a, esTitularMismaParte: true }
+                    : a
+                )}
               disabled={false}
               placeholder={
                 esVisita && evento?.oracion_visitante !== false && parte.tipo_asignacion === 'ORACION_C'
@@ -1101,10 +1231,13 @@ function FilaParte({
                     historial={historial}
                     mes={mes}
                     fechaSemana={fechaSemana}
-                    yaAsignados={[
-                      ...semanaAsignados.filter(c => c !== ayudante?.clave),
-                      principal?.clave,
-                    ].filter(Boolean)}
+                    yaAsignados={semanaAsignados
+                      .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
+                      .map(a =>
+                        a.parte_id === parte.id && a.rol === 'principal'
+                          ? { ...a, esTitularMismaParte: true }
+                          : a
+                      )}
                     disabled={!principal?.clave}
                   />
                 )
@@ -1183,8 +1316,17 @@ function TarjetaSemana({
     : null
 
   const semanaAsignados = asignaciones
-    .filter(a => partes.some(p => p.id === a.parte_id))
-    .map(a => a.clave)
+    .filter(a => a.clave && partes.some(p => p.id === a.parte_id))
+    .map(a => {
+      const parteObj = partes.find(p => p.id === a.parte_id)
+      return {
+        id: a.id,
+        parte_id: a.parte_id,
+        rol: a.rol,
+        clave: a.clave,
+        tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
+      }
+    })
 
   const partePresidente = partes.find(p => p.tipo_asignacion === 'P')
   const asigPresidente = partePresidente
@@ -1517,6 +1659,19 @@ function RevisarSemanaModal({
     p => p.semana_id === semana?.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
   )
 
+  const semanaAsignados = (asignaciones || [])
+    .filter(a => a.clave && partesSemana.some(p => p.id === a.parte_id))
+    .map(a => {
+      const parteObj = partesSemana.find(p => p.id === a.parte_id)
+      return {
+        id: a.id,
+        parte_id: a.parte_id,
+        rol: a.rol,
+        clave: a.clave,
+        tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
+      }
+    })
+
   // Evaluación de partes y conflictos
   const partesEvaluadas = partesSemana.map(parte => {
     const asigP = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'principal')
@@ -1534,13 +1689,30 @@ function RevisarSemanaModal({
     } else if (!asigP?.clave || !personaP) {
       estado = 'rojo'
     } else {
+      const yaAsigParaP = semanaAsignados
+        .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
+        .map(a =>
+          a.parte_id === parte.id && a.rol === 'ayudante'
+            ? { ...a, esTitularMismaParte: true }
+            : a
+        )
+      const yaAsigParaA = semanaAsignados
+        .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
+        .map(a =>
+          a.parte_id === parte.id && a.rol === 'principal'
+            ? { ...a, esTitularMismaParte: true }
+            : a
+        )
+
       const confsP = evaluarConflictosPersona(
         personaP,
         parte.tipo_asignacion,
         historial,
         semana?.mes,
-        semana?.fecha_inicio
-      )
+        semana?.fecha_inicio,
+        yaAsigParaP
+      ).filter(c => c.severity === 'warning')
+
       const confsA =
         parte.requiere_ayudante && personaA
           ? evaluarConflictosPersona(
@@ -1548,8 +1720,9 @@ function RevisarSemanaModal({
               'SMT_AYU',
               historial,
               semana?.mes,
-              semana?.fecha_inicio
-            )
+              semana?.fecha_inicio,
+              yaAsigParaA
+            ).filter(c => c.severity === 'warning')
           : []
 
       advertencias = [
@@ -2434,7 +2607,7 @@ export default function Programa() {
           fecha: semana.fecha_inicio,
           mes: semana.mes,
           tipo: tipoParticipacion,
-          peso: PESO_TIPO[tipoParticipacion] || 1,
+          peso: PESO_TIPO[tipoParticipacion] ?? 1,
           observaciones: null,
         })
         .select()
@@ -2523,7 +2696,7 @@ export default function Programa() {
         fecha: semana.fecha_inicio,
         mes: semana.mes,
         tipo: tipoParticipacion,
-        peso: PESO_TIPO[tipoParticipacion] || 1,
+        peso: PESO_TIPO[tipoParticipacion] ?? 1,
         observaciones: null,
       })
       .select()
@@ -2626,7 +2799,7 @@ export default function Programa() {
           fecha: semana.fecha_inicio,
           mes: semana.mes,
           tipo: tipoParticipacion,
-          peso: PESO_TIPO[tipoParticipacion] || 1,
+          peso: PESO_TIPO[tipoParticipacion] ?? 1,
           observaciones: null,
         })
         .select()
@@ -2729,7 +2902,7 @@ export default function Programa() {
           fecha: semana.fecha_inicio,
           mes: semana.mes,
           tipo: tipoParticipacion,
-          peso: PESO_TIPO[tipoParticipacion] || 1,
+          peso: PESO_TIPO[tipoParticipacion] ?? 1,
           observaciones: null,
         })
         asignacionesMap.push({ asigId: asigP.id, partInsertIdx: pIdx })
@@ -2845,14 +3018,26 @@ export default function Programa() {
     showToast('Generando sugerencias para la semana...')
 
     try {
+      const historialSem = buildHistorialParaSemana(
+        semanaId,
+        semanas,
+        partes,
+        asignaciones,
+        historial
+      )
+      const opcionesSem = { fechaSemana: semana.fecha_inicio }
       const yaAsignadosSemana = []
 
       // 1. Personas ya asignadas en partes confirmadas
       partesSemana.forEach(p => {
         const asigP = asigSemana.find(a => a.parte_id === p.id && a.rol === 'principal')
         const asigA = asigSemana.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-        if (asigP?.confirmado && asigP.clave) yaAsignadosSemana.push(asigP.clave)
-        if (asigA?.confirmado && asigA.clave) yaAsignadosSemana.push(asigA.clave)
+        if (asigP?.confirmado && asigP.clave) {
+          yaAsignadosSemana.push({ clave: asigP.clave, tipo: p.tipo_asignacion })
+        }
+        if (asigA?.confirmado && asigA.clave) {
+          yaAsignadosSemana.push({ clave: asigA.clave, tipo: 'SMT_AYU' })
+        }
       })
 
       // 2. Identificar Presidente confirmado si ya existe
@@ -2887,11 +3072,18 @@ export default function Programa() {
         const tipo = parte.tipo_asignacion
 
         if (tipo === 'P') {
-          const candidatos = sugerirCandidatos('P', personas, historial, semana.mes, yaAsignadosSemana)
+          const candidatos = sugerirCandidatos(
+            'P',
+            personas,
+            historialSem,
+            semana.mes,
+            yaAsignadosSemana,
+            opcionesSem
+          )
           const elegido = candidatos[0]
           if (elegido) {
             clavePresidente = elegido.clave
-            yaAsignadosSemana.push(elegido.clave)
+            yaAsignadosSemana.push({ clave: elegido.clave, tipo: 'P' })
             nuevasAsignaciones.push({
               parte_id: parte.id,
               clave: elegido.clave,
@@ -2902,13 +3094,23 @@ export default function Programa() {
           }
         } else if (tipo === 'ORACION_C') {
           const exclude = [...yaAsignadosSemana]
-          if (clavePresidente && !exclude.includes(clavePresidente)) {
-            exclude.push(clavePresidente)
+          if (
+            clavePresidente &&
+            !exclude.some(item => (typeof item === 'string' ? item === clavePresidente : item.clave === clavePresidente && item.tipo === 'P'))
+          ) {
+            exclude.push({ clave: clavePresidente, tipo: 'P' })
           }
-          const candidatos = sugerirCandidatos('ORACION_C', personas, historial, semana.mes, exclude)
+          const candidatos = sugerirCandidatos(
+            'ORACION_C',
+            personas,
+            historialSem,
+            semana.mes,
+            exclude,
+            opcionesSem
+          )
           const elegido = candidatos[0]
           if (elegido) {
-            yaAsignadosSemana.push(elegido.clave)
+            yaAsignadosSemana.push({ clave: elegido.clave, tipo: 'ORACION_C' })
             nuevasAsignaciones.push({
               parte_id: parte.id,
               clave: elegido.clave,
@@ -2918,11 +3120,17 @@ export default function Programa() {
             })
           }
         } else if (tipo === 'SMT_EST') {
-          // Titular dama Mat
-          const candidatosTit = sugerirCandidatos('SMT_EST', personas, historial, semana.mes, yaAsignadosSemana)
+          const candidatosTit = sugerirCandidatos(
+            'SMT_EST',
+            personas,
+            historialSem,
+            semana.mes,
+            yaAsignadosSemana,
+            opcionesSem
+          )
           const titular = candidatosTit[0]
           if (titular) {
-            yaAsignadosSemana.push(titular.clave)
+            yaAsignadosSemana.push({ clave: titular.clave, tipo: 'SMT_EST' })
             nuevasAsignaciones.push({
               parte_id: parte.id,
               clave: titular.clave,
@@ -2932,10 +3140,17 @@ export default function Programa() {
             })
 
             if (parte.requiere_ayudante && !asigA?.confirmado) {
-              const candidatosAyu = sugerirAyudante(titular.clave, personas, historial, semana.mes, yaAsignadosSemana)
+              const candidatosAyu = sugerirAyudante(
+                titular.clave,
+                personas,
+                historialSem,
+                semana.mes,
+                yaAsignadosSemana,
+                opcionesSem
+              )
               const ayudante = candidatosAyu[0]
               if (ayudante) {
-                yaAsignadosSemana.push(ayudante.clave)
+                yaAsignadosSemana.push({ clave: ayudante.clave, tipo: 'SMT_AYU' })
                 nuevasAsignaciones.push({
                   parte_id: parte.id,
                   clave: ayudante.clave,
@@ -2947,11 +3162,17 @@ export default function Programa() {
             }
           }
         } else if (tipo === 'SMT_EXP') {
-          // Titular Mat
-          const candidatosTit = sugerirCandidatos('SMT_EXP', personas, historial, semana.mes, yaAsignadosSemana)
+          const candidatosTit = sugerirCandidatos(
+            'SMT_EXP',
+            personas,
+            historialSem,
+            semana.mes,
+            yaAsignadosSemana,
+            opcionesSem
+          )
           const titular = candidatosTit[0]
           if (titular) {
-            yaAsignadosSemana.push(titular.clave)
+            yaAsignadosSemana.push({ clave: titular.clave, tipo: 'SMT_EXP' })
             nuevasAsignaciones.push({
               parte_id: parte.id,
               clave: titular.clave,
@@ -2965,13 +3186,17 @@ export default function Programa() {
               const candidatosAyu = sugerirCandidatos(
                 tipoAyu,
                 personas,
-                historial,
+                historialSem,
                 semana.mes,
-                [...yaAsignadosSemana, titular.clave]
+                [
+                  ...yaAsignadosSemana,
+                  { clave: titular.clave, tipo: 'SMT_EXP', esTitularMismaParte: true },
+                ],
+                opcionesSem
               )
               const ayudante = candidatosAyu[0]
               if (ayudante) {
-                yaAsignadosSemana.push(ayudante.clave)
+                yaAsignadosSemana.push({ clave: ayudante.clave, tipo: 'SMT_AYU' })
                 nuevasAsignaciones.push({
                   parte_id: parte.id,
                   clave: ayudante.clave,
@@ -2984,10 +3209,17 @@ export default function Programa() {
           }
         } else {
           // Todas las demás partes (TB, PE, LB, SMT_DSC, VC, NC, EBC_CON, LEBC, etc.)
-          const candidatos = sugerirCandidatos(tipo, personas, historial, semana.mes, yaAsignadosSemana)
+          const candidatos = sugerirCandidatos(
+            tipo,
+            personas,
+            historialSem,
+            semana.mes,
+            yaAsignadosSemana,
+            opcionesSem
+          )
           const elegido = candidatos[0]
           if (elegido) {
-            yaAsignadosSemana.push(elegido.clave)
+            yaAsignadosSemana.push({ clave: elegido.clave, tipo })
             nuevasAsignaciones.push({
               parte_id: parte.id,
               clave: elegido.clave,
@@ -3518,7 +3750,7 @@ export default function Programa() {
                     partes={partesSemana}
                     asignaciones={asigSemana}
                     personas={personas}
-                    historial={historial}
+                    historial={buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)}
                     onAsignar={handleAsignar}
                     onConfirmar={handleConfirmar}
                     onConfirmarTodo={handleConfirmarTodo}
@@ -3720,7 +3952,11 @@ export default function Programa() {
         partes={partes}
         asignaciones={asignaciones}
         personas={personas}
-        historial={historial}
+        historial={
+          semanaParaRevisar
+            ? buildHistorialParaSemana(semanaParaRevisar.id, semanas, partes, asignaciones, historial)
+            : historial
+        }
         onConfirmarBatch={handleBatchConfirmar}
         onAsignarManual={handleAsignarManual}
         isBatchSaving={isBatchSaving}

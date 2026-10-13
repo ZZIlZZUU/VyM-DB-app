@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { sugerirCandidatos, sugerirAyudante } from './asignacionesSugeridas'
+import {
+  sugerirCandidatos,
+  sugerirAyudante,
+  esTipoBajoPeso,
+  getCargaMensualTipo,
+  tieneRachaDosSemanasSeguidas,
+  tuvoMismoTipoDosMesesSeguidos,
+  obtenerUltimoRolSMTDama,
+  evaluarImpactoMismaSemana,
+} from './asignacionesSugeridas'
 
 // ── Catálogo de personas de prueba ───────────────────────────────
 
@@ -130,21 +139,23 @@ describe('filtrado de pool por tipo', () => {
 
 describe('reglas de rotación', () => {
 
-  it('Mat que participó el mes anterior baja en el ranking', () => {
+  it('Mat que participó el mes anterior baja en el ranking con penalización moderada (-40, ámbar)', () => {
     const historial = [
       { clave: 'M01', mes: 'Julio', tipo: 'LB' },
     ]
     const result = sugerirCandidatos('LB', PERSONAS, historial, 'Agosto')
+    const m01 = result.find(p => p.clave === 'M01')
     const idxM01 = result.findIndex(p => p.clave === 'M01')
     const idxM02 = result.findIndex(p => p.clave === 'M02')
-    // M01 participó en Julio → debe estar después de M02
+    // M01 participó en Julio → debe estar después de M02 y quedar en rango ámbar (>= 50 y < 80)
     expect(idxM01).toBeGreaterThan(idxM02)
+    expect(m01._score).toBeGreaterThanOrEqual(45)
   })
 
-  it('Anc/SM con 3 asignaciones este mes queda al final', () => {
+  it('Anc/SM con carga >= 3 este mes queda al final', () => {
     const historial = [
-      { clave: 'A01', mes: 'Agosto', tipo: 'P' },
       { clave: 'A01', mes: 'Agosto', tipo: 'TB' },
+      { clave: 'A01', mes: 'Agosto', tipo: 'PE' },
       { clave: 'A01', mes: 'Agosto', tipo: 'VC' },
     ]
     const result = sugerirCandidatos('P', PERSONAS, historial, 'Agosto')
@@ -163,15 +174,17 @@ describe('reglas de rotación', () => {
     expect(idxA05).toBeLessThan(idxA04)
   })
 
-  it('Anc/SM no repite el mismo tipo de asignación del mes anterior', () => {
+  it('Anc/SM no repite el mismo tipo de asignación del mes anterior (desempate suave -15)', () => {
     const historial = [
       { clave: 'A01', mes: 'Julio', tipo: 'TB' },
     ]
     const result = sugerirCandidatos('TB', PERSONAS, historial, 'Agosto')
+    const a01 = result.find(p => p.clave === 'A01')
     const idxA01 = result.findIndex(p => p.clave === 'A01')
     const idxA02 = result.findIndex(p => p.clave === 'A02')
-    // A01 tuvo TB en Julio → debe estar después de A02 (sin historial)
+    // A01 tuvo TB en Julio → debe estar después de A02, pero aún en rango verde (85 pts)
     expect(idxA01).toBeGreaterThan(idxA02)
+    expect(a01._score).toBe(85)
   })
 
   it('yaAsignados penaliza a la persona ya asignada en la semana', () => {
@@ -200,12 +213,18 @@ describe('reglas de rotación', () => {
     expect(idxM04).toBeLessThan(idxM03)
   })
 
-  it('SMT_EXP_F aplica la misma alternancia T→A que SMT_EST', () => {
-    const historial = [{ clave: 'M03', mes: 'Julio', tipo: 'T' }]
+  it('SMT_EXP_F favorece a la dama cuyo último rol histórico fue Titular (T → A)', () => {
+    const historial = [
+      { clave: 'M03', mes: 'Junio', tipo: 'T', fecha_inicio: '2026-06-08' },
+      { clave: 'M04', mes: 'Junio', tipo: 'A', fecha_inicio: '2026-06-08' },
+    ]
     const result = sugerirCandidatos('SMT_EXP_F', PERSONAS, historial, 'Agosto')
-    const idxM03 = result.findIndex(p => p.clave === 'M03')
-    const idxM04 = result.findIndex(p => p.clave === 'M04')
-    expect(idxM03).toBeGreaterThan(idxM04)
+    const m03 = result.find(p => p.clave === 'M03')
+    const m04 = result.find(p => p.clave === 'M04')
+    // M03 fue T en Junio → para ser Ayudante (SMT_EXP_F) recibe +15 (115 pts)
+    // M04 fue A en Junio → para repetir Ayudante recibe -20 (80 pts)
+    expect(m03._score).toBe(115)
+    expect(m04._score).toBe(80)
   })
 
 })
@@ -242,8 +261,6 @@ describe('transición entre meses', () => {
 describe('sugerirAyudante', () => {
 
   it('la estudiante queda penalizada y no aparece en primer lugar (comportamiento actual)', () => {
-    // NOTA: sugerirAyudante incluye claveEstudiante en yaAsignados, lo que la penaliza (-50)
-    // pero no la elimina del pool.
     const result = sugerirAyudante('M03', PERSONAS, SIN_HISTORIAL, 'Agosto')
     const idxM03 = result.findIndex(p => p.clave === 'M03')
     expect(idxM03).toBeGreaterThan(0)
@@ -273,7 +290,100 @@ describe('sugerirAyudante', () => {
 
 })
 
-// ── Grupo 5 — Casos borde y entradas inválidas ───────────────────
+// ── Grupo 5 — Nuevas reglas de semanas/meses seguidos y pesos ────
+
+describe('nuevas reglas de semanas seguidas, >2 meses seguidos y doble asignación', () => {
+
+  it('participar hace 1 semana NO dispara racha de 2 semanas seguidas', () => {
+    const historial = [
+      { clave: 'A01', mes: 'Agosto', tipo: 'P', fecha_inicio: '2026-08-10' },
+    ]
+    const racha = tieneRachaDosSemanasSeguidas('A01', historial, '2026-08-17')
+    expect(racha).toBe(false)
+  })
+
+  it('participar 2 semanas consecutivas (W-2 y W-1) dispara racha al evaluar 3ra semana', () => {
+    const historial = [
+      { clave: 'A01', mes: 'Julio', tipo: 'P', fecha_inicio: '2026-07-20' },
+      { clave: 'A01', mes: 'Julio', tipo: 'TB', fecha_inicio: '2026-07-27' },
+    ]
+    const racha = tieneRachaDosSemanasSeguidas('A01', historial, '2026-08-03')
+    expect(racha).toBe(true)
+
+    const result = sugerirCandidatos('VC', PERSONAS, historial, 'Agosto', [], '2026-08-03')
+    const a01 = result.find(p => p.clave === 'A01')
+    // 100 - 45 (racha 2 semanas) = 55
+    expect(a01._score).toBe(55)
+  })
+
+  it('repetir la misma asignación por más de 2 meses seguidos (M-2 y M-1) aplica -45 pts', () => {
+    const historial = [
+      { clave: 'A01', mes: 'Junio', tipo: 'EBC' },
+      { clave: 'A01', mes: 'Julio', tipo: 'EBC' },
+    ]
+    const rachaMeses = tuvoMismoTipoDosMesesSeguidos('A01', 'EBC_CON', historial, 'Agosto')
+    expect(rachaMeses).toBe(true)
+
+    const result = sugerirCandidatos('EBC_CON', PERSONAS, historial, 'Agosto')
+    const a01 = result.find(p => p.clave === 'A01')
+    expect(a01._score).toBe(55)
+  })
+
+  it('LEBC se mantiene como asignación de Mayor Peso (carga 1.0)', () => {
+    expect(esTipoBajoPeso('LEBC')).toBe(false)
+    expect(getCargaMensualTipo('LEBC')).toBe(1.0)
+    expect(esTipoBajoPeso('P')).toBe(true)
+    expect(esTipoBajoPeso('ORACION_C')).toBe(true)
+    expect(esTipoBajoPeso('SMT_AYU_M')).toBe(true)
+  })
+
+  it('varón puede tomar 2 asignaciones en la misma semana si una es de Bajo Peso y otra de Mayor Peso (-15 pts)', () => {
+    const a01 = PERSONAS.find(p => p.clave === 'A01')
+    // A01 ya es Presidente (P) y se evalúa para Tesoros (TB)
+    const impacto = evaluarImpactoMismaSemana(a01, 'TB', [{ clave: 'A01', tipo: 'P' }])
+    expect(impacto.penalty).toBe(15)
+    expect(impacto.conflicto.severity).toBe('info')
+
+    const result = sugerirCandidatos('TB', PERSONAS, SIN_HISTORIAL, 'Agosto', [{ clave: 'A01', tipo: 'P' }])
+    const candA01 = result.find(p => p.clave === 'A01')
+    expect(candA01._score).toBe(85)
+  })
+
+  it('varón NO debe combinar Presidente (P) + Oración de Conclusión (OC) ni dos partes de Mayor Peso', () => {
+    const a01 = PERSONAS.find(p => p.clave === 'A01')
+    const impactoPOc = evaluarImpactoMismaSemana(a01, 'ORACION_C', [{ clave: 'A01', tipo: 'P' }])
+    expect(impactoPOc.penalty).toBe(80)
+    expect(impactoPOc.conflicto.severity).toBe('warning')
+
+    const impactoDosMayores = evaluarImpactoMismaSemana(a01, 'LEBC', [{ clave: 'A01', tipo: 'TB' }])
+    expect(impactoDosMayores.penalty).toBe(65)
+    expect(impactoDosMayores.conflicto.severity).toBe('warning')
+  })
+
+  it('aislamiento de estatus "bautizado": Matriculado y Matriculado bautizado tienen idéntico puntaje base', () => {
+    const resultM = sugerirCandidatos('LB', PERSONAS, SIN_HISTORIAL, 'Agosto')
+    const m01 = resultM.find(p => p.clave === 'M01') // Matriculado bautizado
+    const m02 = resultM.find(p => p.clave === 'M02') // Matriculado
+    expect(m01._score).toBe(100)
+    expect(m02._score).toBe(100)
+
+    const resultF = sugerirCandidatos('SMT_EST', PERSONAS, SIN_HISTORIAL, 'Agosto')
+    const m03 = resultF.find(p => p.clave === 'M03') // Matriculada
+    const m04 = resultF.find(p => p.clave === 'M04') // Matriculada bautizada
+    expect(m03._score).toBe(m04._score)
+  })
+
+  it('obtenerUltimoRolSMTDama busca el último rol T o A en todo el historial', () => {
+    const historial = [
+      { clave: 'M03', mes: 'Mayo', tipo: 'T', fecha_inicio: '2026-05-11' },
+      { clave: 'M03', mes: 'Julio', tipo: 'A', fecha_inicio: '2026-07-06' },
+    ]
+    expect(obtenerUltimoRolSMTDama('M03', historial)).toBe('A')
+  })
+
+})
+
+// ── Grupo 6 — Casos borde y entradas inválidas ───────────────────
 
 describe('casos borde', () => {
 
@@ -295,12 +405,10 @@ describe('casos borde', () => {
 
   it('mes con capitalización incorrecta devuelve el mismo mes (no rompe pero ignora historial previo)', () => {
     const historial = [{ clave: 'A01', mes: 'agosto', tipo: 'TB' }]
-    // 'agosto' !== 'Agosto' en MESES → mesAnterior('agosto') devuelve MESES[11]
-    // El historial de "agosto" (minúscula) no coincide con "Agosto" (correcto)
-    // Este test documenta que el motor es case-sensitive en el campo mes
     expect(() =>
       sugerirCandidatos('TB', PERSONAS, historial, 'agosto')
     ).not.toThrow()
   })
 
 })
+

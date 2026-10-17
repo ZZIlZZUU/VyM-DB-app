@@ -12,6 +12,8 @@ import {
   MESES,
   MESES_ABBR,
   getProximaReunion,
+  addDaysIso,
+  inferirAfectaReunion,
 } from './fechas'
 
 // Mock globalThis.localStorage for test environment
@@ -357,5 +359,28 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
       expect(res.esVisitaSC).toBe(true)
       expect(res.nombreReunion).toContain('Visita SC')
     })
+
+    it('detecta Asamblea Regional de 3 días que inicia viernes y cubre la reunión del sábado', () => {
+      // Viernes 16 Oct 2026. Reunión de fin de semana es Sábado 17 Oct 2026
+      const viernes = new Date(2026, 9, 16, 10, 0)
+      const eventos = [
+        {
+          id: 'evt-reg-3d',
+          tipo_evento: 'asamblea_regional',
+          titulo_evento: 'Asamblea Regional',
+          fecha_original: '2026-10-16',
+          fecha_efectiva: '2026-10-16',
+        },
+      ]
+
+      const res = getProximaReunion(configDefault, viernes, eventos)
+      expect(res.tipo).toBe('fin_semana')
+      expect(res.esAsamblea).toBe(true)
+      expect(res.nombreReunion).toBe('Asamblea Regional')
+      expect(res.badgeTexto).toBe('Asamblea')
+      expect(inferirAfectaReunion('asamblea_regional', '2026-10-16', 'Martes', 'Sábado')).toBe('fin_semana')
+      expect(addDaysIso('2026-10-16', 2)).toBe('2026-10-18')
+    })
   })
 })
+

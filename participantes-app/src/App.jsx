@@ -23,6 +23,7 @@ import Programa from './pages/Programa'
 import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import HistorialCambios from './pages/HistorialCambios'
+import { CalendarioEventos } from './components/CalendarioEventos'
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -30,7 +31,7 @@ export default function App() {
   const [view, setView] = useState(() => {
     try {
       const p = window.location.pathname.replace(/^\//, '').split('/')[0]
-      const validViews = ['home', 'semanal', 'editable', 'sql', 'personas', 'registros', 'programa', 'usuarios', 'configuracion', 'exportar', 'estadisticas', 'historial']
+      const validViews = ['home', 'semanal', 'calendario', 'editable', 'sql', 'personas', 'registros', 'programa', 'usuarios', 'configuracion', 'exportar', 'estadisticas', 'historial']
       if (validViews.includes(p)) return p
       return localStorage.getItem('pref_vista_default') || 'home'
     } catch {
@@ -282,6 +283,8 @@ export default function App() {
             initialSemanaId={selectedSemanaId}
           />
         )
+      case 'calendario':
+        return <CalendarioEventos standalone rol={rol} />
       case 'editable':
         return <VistaEditable onNavigate={handleNavigate} />
       case 'sql':

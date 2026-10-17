@@ -55,6 +55,7 @@ export function useKeyboardShortcuts({
         const map = {
           i: 'home',
           w: 'semanal',
+          k: 'calendario',
           e: 'editable',
           s: 'sql',
           p: 'personas',

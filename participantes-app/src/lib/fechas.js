@@ -246,6 +246,65 @@ const DIAS_SEMANA_MAP = {
 }
 
 /**
+ * Suma `days` días a una fecha ISO (YYYY-MM-DD) sin desfase UTC.
+ */
+export function addDaysIso(isoStr, days) {
+  if (!isoStr) return ''
+  const [y, m, d] = String(isoStr).slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const dt = new Date(y, m - 1, d + days)
+  const ry = dt.getFullYear()
+  const rm = String(dt.getMonth() + 1).padStart(2, '0')
+  const rd = String(dt.getDate()).padStart(2, '0')
+  return `${ry}-${rm}-${rd}`
+}
+
+/**
+ * Infiere automáticamente qué reunión es afectada ('entre_semana' | 'fin_semana' | 'ambas')
+ * según el día (o los 3 días en caso de Asamblea Regional) por el que pasa el evento.
+ */
+export function inferirAfectaReunion(
+  tipoEvento,
+  fechaIso,
+  diaReunionEntreSemana = 'Martes',
+  diaReunionFinSemana = 'Sábado'
+) {
+  const numEntre = DIAS_SEMANA_MAP[(diaReunionEntreSemana || 'Martes').toLowerCase().trim()] ?? 2
+  const numFin = DIAS_SEMANA_MAP[(diaReunionFinSemana || 'Sábado').toLowerCase().trim()] ?? 6
+
+  if (!fechaIso) {
+    return tipoEvento === 'asamblea_circuito' || tipoEvento === 'asamblea_regional'
+      ? 'fin_semana'
+      : 'entre_semana'
+  }
+
+  const diasIso =
+    tipoEvento === 'asamblea_regional'
+      ? [fechaIso, addDaysIso(fechaIso, 1), addDaysIso(fechaIso, 2)]
+      : [fechaIso]
+
+  let tocaEntre = false
+  let tocaFin = false
+
+  for (const iso of diasIso) {
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number)
+    if (!y || !m || !d) continue
+    const dayOfWeek = new Date(y, m - 1, d).getDay()
+    if (dayOfWeek === numEntre) tocaEntre = true
+    if (dayOfWeek === numFin) tocaFin = true
+  }
+
+  if (tocaEntre && tocaFin) return 'ambas'
+  if (tocaFin) return 'fin_semana'
+  if (tocaEntre) return 'entre_semana'
+
+  if (tipoEvento === 'asamblea_circuito' || tipoEvento === 'asamblea_regional') {
+    return 'fin_semana'
+  }
+  return 'entre_semana'
+}
+
+/**
  * Calcula la reunión más próxima (rotando dinámicamente entre reunión de entre semana
  * y reunión de fin de semana) según los días y horas configurados, considerando
  * también excepciones y eventos especiales (asambleas, reuniones desplazadas o canceladas).
@@ -309,9 +368,17 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date(), eve
   function aplicarEvento(cand, tipoReunion) {
     const candIso = toIsoDate(cand.fecha)
     const evt = listaEventos.find(e => {
-      const afecta = e.afecta_reunion || 'entre_semana'
-      if (afecta !== 'ambas' && afecta !== tipoReunion) return false
-      return e.fecha_original === candIso || e.fecha_efectiva === candIso
+      if (e.tipo_evento === 'asamblea_regional') {
+        const baseIso = e.fecha_efectiva || e.fecha_original
+        if (baseIso) {
+          const diasAsamblea = [baseIso, addDaysIso(baseIso, 1), addDaysIso(baseIso, 2)]
+          if (diasAsamblea.includes(candIso)) return true
+        }
+      }
+      if (e.fecha_original === candIso || e.fecha_efectiva === candIso) {
+        return true
+      }
+      return false
     })
 
     if (!evt) return { cand, evento: null }

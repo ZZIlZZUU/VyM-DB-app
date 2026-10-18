@@ -24,6 +24,7 @@ import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import HistorialCambios from './pages/HistorialCambios'
 import { CalendarioEventos } from './components/CalendarioEventos'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -409,7 +410,9 @@ export default function App() {
         {/* Scrollable Page Container */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div key={view} className="w-full animate-view-fade">
-            {renderView()}
+            <ErrorBoundary title="Error al cargar la sección">
+              {renderView()}
+            </ErrorBoundary>
           </div>
         </main>
       </div>

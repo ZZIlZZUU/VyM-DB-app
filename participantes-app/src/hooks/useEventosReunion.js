@@ -62,8 +62,9 @@ export function useEventosReunion() {
   useEffect(() => {
     fetchEventos()
 
+    const canalId = `eventos-reunion-sync-${Math.random().toString(36).slice(2, 8)}`
     const canal = supabase
-      .channel('eventos-reunion-sync')
+      .channel(canalId)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'eventos_reunion' },

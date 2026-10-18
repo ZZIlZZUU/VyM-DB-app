@@ -139,13 +139,14 @@ export function CalendarioEventos({
   const { toast, success, error: toastError } = useToast()
 
   const activeConfig = propConfig || hookConfig
-  const eventos = propEventos ?? hookEventos
+  const rawEventos = propEventos ?? hookEventos
+  const eventos = Array.isArray(rawEventos) ? rawEventos : []
   const diaReunionEntreSemana = propDiaEntre || activeConfig?.diaReunionEntreSemana || 'Martes'
   const diaReunionFinSemana = propDiaFin || activeConfig?.diaReunionFinSemana || 'Sábado'
 
   const [fetchedSemanas, setFetchedSemanas] = useState([])
   useEffect(() => {
-    if (propSemanas) return
+    if (Array.isArray(propSemanas) && propSemanas.length > 0) return
     supabase
       .from('programa_semanas')
       .select('id, fecha_inicio, fecha_fin, mes, anio')
@@ -155,7 +156,8 @@ export function CalendarioEventos({
       })
   }, [propSemanas])
 
-  const semanas = propSemanas ?? fetchedSemanas
+  const rawSemanas = (Array.isArray(propSemanas) && propSemanas.length > 0) ? propSemanas : fetchedSemanas
+  const semanas = Array.isArray(rawSemanas) ? rawSemanas : []
   const canEdit = !readOnly && rol === 'admin'
 
   const [currentDate, setCurrentDate] = useState(() => new Date())
@@ -404,6 +406,7 @@ export function CalendarioEventos({
 
   // Mapear eventos a fechas (incluyendo soporte de 3 días seguidos para Asamblea Regional)
   function getEventosParaDia(iso, dateObj) {
+    if (!Array.isArray(eventos) || !dateObj) return []
     const numDiaJS = dateObj.getDay()
     const numEntreSemana = DIA_SEMANA_MAP[diaReunionEntreSemana] ?? 2
     const numFinSemana = DIA_SEMANA_MAP[diaReunionFinSemana] ?? 6
@@ -412,6 +415,7 @@ export function CalendarioEventos({
     const resultados = []
 
     for (const evt of eventos) {
+      if (!evt) continue
       // Caso especial: Asamblea Regional dura 3 días seguidos desde su fecha de inicio
       if (evt.tipo_evento === 'asamblea_regional') {
         const startIso = evt.fecha_efectiva || evt.fecha_original
@@ -487,12 +491,14 @@ export function CalendarioEventos({
   )
 
   const textoImpactoReunion = useMemo(() => {
+    const diaEntreStr = String(diaReunionEntreSemana || 'martes').toLowerCase()
+    const diaFinStr = String(diaReunionFinSemana || 'sábado').toLowerCase()
     const etiquetaReunion =
       afectaAutoActual === 'ambas'
         ? `ambas reuniones (${diaReunionEntreSemana} y ${diaReunionFinSemana})`
         : afectaAutoActual === 'fin_semana'
-        ? `la reunión del ${diaReunionFinSemana.toLowerCase()}`
-        : `la reunión del ${diaReunionEntreSemana.toLowerCase()}`
+        ? `la reunión del ${diaFinStr}`
+        : `la reunión del ${diaEntreStr}`
 
     if (eventoForm.tipo_evento === 'asamblea_regional') {
       return `3 días seguidos · Cancela automáticamente ${etiquetaReunion}`
@@ -823,7 +829,7 @@ export function CalendarioEventos({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {eventos.map(evt => {
+                {eventos.filter(Boolean).map(evt => {
                   const metaTipo = getMetaTipo(evt.tipo_evento)
                   const esVisita =
                     evt.tipo_evento === 'visita_sc' || evt.tipo_evento === 'visita_sucursal'

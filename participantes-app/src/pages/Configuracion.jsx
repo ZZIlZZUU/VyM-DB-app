@@ -23,36 +23,30 @@ import {
   ExternalLink,
   Briefcase,
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { useConfiguracion, CONFIG_DEFAULTS } from '../hooks/useConfiguracion'
 import { useEventosReunion } from '../hooks/useEventosReunion'
 import { useToast } from '../hooks/useToast'
 import Toast from '../components/Toast'
-import { formatHora12, timeToMinutes, simularCronogramaReunion } from '../lib/horarios'
+import {
+  formatHora12,
+  timeToMinutes,
+  simularCronogramaReunion,
+  parseHoraFlexible,
+  minutesToTime,
+} from '../lib/horarios'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
-import { Dialog } from '../components/ui/Dialog'
-import { Sheet } from '../components/ui/Sheet'
 import { TimePickerModal } from '../components/ui/TimePickerModal'
+import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { CalendarioEventos } from '../components/CalendarioEventos'
 
 const DIAS_ENTRE_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
 const DIAS_FIN_SEMANA = ['Sábado', 'Domingo']
 
-
 const ANIOS_DISPONIBLES = ['2025', '2026', '2027', '2028', '2029', '2030']
-
-const TIPOS_EVENTO = [
-  { id: 'asamblea_circuito', label: 'Asamblea de Circuito', color: 'purple', desc: '1 día de asamblea (sustituye reunión de fin de semana)' },
-  { id: 'asamblea_regional', label: 'Asamblea Regional', color: 'blue', desc: '3 días de asamblea (sin reunión de fin de semana)' },
-  { id: 'visita_sc', label: 'Visita del Superintendente de Circuito', color: 'emerald', desc: 'Discurso de servicio de 30m sustituye el EBC' },
-  { id: 'visita_sucursal', label: 'Visita de Representante de Sucursal', color: 'emerald', desc: 'Discurso especial de 30m sustituye el EBC' },
-  { id: 'reunion_desplazada', label: 'Reunión Desplazada de Día/Hora', color: 'amber', desc: 'Por feriado o evento, la reunión se traslada de fecha' },
-  { id: 'reunion_cancelada', label: 'Reunión Cancelada', color: 'red', desc: 'Semana sin reunión ordinaria' },
-]
 
 /**
  * Fila interactiva del lienzo S-140 compacto con selector de badge [ESTÁTICO]/[DINÁMICO]
@@ -128,17 +122,10 @@ function FilaHorarioS140({
 
 export default function Configuracion({ onNavigate }) {
   const { config, loading, saving, guardarConfiguracion } = useConfiguracion()
-  const {
-    eventos,
-    loading: loadingEventos,
-    saving: savingEventos,
-    guardarEvento,
-    eliminarEvento,
-  } = useEventosReunion()
+  const { eventos = [] } = useEventosReunion()
   const { toast, success, error: toastError } = useToast()
 
   const [activeTab, setActiveTab] = useState('general') // 'general' | 'horarios' | 'eventos'
-  const [semanas, setSemanas] = useState([])
 
   const [form, setForm] = useState({
     nombreCongregacion: '',
@@ -164,40 +151,8 @@ export default function Configuracion({ onNavigate }) {
 
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Estado para el modal de eventos
-  const [modalEventoOpen, setModalEventoOpen] = useState(false)
-  const [editingEvento, setEditingEvento] = useState(null)
-  const [eventoForm, setEventoForm] = useState({
-    semana_id: '',
-    tipo_evento: 'asamblea_circuito',
-    titulo_evento: '',
-    fecha_original: '',
-    fecha_efectiva: '',
-    hora_efectiva: '',
-    afecta_reunion: 'entre_semana',
-    descripcion: '',
-    nombre_visitante: '',
-    oracion_visitante: true,
-  })
-
   // Estado para el modal pop-up de selección de hora estilo Android Material 3
   const [timePickerTarget, setTimePickerTarget] = useState(null)
-
-  // Cargar semanas de la BD para asociar eventos
-  useEffect(() => {
-    async function loadSemanas() {
-      try {
-        const { data } = await supabase
-          .from('programa_semanas')
-          .select('id, fecha_inicio, fecha_fin, mes, anio')
-          .order('fecha_inicio', { ascending: true })
-        if (data) setSemanas(data)
-      } catch (err) {
-        console.warn('Error cargando semanas:', err)
-      }
-    }
-    loadSemanas()
-  }, [])
 
   // Sincronizar formulario cuando config cargue o cambie en BD
   useEffect(() => {
@@ -419,84 +374,6 @@ export default function Configuracion({ onNavigate }) {
     success('Marcas de tiempo restablecidas al cálculo automático estándar.')
   }
 
-  // Manejo de Modal de Eventos
-  function openCrearEvento(initData = {}) {
-    setEditingEvento(null)
-    const semDefault = initData.semana_id
-      ? semanas.find(s => s.id === initData.semana_id)
-      : semanas[0]
-
-    const tipo = initData.tipo_evento || 'visita_sc'
-    const opt = TIPOS_EVENTO.find(t => t.id === tipo)
-
-    setEventoForm({
-      semana_id: semDefault?.id || '',
-      tipo_evento: tipo,
-      titulo_evento: opt?.label || 'Visita del Superintendente de Circuito',
-      fecha_original: semDefault?.fecha_inicio || '',
-      fecha_efectiva: initData.fecha_efectiva || '',
-      hora_efectiva: '',
-      afecta_reunion: 'entre_semana',
-      descripcion: '',
-      nombre_visitante: tipo === 'visita_sc' ? (config?.nombreSuperintendenteCircuito || '') : '',
-      oracion_visitante: true,
-    })
-    setModalEventoOpen(true)
-  }
-
-  function openEditarEvento(evt) {
-    setEditingEvento(evt)
-    setEventoForm({
-      semana_id: evt.semana_id || '',
-      tipo_evento: evt.tipo_evento || 'asamblea_circuito',
-      titulo_evento: evt.titulo_evento || '',
-      fecha_original: evt.fecha_original || '',
-      fecha_efectiva: evt.fecha_efectiva || '',
-      hora_efectiva: evt.hora_efectiva || '',
-      afecta_reunion: evt.afecta_reunion || 'entre_semana',
-      descripcion: evt.descripcion ? evt.descripcion.replace(/\[VISITANTE:[^\]]+\]/, '').trim() : '',
-      nombre_visitante: evt.nombre_visitante || '',
-      oracion_visitante: evt.oracion_visitante !== false,
-    })
-    setModalEventoOpen(true)
-  }
-
-  async function handleSaveEvento(e) {
-    e?.preventDefault?.()
-    if (!eventoForm.titulo_evento.trim()) {
-      toastError('Debes indicar un título para el evento.')
-      return
-    }
-
-    if ((eventoForm.tipo_evento === 'visita_sc' || eventoForm.tipo_evento === 'visita_sucursal') && !eventoForm.nombre_visitante?.trim()) {
-      toastError('Debes indicar el nombre del orador visitante.')
-      return
-    }
-
-    const res = await guardarEvento({
-      ...eventoForm,
-      id: editingEvento?.id,
-    })
-
-    if (res.ok) {
-      success('Evento registrado correctamente.')
-      setModalEventoOpen(false)
-    } else {
-      toastError('Error al guardar evento: ' + (res.error?.message || 'Error desconocido'))
-    }
-  }
-
-  async function handleDeleteEvento(id, titulo) {
-    if (!confirm(`¿Eliminar el evento "${titulo}"?`)) return
-    const res = await eliminarEvento(id)
-    if (res.ok) {
-      success('Evento eliminado.')
-      setModalEventoOpen(false)
-    } else {
-      toastError('No se pudo eliminar: ' + res.error?.message)
-    }
-  }
-
   const cleanCongNombre = form.nombreCongregacion.trim() || 'Congregación'
   const cleanNombreArchivo = cleanCongNombre
     .normalize('NFD')
@@ -602,7 +479,8 @@ export default function Configuracion({ onNavigate }) {
       {/* ── PESTAÑA 1: GENERAL E IDENTIDAD                          ── */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'general' && (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <ErrorBoundary title="Error al cargar la sección General e Identidad">
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Identidad */}
             <div className="p-5 rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
@@ -768,13 +646,15 @@ export default function Configuracion({ onNavigate }) {
             </div>
           </div>
         </form>
+        </ErrorBoundary>
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* ── PESTAÑA 2: HORARIOS Y MÁRGENES (LIENZO S-140 COMPACTO)  ── */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'horarios' && (
-        <div className="space-y-6">
+        <ErrorBoundary title="Error al cargar la sección de Horarios y Tiempos">
+          <div className="space-y-6">
           {/* Barra de Presets y Hora Base */}
           <div className="p-4 rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4 text-xs">
@@ -1053,20 +933,20 @@ export default function Configuracion({ onNavigate }) {
             </div>
           </div>
         </div>
+        </ErrorBoundary>
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* ── PESTAÑA 3: CALENDARIO Y EXCEPCIONES                      ── */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'eventos' && (
-        <CalendarioEventos
-          eventos={eventos}
-          semanas={semanas}
-          diaReunionEntreSemana={form.diaReunionEntreSemana}
-          diaReunionFinSemana={form.diaReunionFinSemana}
-          config={config}
-          rol="admin"
-        />
+        <ErrorBoundary title="Error al cargar el Calendario de Eventos y Excepciones">
+          <CalendarioEventos
+            diaReunionEntreSemana={form.diaReunionEntreSemana}
+            diaReunionFinSemana={form.diaReunionFinSemana}
+            rol="admin"
+          />
+        </ErrorBoundary>
       )}
 
       {/* ── MODAL POP-UP ESTILO ANDROID MATERIAL 3 (TIME PICKER) ── */}

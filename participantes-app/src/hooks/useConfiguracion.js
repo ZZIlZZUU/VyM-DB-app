@@ -108,8 +108,9 @@ export function useConfiguracion() {
     fetchConfig()
 
     // Suscripción Realtime para propagar cambios instantáneamente a todas las pestañas
+    const canalId = `configuracion-global-sync-${Math.random().toString(36).slice(2, 8)}`
     const canal = supabase
-      .channel('configuracion-global-sync')
+      .channel(canalId)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'configuracion' },

@@ -127,6 +127,7 @@ export function CalendarioEventos({
   standalone = false,
   rol = 'admin',
   config: propConfig,
+  readOnly = false,
 }) {
   const { config: hookConfig } = useConfiguracion()
   const {
@@ -155,7 +156,7 @@ export function CalendarioEventos({
   }, [propSemanas])
 
   const semanas = propSemanas ?? fetchedSemanas
-  const canEdit = rol === 'admin'
+  const canEdit = !readOnly && rol === 'admin'
 
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [vistaModo, setVistaModo] = useState('calendario') // 'calendario' | 'lista'

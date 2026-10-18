@@ -284,7 +284,7 @@ export default function App() {
           />
         )
       case 'calendario':
-        return <CalendarioEventos standalone rol={rol} />
+        return <CalendarioEventos standalone readOnly />
       case 'editable':
         return <VistaEditable onNavigate={handleNavigate} />
       case 'sql':

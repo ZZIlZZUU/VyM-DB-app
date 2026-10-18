@@ -3,6 +3,8 @@
 // Motor de sugerencias de asignación basado en reglas de rotación y pesos
 // ============================================================
 
+import { getImpactoEventoSemana } from './fechas'
+
 export const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -338,6 +340,19 @@ export function sugerirCandidatos(
   opciones = {}
 ) {
   if (!Array.isArray(personas) || personas.length === 0) return []
+  if (opciones?.cancelaEntreSemana) return []
+  if (opciones?.semana && opciones?.eventos) {
+    const impacto = getImpactoEventoSemana(
+      opciones.semana,
+      opciones.eventos,
+      opciones.diaReunionEntreSemana,
+      opciones.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) return []
+    if ((normalizarTipo(tipo) === 'OC' || tipo === 'ORACION_C') && impacto.esVisita && impacto.oracionVisitante !== false) {
+      return []
+    }
+  }
   const hist = Array.isArray(historial) ? historial : []
   const mesValido = MESES.includes(mes)
   const mesAnt = mesValido ? mesAnterior(mes) : null
@@ -547,6 +562,17 @@ export function sugerirAyudante(
   yaAsignados = [],
   opciones = {}
 ) {
+  if (!Array.isArray(personas) || personas.length === 0) return []
+  if (opciones?.cancelaEntreSemana) return []
+  if (opciones?.semana && opciones?.eventos) {
+    const impacto = getImpactoEventoSemana(
+      opciones.semana,
+      opciones.eventos,
+      opciones.diaReunionEntreSemana,
+      opciones.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) return []
+  }
   const titular = personas.find(p => p.clave === claveEstudiante)
   const tipoAyu = titular?.sexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F'
   const tieneObjetos = yaAsignados.some(item => typeof item === 'object' && item !== null)

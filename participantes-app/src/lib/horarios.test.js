@@ -9,6 +9,7 @@ import {
   obtenerHorariosS140,
   simularCronogramaReunion,
   parseHoraFlexible,
+  mapearHorariosPartesSemana,
 } from './horarios'
 
 describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
@@ -315,5 +316,61 @@ describe('Utilidades de Horarios — Reunión y Formulario S-140', () => {
       expect(intro.hora12).toBe('8:04')
       expect(intro.hora24).toBe('20:04')
     })
+
+    it('prioriza hora_efectiva de una semana desplazada (ej: 10:00 AM) sobre la hora base configurada', () => {
+      const semanaDesplazada = {
+        can_ap: '5',
+        hora_efectiva: '10:00',
+        smt: [{ titulo: 'Asignación 1 (4 mins.)', duracion_min: 4 }],
+        vc: [{ titulo: 'Parte VC (15 mins.)', duracion_min: 15 }],
+      }
+      const config = { horaReunionEntreSemana: '19:30' }
+      const h = obtenerHorariosS140(semanaDesplazada, config)
+
+      expect(h.apertura.cancion).toBe('10:00')
+      expect(h.apertura.intro).toBe('10:04')
+      expect(h.tb.discurso).toBe('10:05')
+      expect(h.meta.horaInicio).toBe('10:00')
+    })
+  })
+
+  describe('mapearHorariosPartesSemana', () => {
+    it('mapea correctamente los IDs de partes a sus horas 12h calculadas', () => {
+      const semana = {
+        id: 'sem-1',
+        can_ap: '1',
+        can_vc: '100',
+        can_ci: '150',
+      }
+      const partesSemana = [
+        { id: 'p-pres', seccion: 'APERTURA', tipo_asignacion: 'P', numero_parte: 1 },
+        { id: 'p-oracion', seccion: 'APERTURA', tipo_asignacion: 'ORACION', numero_parte: 2 },
+        { id: 'p-tb', seccion: 'TB', tipo_asignacion: 'TB', numero_parte: 3 },
+        { id: 'p-pe', seccion: 'TB', tipo_asignacion: 'PE', numero_parte: 4 },
+        { id: 'p-lb', seccion: 'TB', tipo_asignacion: 'LB', numero_parte: 5 },
+        { id: 'p-smt1', seccion: 'SMT', tipo_asignacion: 'SMT_EST', numero_parte: 6, titulo: 'Primera parte (4 mins.)', duracion_min: 4 },
+        { id: 'p-vc1', seccion: 'VC', tipo_asignacion: 'VC_DIS', numero_parte: 7, titulo: 'Necesidades (15 mins.)', duracion_min: 15 },
+        { id: 'p-ebc', seccion: 'VC', tipo_asignacion: 'EBC_CON', numero_parte: 8 },
+        { id: 'p-lebc', seccion: 'VC', tipo_asignacion: 'LEBC', numero_parte: 9 },
+        { id: 'p-conclu', seccion: 'CIERRE', tipo_asignacion: 'CONCLU', numero_parte: 10 },
+        { id: 'p-oracion-c', seccion: 'CIERRE', tipo_asignacion: 'ORACION_C', numero_parte: 11 },
+      ]
+
+      const config = { horaReunionEntreSemana: '19:30' }
+      const mapa = mapearHorariosPartesSemana(semana, partesSemana, config)
+
+      expect(mapa['p-pres']).toBe('7:30')
+      expect(mapa['p-oracion']).toBe('7:30')
+      expect(mapa['p-tb']).toBe('7:35')
+      expect(mapa['p-pe']).toBe('7:45')
+      expect(mapa['p-lb']).toBe('7:55')
+      expect(mapa['p-smt1']).toBe('8:00')
+      expect(mapa['p-vc1']).toBe('8:20')
+      expect(mapa['p-ebc']).toBe('8:36')
+      expect(mapa['p-lebc']).toBe('8:36')
+      expect(mapa['p-conclu']).toBe('9:07')
+      expect(mapa['p-oracion-c']).toBe('9:10')
+    })
   })
 })
+

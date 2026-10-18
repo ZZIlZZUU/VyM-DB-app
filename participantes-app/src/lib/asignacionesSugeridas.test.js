@@ -412,3 +412,100 @@ describe('casos borde', () => {
 
 })
 
+// ── Grupo 7 — Eventos y Excepciones de Calendario ───────────────
+
+describe('eventos y excepciones de calendario', () => {
+
+  const semanaAR = {
+    id: 'sem-ar-1',
+    fecha_inicio: '2026-10-12',
+    fecha_fin: '2026-10-18',
+  }
+
+  const eventosAR = [
+    {
+      id: 'ev-ar',
+      tipo_evento: 'asamblea_regional',
+      titulo_evento: 'Asamblea Regional 2026',
+      fecha_original: '2026-10-16',
+      fecha_fin_evento: '2026-10-18',
+      cancela_reunion: true,
+    },
+  ]
+
+  const eventosACSabado = [
+    {
+      id: 'ev-ac',
+      tipo_evento: 'asamblea_circuito',
+      titulo_evento: 'Asamblea de Circuito',
+      fecha_original: '2026-10-17',
+      cancela_reunion: true,
+    },
+  ]
+
+  const eventosVisita = [
+    {
+      id: 'ev-sc',
+      tipo_evento: 'visita_sc',
+      titulo_evento: 'Visita del SC',
+      fecha_original: '2026-10-13',
+      oracion_visitante: true,
+    },
+  ]
+
+  it('no sugiere candidatos si la semana cancela la reunión entre semana (Asamblea Regional)', () => {
+    const result = sugerirCandidatos('P', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      semana: semanaAR,
+      eventos: eventosAR,
+      diaReunionEntreSemana: 'Martes',
+      diaReunionFinSemana: 'Sábado',
+    })
+    expect(result).toEqual([])
+
+    const resultAyu = sugerirAyudante('M01', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      semana: semanaAR,
+      eventos: eventosAR,
+      diaReunionEntreSemana: 'Martes',
+      diaReunionFinSemana: 'Sábado',
+    })
+    expect(resultAyu).toEqual([])
+  })
+
+  it('no sugiere candidatos si se pasa la flag cancelaEntreSemana directamente', () => {
+    const result = sugerirCandidatos('TB', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      cancelaEntreSemana: true,
+    })
+    expect(result).toEqual([])
+  })
+
+  it('sugiere candidatos normalmente si la asamblea de circuito es en fin de semana', () => {
+    const result = sugerirCandidatos('P', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      semana: semanaAR,
+      eventos: eventosACSabado,
+      diaReunionEntreSemana: 'Martes',
+      diaReunionFinSemana: 'Sábado',
+    })
+    expect(result.length).toBeGreaterThan(0)
+  })
+
+  it('omite sugerencia de ORACION_C si la semana es visita de SC y oracion_visitante es true', () => {
+    const resultOracion = sugerirCandidatos('ORACION_C', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      semana: semanaAR,
+      eventos: eventosVisita,
+      diaReunionEntreSemana: 'Martes',
+      diaReunionFinSemana: 'Sábado',
+    })
+    expect(resultOracion).toEqual([])
+
+    const resultPresidente = sugerirCandidatos('P', PERSONAS, SIN_HISTORIAL, 'Octubre', [], {
+      semana: semanaAR,
+      eventos: eventosVisita,
+      diaReunionEntreSemana: 'Martes',
+      diaReunionFinSemana: 'Sábado',
+    })
+    expect(resultPresidente.length).toBeGreaterThan(0)
+  })
+
+})
+
+

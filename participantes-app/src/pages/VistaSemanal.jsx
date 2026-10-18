@@ -19,9 +19,16 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
-import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma, MESES } from '../lib/fechas'
+import {
+  formatFechaLegible,
+  formatRangoSemanaLegible,
+  formatRangoSemanaPrograma,
+  getImpactoEventoSemana,
+  MESES,
+} from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useEventosReunion } from '../hooks/useEventosReunion'
+import { useConfiguracion } from '../hooks/useConfiguracion'
 import Toast from '../components/Toast'
 
 import { Button } from '../components/ui/Button'
@@ -150,6 +157,7 @@ function SkeletonSemana() {
 }
 
 export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
+  const { config } = useConfiguracion()
   const { eventos } = useEventosReunion()
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
@@ -274,14 +282,14 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
           }
         }
       }
-      const currentYearStr = String(new Date().getFullYear())
+      const currentYearStr = String(config?.anioEnCurso || new Date().getFullYear())
       if (aniosDisponibles.includes(currentYearStr)) {
         setSelectedYear(currentYearStr)
       } else {
         setSelectedYear(aniosDisponibles[0])
       }
     }
-  }, [aniosDisponibles, selectedYear, initialSemanaId, semanas])
+  }, [aniosDisponibles, selectedYear, initialSemanaId, semanas, config?.anioEnCurso])
 
   // ── Extraer Meses Disponibles para el Año Seleccionado ──────────
   const mesesDisponibles = useMemo(() => {
@@ -394,8 +402,31 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     }
   }
 
+  const impactoSemana = useMemo(() => {
+    if (!semanaActiva) return null
+    return getImpactoEventoSemana(
+      semanaActiva,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+  }, [semanaActiva, eventos, config])
+
   // ── Cálculo de Estado de la Semana (Completa / Parcial / Sin Datos) ──
   const estadoSemana = useMemo(() => {
+    if (impactoSemana?.cancelaEntreSemana) {
+      return {
+        texto: impactoSemana.esAsamblea
+          ? (impactoSemana.evento?.tipo_evento === 'asamblea_regional' ? 'Asamblea Regional' : 'Asamblea de Circuito')
+          : 'Cancelada',
+        variant: 'purple',
+        total: 0,
+        asignadas: 0,
+        confirmadas: 0,
+        cancelaEntreSemana: true,
+      }
+    }
+
     if (!semanaActiva || partesSemanaActiva.length === 0) {
       return { texto: 'Sin datos', variant: 'neutral', total: 0, asignadas: 0, confirmadas: 0 }
     }
@@ -428,17 +459,18 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     } else {
       return { texto: 'Sin asignar', variant: 'neutral', total, asignadas, confirmadas }
     }
-  }, [semanaActiva, partesSemanaActiva, asignaciones])
+  }, [semanaActiva, partesSemanaActiva, asignaciones, impactoSemana])
 
   // ── Exportar S-140 de esta semana ─────────────────────────────
   async function handleExportarS140Semana() {
     if (!semanaActiva) return
     setExportingDocx(true)
     try {
-      const semanasNorm = buildDatosDesdeSupabase([semanaActiva], partes, asignaciones, personas, eventos)
+      const semanasNorm = buildDatosDesdeSupabase([semanaActiva], partes, asignaciones, personas, eventos, config)
       await generarYDescargarS140({
-        congregacion: congregacion || 'Congregacion del Recreo',
+        congregacion: congregacion || config?.nombreCongregacion || 'Congregacion del Recreo',
         semanas: semanasNorm,
+        config,
       })
       success(`S-140 exportado para la semana del ${formatFechaLegible(semanaActiva.fecha_inicio)}.`)
     } catch (err) {
@@ -637,149 +669,202 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
                 <BookOpen className="w-3.5 h-3.5 text-text3" />
                 <span>{semanaActiva.capitulo_biblico || 'Lectura semanal'}</span>
               </div>
+              {impactoSemana?.cancelaEntreSemana ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                    <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                    {impactoSemana.tituloEvento}
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             {/* Canciones de la Semana */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {[
-                { label: 'Apertura', num: semanaActiva.cancion_apertura },
-                { label: 'Vida Cristiana', num: semanaActiva.cancion_vc },
-                { label: 'Cierre', num: semanaActiva.cancion_cierre },
-              ]
-                .filter(c => c.num)
-                .map((c, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded-md border border-zinc-200/80 dark:border-zinc-700/60"
-                  >
-                    <Music className="w-3 h-3 text-text3" />
-                    <span>
-                      {c.label}: <strong className="text-text1">{c.num}</strong>
+            {!impactoSemana?.cancelaEntreSemana && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { label: 'Apertura', num: semanaActiva.cancion_apertura },
+                  { label: 'Vida Cristiana', num: semanaActiva.cancion_vc },
+                  { label: 'Cierre', num: semanaActiva.cancion_cierre },
+                ]
+                  .filter(c => c.num)
+                  .map((c, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded-md border border-zinc-200/80 dark:border-zinc-700/60"
+                    >
+                      <Music className="w-3 h-3 text-text3" />
+                      <span>
+                        {c.label}: <strong className="text-text1">{c.num}</strong>
+                      </span>
                     </span>
-                  </span>
-                ))}
-            </div>
+                  ))}
+              </div>
+            )}
           </div>
 
-          {/* Lista de Partes Agrupadas por Sección */}
-          <div className="p-5 space-y-6">
-            {['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE'].map(sec => {
-              const partesSeccion = partesSemanaActiva.filter(p => p.seccion === sec)
-              if (partesSeccion.length === 0) return null
-
-              return (
-                <div key={sec} className="space-y-2.5">
-                  <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-                    <span>{SECCION_LABEL[sec]}</span>
-                    <span className="text-[10px] font-normal text-text3">
-                      {partesSeccion.length} {partesSeccion.length === 1 ? 'parte' : 'partes'}
-                    </span>
-                  </div>
-
-                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl overflow-hidden bg-zinc-50/30 dark:bg-zinc-900/20">
-                    {partesSeccion.map(parte => {
-                      const asigP = asignaciones.find(
-                        a => a.parte_id === parte.id && a.rol === 'principal'
-                      )
-                      const asigA = asignaciones.find(
-                        a => a.parte_id === parte.id && a.rol === 'ayudante'
-                      )
-
-                      const personaP = personas.find(p => p.clave === asigP?.clave)
-                      const personaA = personas.find(p => p.clave === asigA?.clave)
-
-                      const isSoloVisual = TIPOS_SOLO_VISUAL.includes(parte.tipo_asignacion)
-                      const isConfirmado = asigP?.confirmado
-                      const tipoBadgeStyle =
-                        TIPO_COLOR[parte.tipo_asignacion] ||
-                        'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-
-                      return (
-                        <div
-                          key={parte.id}
-                          className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/50 transition-colors text-xs"
-                        >
-                          {/* Izquierda: Número, Título y Badge de Tipo */}
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <span className="font-mono text-[11px] text-text3 w-6 shrink-0">
-                              #{parte.numero_parte}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold border shrink-0 ${tipoBadgeStyle}`}
-                            >
-                              {parte.tipo_asignacion}
-                            </span>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="font-medium text-text1 truncate" title={parte.titulo}>
-                                {parte.titulo || TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
-                              </div>
-                              <div className="text-[11px] text-text3 font-mono">
-                                {TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
-                                {parte.duracion_min ? ` · ${parte.duracion_min} min` : ''}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Derecha: Participantes Asignados y Badge de Estado */}
-                          <div className="flex items-center gap-4 justify-between sm:justify-end shrink-0 pl-9 sm:pl-0">
-                            <div className="flex flex-col items-start sm:items-end min-w-0">
-                              <span
-                                className={`text-xs ${
-                                  personaP ? 'font-medium text-text1' : 'text-text3 italic'
-                                }`}
-                              >
-                                {personaP ? personaP.nombre : '— Sin asignar'}
-                              </span>
-                              {personaA && (
-                                <span className="text-[11px] text-text3 flex items-center gap-1">
-                                  <span className="text-text3/70">↳</span>
-                                  <span>{personaA.nombre}</span>
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Badge de Confirmación */}
-                            {!isSoloVisual ? (
-                              isConfirmado ? (
-                                <Badge variant="success" size="xs" dot>
-                                  Confirmado
-                                </Badge>
-                              ) : asigP?.clave ? (
-                                <Badge variant="warning" size="xs" dot>
-                                  Pendiente
-                                </Badge>
-                              ) : (
-                                <Badge variant="neutral" size="xs">
-                                  Sin asignar
-                                </Badge>
-                              )
-                            ) : (
-                              <Badge variant="neutral" size="xs">
-                                Visual
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
+          {/* Lista de Partes Agrupadas por Sección o Banner de Evento */}
+          {impactoSemana?.cancelaEntreSemana ? (
+            <div className="p-8 text-center flex flex-col items-center justify-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-center text-purple-700 dark:text-purple-300">
+                <Calendar className="w-8 h-8" />
+              </div>
+              <div className="max-w-md space-y-2">
+                <Badge variant="purple" size="sm">
+                  {impactoSemana.esAsamblea
+                    ? (impactoSemana.evento?.tipo_evento === 'asamblea_regional' ? 'Asamblea Regional' : 'Asamblea de Circuito')
+                    : 'Reunión Cancelada'}
+                </Badge>
+                <h3 className="text-lg font-bold text-text1">
+                  {impactoSemana.tituloEvento}
+                </h3>
+                {(impactoSemana.motivo || impactoSemana.descripcion) && (
+                  <p className="text-xs text-text2 leading-relaxed">
+                    {impactoSemana.motivo || impactoSemana.descripcion}
+                  </p>
+                )}
+                <p className="text-[11px] text-text3 pt-2">
+                  Durante esta semana no se celebró ni programó la reunión ordinaria de entre semana en la congregación.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-5 space-y-6">
+              {impactoSemana?.esDesplazada && (
+                <div className="flex items-center gap-2.5 p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 text-xs text-blue-900 dark:text-blue-200">
+                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div>
+                    <span className="font-semibold">Reunión desplazada: </span>
+                    <span>Esta reunión se llevó a cabo el {formatFechaLegible(impactoSemana.fechaEfectiva)} {impactoSemana.horaEfectiva ? `a las ${impactoSemana.horaEfectiva} hrs` : ''}.</span>
+                    {impactoSemana.motivo && <span className="block text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">Motivo: {impactoSemana.motivo}</span>}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              )}
+
+              {['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE'].map(sec => {
+                const partesSeccion = partesSemanaActiva.filter(p => p.seccion === sec)
+                if (partesSeccion.length === 0) return null
+
+                return (
+                  <div key={sec} className="space-y-2.5">
+                    <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
+                      <span>{SECCION_LABEL[sec]}</span>
+                      <span className="text-[10px] font-normal text-text3">
+                        {partesSeccion.length} {partesSeccion.length === 1 ? 'parte' : 'partes'}
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl overflow-hidden bg-zinc-50/30 dark:bg-zinc-900/20">
+                      {partesSeccion.map(parte => {
+                        const asigP = asignaciones.find(
+                          a => a.parte_id === parte.id && a.rol === 'principal'
+                        )
+                        const asigA = asignaciones.find(
+                          a => a.parte_id === parte.id && a.rol === 'ayudante'
+                        )
+
+                        const personaP = personas.find(p => p.clave === asigP?.clave)
+                        const personaA = personas.find(p => p.clave === asigA?.clave)
+
+                        const isSoloVisual = TIPOS_SOLO_VISUAL.includes(parte.tipo_asignacion)
+                        const isConfirmado = asigP?.confirmado
+                        const tipoBadgeStyle =
+                          TIPO_COLOR[parte.tipo_asignacion] ||
+                          'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
+
+                        return (
+                          <div
+                            key={parte.id}
+                            className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/50 transition-colors text-xs"
+                          >
+                            {/* Izquierda: Número, Título y Badge de Tipo */}
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span className="font-mono text-[11px] text-text3 w-6 shrink-0">
+                                #{parte.numero_parte}
+                              </span>
+
+                              <span
+                                className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold border shrink-0 ${tipoBadgeStyle}`}
+                              >
+                                {parte.tipo_asignacion}
+                              </span>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-text1 truncate" title={parte.titulo}>
+                                  {parte.titulo || TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
+                                </div>
+                                <div className="text-[11px] text-text3 font-mono">
+                                  {TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
+                                  {parte.duracion_min ? ` · ${parte.duracion_min} min` : ''}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Derecha: Participantes Asignados y Badge de Estado */}
+                            <div className="flex items-center gap-4 justify-between sm:justify-end shrink-0 pl-9 sm:pl-0">
+                              <div className="flex flex-col items-start sm:items-end min-w-0">
+                                <span
+                                  className={`text-xs ${
+                                    personaP ? 'font-medium text-text1' : 'text-text3 italic'
+                                  }`}
+                                >
+                                  {personaP ? personaP.nombre : '— Sin asignar'}
+                                </span>
+                                {personaA && (
+                                  <span className="text-[11px] text-text3 flex items-center gap-1">
+                                    <span className="text-text3/70">↳</span>
+                                    <span>{personaA.nombre}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Badge de Confirmación */}
+                              {!isSoloVisual ? (
+                                isConfirmado ? (
+                                  <Badge variant="success" size="xs" dot>
+                                    Confirmado
+                                  </Badge>
+                                ) : asigP?.clave ? (
+                                  <Badge variant="warning" size="xs" dot>
+                                    Pendiente
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="neutral" size="xs">
+                                    Sin asignar
+                                  </Badge>
+                                )
+                              ) : (
+                                <Badge variant="neutral" size="xs">
+                                  Visual
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* ── FOOTER DE LA VISTA ── */}
           <div className="p-4 sm:p-5 bg-zinc-50/70 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-xs text-text2">
               <span className="font-mono font-medium text-text1">
-                {estadoSemana.asignadas} de {estadoSemana.total} participaciones asignadas
+                {impactoSemana?.cancelaEntreSemana
+                  ? 'Semana sin reunión ordinaria'
+                  : `${estadoSemana.asignadas} de ${estadoSemana.total} participaciones asignadas`}
               </span>
-              <span className="text-text3">·</span>
-              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
-                {estadoSemana.confirmadas} confirmadas
-              </span>
+              {!impactoSemana?.cancelaEntreSemana && (
+                <>
+                  <span className="text-text3">·</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+                    {estadoSemana.confirmadas} confirmadas
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Botón de Exportar S-140 de esta semana */}
@@ -788,7 +873,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
               size="sm"
               icon={FileDown}
               loading={exportingDocx}
-              disabled={estadoSemana.confirmadas === 0}
+              disabled={!impactoSemana?.cancelaEntreSemana && estadoSemana.confirmadas === 0}
               onClick={handleExportarS140Semana}
             >
               Exportar S-140 de esta semana (.docx)

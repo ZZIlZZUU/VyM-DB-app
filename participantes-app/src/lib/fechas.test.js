@@ -14,6 +14,7 @@ import {
   getProximaReunion,
   addDaysIso,
   inferirAfectaReunion,
+  getImpactoEventoSemana,
 } from './fechas'
 
 // Mock globalThis.localStorage for test environment
@@ -380,6 +381,99 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
       expect(res.badgeTexto).toBe('Asamblea')
       expect(inferirAfectaReunion('asamblea_regional', '2026-10-16', 'Martes', 'Sábado')).toBe('fin_semana')
       expect(addDaysIso('2026-10-16', 2)).toBe('2026-10-18')
+    })
+  })
+
+  describe('getImpactoEventoSemana - Integración de Eventos en Semanas S-140', () => {
+    const semanaMock = {
+      id: 'sem-nov-02',
+      fecha_inicio: '2026-11-02', // Lunes
+      fecha_fin: '2026-11-08',    // Domingo
+      mes: 'Noviembre',
+      anio: '2026',
+    }
+
+    it('cancela la reunión de entre semana si hay Asamblea Regional (Viernes a Domingo)', () => {
+      const eventos = [
+        {
+          id: 'evt-ar-1',
+          tipo_evento: 'asamblea_regional',
+          titulo_evento: 'Asamblea Regional 2026',
+          fecha_original: '2026-11-06', // Viernes
+          fecha_efectiva: '2026-11-06',
+          afecta_reunion: 'fin_semana',
+        },
+      ]
+      const impacto = getImpactoEventoSemana(semanaMock, eventos, 'Martes', 'Sábado')
+      expect(impacto.cancelaEntreSemana).toBe(true)
+      expect(impacto.esAsamblea).toBe(true)
+      expect(impacto.tituloEvento).toBe('Asamblea Regional 2026')
+    })
+
+    it('NO cancela la reunión de entre semana si la Asamblea de Circuito es en fin de semana', () => {
+      const eventos = [
+        {
+          id: 'evt-ac-1',
+          tipo_evento: 'asamblea_circuito',
+          titulo_evento: 'Asamblea de Circuito',
+          fecha_original: '2026-11-07', // Sábado
+          fecha_efectiva: '2026-11-07',
+          afecta_reunion: 'fin_semana',
+        },
+      ]
+      const impacto = getImpactoEventoSemana(semanaMock, eventos, 'Martes', 'Sábado')
+      expect(impacto.cancelaEntreSemana).toBe(false)
+      expect(impacto.esAsamblea).toBe(false)
+    })
+
+    it('cancela la reunión de entre semana si la Asamblea de Circuito coincide entre semana', () => {
+      const eventos = [
+        {
+          id: 'evt-ac-martes',
+          tipo_evento: 'asamblea_circuito',
+          titulo_evento: 'Asamblea de Circuito Especial',
+          fecha_original: '2026-11-03', // Martes
+          fecha_efectiva: '2026-11-03',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+      const impacto = getImpactoEventoSemana(semanaMock, eventos, 'Martes', 'Sábado')
+      expect(impacto.cancelaEntreSemana).toBe(true)
+      expect(impacto.esAsamblea).toBe(true)
+    })
+
+    it('cancela la reunión de entre semana si es Reunión Cancelada', () => {
+      const eventos = [
+        {
+          id: 'evt-canc-1',
+          tipo_evento: 'reunion_cancelada',
+          titulo_evento: 'Feriado Nacional - Sin reunión',
+          fecha_original: '2026-11-03',
+          afecta_reunion: 'entre_semana',
+        },
+      ]
+      const impacto = getImpactoEventoSemana(semanaMock, eventos, 'Martes', 'Sábado')
+      expect(impacto.cancelaEntreSemana).toBe(true)
+      expect(impacto.esCancelada).toBe(true)
+    })
+
+    it('identifica Visita del SC y respeta oracionVisitante', () => {
+      const eventos = [
+        {
+          id: 'evt-sc-1',
+          tipo_evento: 'visita_sc',
+          titulo_evento: 'Visita del SC',
+          fecha_original: '2026-11-03',
+          nombre_visitante: 'Hermano Hermoso',
+          oracion_visitante: true,
+        },
+      ]
+      const impacto = getImpactoEventoSemana(semanaMock, eventos, 'Martes', 'Sábado')
+      expect(impacto.cancelaEntreSemana).toBe(false)
+      expect(impacto.esVisita).toBe(true)
+      expect(impacto.esVisitaSC).toBe(true)
+      expect(impacto.nombreVisitante).toBe('Hermano Hermoso')
+      expect(impacto.oracionVisitante).toBe(true)
     })
   })
 })

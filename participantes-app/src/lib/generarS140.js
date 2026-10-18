@@ -50,7 +50,7 @@ async function cargarDocxtemplater() {
 //   oracion_ci:    'Felipe Castro',
 // }
 
-export {
+import {
   MESES_S140,
   CONECTORES_MINUSCULA,
   SANGRIA_FECHA_CAPITULO,
@@ -60,12 +60,17 @@ export {
   crearDocxNativo,
 } from './generadorS140Xml.js'
 
-import {
+export {
+  MESES_S140,
+  CONECTORES_MINUSCULA,
+  SANGRIA_FECHA_CAPITULO,
   formatearFechaReunionMartes,
   formatearCapituloBiblico,
   formatearEncabezadoFechaS140,
   crearDocxNativo,
-} from './generadorS140Xml.js'
+}
+
+import { getImpactoEventoSemana } from './fechas.js'
 
 export function buildDatosPlantilla(congregacion, semanas) {
   const datos = { congregacion }
@@ -122,7 +127,7 @@ export function buildDatosPlantilla(congregacion, semanas) {
 // Convierte las tablas programa_semanas / programa_partes /
 // programa_asignaciones / personas al formato esperado arriba,
 // aplicando eventos especiales (asambleas, desplazamientos, cancelaciones).
-export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos = []) {
+export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos = [], config = null) {
   const nombrePorClave = clave => personas.find(p => p.clave === clave)?.nombre || ''
 
   return semanas.map(s => {
@@ -139,13 +144,9 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
     const fechaFin    = String(s.fecha_fin    || '').slice(0, 10)
     const capituloFormateado = formatearCapituloBiblico(s.capitulo_biblico)
 
-    // Buscar si existe un evento programado para esta semana
-    const evento = (eventos || []).find(e => {
-      if (e.semana_id && e.semana_id === s.id) return true
-      if (e.fecha_original && fechaInicio && fechaFin && e.fecha_original >= fechaInicio && e.fecha_original <= fechaFin) return true
-      if (e.fecha_efectiva && fechaInicio && fechaFin && e.fecha_efectiva >= fechaInicio && e.fecha_efectiva <= fechaFin) return true
-      return false
-    })
+    // Buscar impacto exacto del evento para esta semana
+    const impacto = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
+    const evento = impacto.evento
 
     // SMT (4 partes: SMT_EST con ayudante + SMT_DSC sin ayudante)
     const smtPartes = partesSemana
@@ -179,15 +180,15 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
       }
     }).slice(0, 2) // max 2 slots VC en la plantilla
 
-    // Si la semana es una asamblea o reunión cancelada
-    const esAsamblea = evento && (evento.tipo_evento === 'asamblea_circuito' || evento.tipo_evento === 'asamblea_regional')
-    const esCancelada = evento && evento.tipo_evento === 'reunion_cancelada'
-    const esDesplazada = evento && evento.tipo_evento === 'reunion_desplazada'
-    const esVisitaSC = evento && evento.tipo_evento === 'visita_sc'
-    const esVisitaSucursal = evento && evento.tipo_evento === 'visita_sucursal'
-    const esVisita = esVisitaSC || esVisitaSucursal
+    // Si la semana cancela la reunión de entre semana (Asamblea Regional, AC entre semana o Reunión Cancelada)
+    const esAsamblea = impacto.cancelaEntreSemana && impacto.esAsamblea
+    const esCancelada = impacto.cancelaEntreSemana && impacto.esCancelada
+    const esDesplazada = impacto.esDesplazada
+    const esVisitaSC = impacto.esVisitaSC
+    const esVisitaSucursal = impacto.esVisitaSucursal
+    const esVisita = impacto.esVisita
 
-    const fechaEfectivaReunion = esDesplazada && evento?.fecha_efectiva ? evento.fecha_efectiva : null
+    const fechaEfectivaReunion = esDesplazada && impacto.fechaEfectiva ? impacto.fechaEfectiva : null
     const fechaDiaReunion = formatearFechaReunionMartes(fechaInicio, fechaEfectivaReunion)
     const fechaFormateada = formatearEncabezadoFechaS140(
       fechaInicio,
@@ -196,9 +197,9 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
     )
 
     if (esAsamblea) {
-      const tituloAsamblea = evento.titulo_evento
-        ? evento.titulo_evento.toUpperCase()
-        : (evento.tipo_evento === 'asamblea_circuito' ? 'ASAMBLEA DE CIRCUITO' : 'ASAMBLEA REGIONAL')
+      const tituloAsamblea = impacto.tituloEvento
+        ? impacto.tituloEvento.toUpperCase()
+        : 'ASAMBLEA'
 
       return {
         id:               s.id,
@@ -223,14 +224,14 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
         can_ci:           '',
         oracion_ci:       '',
         esAsamblea:       true,
-        tipo_evento:      evento.tipo_evento,
+        tipo_evento:      evento?.tipo_evento,
         evento,
       }
     }
 
     if (esCancelada) {
-      const tituloCancelada = evento.titulo_evento
-        ? `REUNIÓN CANCELADA (${evento.titulo_evento.toUpperCase()})`
+      const tituloCancelada = impacto.tituloEvento
+        ? `REUNIÓN CANCELADA (${impacto.tituloEvento.toUpperCase()})`
         : 'REUNIÓN CANCELADA'
 
       return {
@@ -256,7 +257,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
         can_ci:           '',
         oracion_ci:       '',
         esCancelada:      true,
-        tipo_evento:      evento.tipo_evento,
+        tipo_evento:      evento?.tipo_evento,
         evento,
       }
     }
@@ -269,7 +270,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
 
     if (esVisita) {
       const nombreVisitante =
-        evento.nombre_visitante ||
+        impacto.nombreVisitante ||
         (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal')
       ebcCond = nombreVisitante
       ebcLect = '' // La visita no requiere lector en su discurso de servicio
@@ -277,7 +278,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
         ? 'Discurso del Superintendente (30 mins.)'
         : 'Discurso del Representante de la Sucursal (30 mins.)'
 
-      if (evento.oracion_visitante !== false) {
+      if (impacto.oracionVisitante) {
         oracionCi = nombreVisitante
       }
     }
@@ -319,6 +320,7 @@ export function buildDatosDesdeSupabase(semanas, partes, asignaciones, personas,
 }
 
 import { supabase } from './supabase'
+import { parseConfigRows } from '../hooks/useConfiguracion'
 
 const REGEX_CAMPOS_SERIF =
   /\{\$s\d+_(fecha|presidente|oracion_ap|tb_cond|pe_cond|lb_est|smt[1-4]_est|smt[1-4]_ayu|vc[1-2]_cond|ebc_cond|ebc_lect|oracion_ci)\$\}/
@@ -541,16 +543,16 @@ export async function exportarS140SemanaActual() {
   const partes = partesRes.data || []
   const asignaciones = (asigRes.data || []).filter(a => partes.some(p => p.id === a.parte_id))
   const personas = personasRes.data || []
-  const congregacion = configRes.data?.find(c => c.clave === 'nombre_congregacion')?.valor || 'Congregación del Recreo'
+  const configObj = parseConfigRows(configRes.data || [])
+  const congregacion = configObj.nombreCongregacion || 'Congregación del Recreo'
   const eventos = eventosRes?.data || []
 
-  const horaCfg = configRes.data?.find(c => c.clave === 'hora_reunion')?.valor || '19:00'
-  const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas, eventos)
+  const semanasNorm = buildDatosDesdeSupabase([semanaActual], partes, asignaciones, personas, eventos, configObj)
 
   await generarYDescargarS140({
     congregacion,
     semanas: semanasNorm,
-    config: horaCfg,
+    config: configObj,
   })
 
   return semanaActual

@@ -164,9 +164,10 @@ export function parseHoraFlexible(val, baseHourStr = '19:00') {
  */
 export function obtenerHorariosS140(semana, configOpciones = '19:00') {
   const isObj = typeof configOpciones === 'object' && configOpciones !== null
-  const horaInicioStr = isObj
+  const horaConfig = isObj
     ? (configOpciones.horaReunionEntreSemana || '19:00')
     : (configOpciones || '19:00')
+  const horaInicioStr = semana?.hora_efectiva || semana?.hora_evento || horaConfig
   const baseMins = timeToMinutes(horaInicioStr)
 
   const margen = isObj && configOpciones.margenTransicionMin != null
@@ -286,7 +287,12 @@ export function obtenerHorariosS140(semana, configOpciones = '19:00') {
   })
 
   // 3. Seamos Mejores Maestros
-  const partesSMT = (semana?.smt || []).filter(p => p && p.titulo && String(p.titulo).trim() !== '')
+  const partesSMTRaw = Array.isArray(semana?.smt)
+    ? semana.smt
+    : (Array.isArray(semana?.partes)
+      ? semana.partes.filter(p => p.seccion === 'SMT')
+      : [])
+  const partesSMT = partesSMTRaw.filter(p => p && p.titulo && String(p.titulo).trim() !== '')
   const smtFilas = []
   const partesSMTProcesar = partesSMT.length > 0 ? partesSMT : [
     { titulo: 'Asignación estudiantil 1 (3 mins.)', duracion_min: 3 },
@@ -324,7 +330,12 @@ export function obtenerHorariosS140(semana, configOpciones = '19:00') {
     aplicaMargen: true,
   })
 
-  const partesVC = (semana?.vc || []).filter(v => v && v.titulo && String(v.titulo).trim() !== '')
+  const partesVCRaw = Array.isArray(semana?.vc)
+    ? semana.vc
+    : (Array.isArray(semana?.partes)
+      ? semana.partes.filter(p => p.seccion === 'VC' && p.tipo_asignacion !== 'EBC_CON' && p.tipo_asignacion !== 'LEBC')
+      : [])
+  const partesVC = partesVCRaw.filter(v => v && v.titulo && String(v.titulo).trim() !== '')
   const partesVCProcesar = partesVC.length > 0 ? partesVC : [
     { titulo: 'En esta campaña, ni un golpe al aire (15 mins.)', duracion_min: 15 },
   ]
@@ -433,4 +444,75 @@ export function simularCronogramaReunion(config = {}) {
   }
 
   return obtenerHorariosS140(semanaSimulada, config)
+}
+
+/**
+ * Mapea cada parte de una semana (de la tabla programa_partes) con su marca horaria 12h
+ * calculada dinámicamente según la configuración de la congregación o eventos de la semana.
+ *
+ * @param {Object} semana Datos de la semana
+ * @param {Array} partesSemana Lista de partes de la semana
+ * @param {Object|string} [config=null] Configuración global
+ * @returns {Object<string, string>} Diccionario { [parteId]: '7:35' }
+ */
+export function mapearHorariosPartesSemana(semana, partesSemana = [], config = null) {
+  if (!Array.isArray(partesSemana) || partesSemana.length === 0) return {}
+
+  const horarios = obtenerHorariosS140(
+    {
+      ...semana,
+      partes: partesSemana,
+    },
+    config || '19:00'
+  )
+  const mapa = {}
+
+  // 1. Apertura
+  const partesApertura = partesSemana.filter(p => p.seccion === 'APERTURA')
+  partesApertura.forEach(p => {
+    mapa[p.id] = horarios.apertura.cancion
+  })
+
+  // 2. Tesoros de la Biblia
+  partesSemana.filter(p => p.seccion === 'TB').forEach(p => {
+    if (p.tipo_asignacion === 'TB') {
+      mapa[p.id] = horarios.tb.discurso
+    } else if (p.tipo_asignacion === 'PE') {
+      mapa[p.id] = horarios.tb.perlas
+    } else if (p.tipo_asignacion === 'LB') {
+      mapa[p.id] = horarios.tb.lectura
+    }
+  })
+
+  // 3. Seamos Mejores Maestros
+  const smtPartes = partesSemana
+    .filter(p => p.seccion === 'SMT')
+    .sort((a, b) => (a.numero_parte || 0) - (b.numero_parte || 0))
+  smtPartes.forEach((p, idx) => {
+    mapa[p.id] = horarios.smtHoras[idx] || horarios.smtHoras[horarios.smtHoras.length - 1] || ''
+  })
+
+  // 4. Nuestra Vida Cristiana
+  const vcPartesNormales = partesSemana
+    .filter(p => p.seccion === 'VC' && p.tipo_asignacion !== 'EBC_CON' && p.tipo_asignacion !== 'LEBC')
+    .sort((a, b) => (a.numero_parte || 0) - (b.numero_parte || 0))
+  vcPartesNormales.forEach((p, idx) => {
+    mapa[p.id] = horarios.vc.partesHoras[idx] || horarios.vc.partesHoras[horarios.vc.partesHoras.length - 1] || ''
+  })
+
+  // EBC y Lector EBC (o Discurso de Visita)
+  partesSemana.filter(p => p.tipo_asignacion === 'EBC_CON' || p.tipo_asignacion === 'LEBC').forEach(p => {
+    mapa[p.id] = horarios.vc.ebcHora
+  })
+
+  // 5. Cierre
+  partesSemana.filter(p => p.seccion === 'CIERRE').forEach(p => {
+    if (p.tipo_asignacion === 'CONCLU') {
+      mapa[p.id] = horarios.cierre.conclu
+    } else if (p.tipo_asignacion === 'ORACION_C') {
+      mapa[p.id] = horarios.cierre.cancion
+    }
+  })
+
+  return mapa
 }

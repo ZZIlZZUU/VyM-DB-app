@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { exportarS140SemanaActual } from './lib/generarS140'
+import { getImpactoEventoSemana } from './lib/fechas'
 import { useConfirm } from './hooks/useConfirm'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useTheme } from './hooks/useTheme'
@@ -60,6 +61,8 @@ export default function App() {
 
   const { confirm, confirmProps } = useConfirm()
 
+  const [configuracionInitialTab, setConfiguracionInitialTab] = useState(null)
+
   const handleNavigate = useCallback((targetView, params) => {
     if (params?.semanaId) {
       setSelectedSemanaId(params.semanaId)
@@ -67,6 +70,9 @@ export default function App() {
     if (params?.personaClave) {
       setSelectedPersonaClave(params.personaClave)
       setSelectedPersonaTab(params.personaTab || 'historial')
+    }
+    if (params?.tab) {
+      setConfiguracionInitialTab(params.tab)
     }
     setView(targetView)
     if (targetView && targetView !== 'home') {
@@ -149,11 +155,20 @@ export default function App() {
 
   const fetchSemanasPendientes = useCallback(async () => {
     try {
-      const [{ data: sem }, { data: par }, { data: asi }, { data: his }] = await Promise.all([
-        supabase.from('programa_semanas').select('id'),
+      const [
+        { data: sem },
+        { data: par },
+        { data: asi },
+        { data: his },
+        { data: evs },
+        { data: cfg },
+      ] = await Promise.all([
+        supabase.from('programa_semanas').select('id, fecha_inicio, fecha_fin'),
         supabase.from('programa_partes').select('id, semana_id, tipo_asignacion, requiere_ayudante'),
         supabase.from('programa_asignaciones').select('parte_id, rol, confirmado, participacion_id, clave'),
         supabase.from('participaciones').select('id, clave'),
+        supabase.from('eventos_reunion').select('*'),
+        supabase.from('configuracion_global').select('clave, valor'),
       ])
 
       if (!sem || sem.length === 0) {
@@ -164,11 +179,21 @@ export default function App() {
       const partes = par || []
       const asignaciones = asi || []
       const historial = his || []
+      const eventos = evs || []
+      const configMap = {}
+      ;(cfg || []).forEach(r => {
+        if (r?.clave) configMap[r.clave] = r.valor
+      })
+      const diaEntre = configMap.dia_reunion_entre_semana || 'Martes'
+      const diaFin = configMap.dia_reunion_fin_semana || 'Sábado'
 
       const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
       let pendientes = 0
 
       for (const s of sem) {
+        const impacto = getImpactoEventoSemana(s, eventos, diaEntre, diaFin)
+        if (impacto.cancelaEntreSemana) continue
+
         const partesSemana = partes.filter(
           p => p.semana_id === s.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
         )
@@ -234,6 +259,12 @@ export default function App() {
         fetchSemanasPendientes()
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_asignaciones' }, () =>
+        fetchSemanasPendientes()
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos_reunion' }, () =>
+        fetchSemanasPendientes()
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion_global' }, () =>
         fetchSemanasPendientes()
       )
       .subscribe()
@@ -357,7 +388,7 @@ export default function App() {
             </div>
           )
         }
-        return <Configuracion onNavigate={handleNavigate} />
+        return <Configuracion onNavigate={handleNavigate} initialTab={configuracionInitialTab} />
       case 'exportar':
         return <Exportar />
       case 'estadisticas':

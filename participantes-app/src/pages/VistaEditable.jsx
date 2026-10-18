@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Search,
   Flame,
@@ -10,10 +10,13 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { formatFechaLegible, MESES } from '../lib/fechas'
+import { formatFechaLegible, getImpactoEventoSemana, MESES } from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
+import { useEventosReunion } from '../hooks/useEventosReunion'
+import { useConfiguracion } from '../hooks/useConfiguracion'
 import Toast from '../components/Toast'
 
 import { Button } from '../components/ui/Button'
@@ -228,7 +231,7 @@ function MatCellModal({ open, onClose, persona, mesIdx, registros, onNavigate })
 }
 
 // ─── Modal Ancianos/SM ────────────────────────────────────────
-function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDelete }) {
+function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDelete, eventos, config }) {
   const tipos = getTiposPermitidos(persona)
   const [nuevoTipo, setNuevoTipo] = useState('')
   const [nuevaFecha, setNuevaFecha] = useState('')
@@ -238,6 +241,16 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
   const recsDelMes = registros
     .filter(r => r.clave === persona?.clave && r.mes === MESES[mesIdx])
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  const impactoFecha = useMemo(() => {
+    if (!nuevaFecha || !eventos?.length) return null
+    return getImpactoEventoSemana(
+      { fecha_inicio: nuevaFecha, fecha_fin: nuevaFecha },
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+  }, [nuevaFecha, eventos, config])
 
   useEffect(() => {
     if (!open) return
@@ -249,6 +262,12 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
 
   async function handleAdd() {
     if (!nuevoTipo) return
+    if (impactoFecha?.cancelaEntreSemana) {
+      const ok = window.confirm(
+        `Atención: En la fecha seleccionada (${nuevaFecha}) se celebra "${impactoFecha.tituloEvento}" y no hay reunión ordinaria entre semana. ¿Deseas agregar esta participación de todos modos?`
+      )
+      if (!ok) return
+    }
     setSaving(true)
     await onAdd({ persona, mesIdx, tipo: nuevoTipo, fecha: nuevaFecha, obs: nuevaObs })
     setNuevoTipo('')
@@ -339,6 +358,12 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
                 onChange={e => setNuevaFecha(e.target.value)}
                 size="sm"
               />
+              {impactoFecha?.cancelaEntreSemana && (
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>En esta fecha se celebra: {impactoFecha.tituloEvento} (sin reunión ordinaria).</span>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-text2 mb-1">
@@ -381,6 +406,8 @@ function AncCellModal({ open, onClose, persona, mesIdx, registros, onAdd, onDele
 
 // ─── Componente Principal ─────────────────────────────────────
 export default function VistaEditable({ onNavigate }) {
+  const { config } = useConfiguracion()
+  const { eventos } = useEventosReunion()
   const { toast, success, error: toastError } = useToast()
   const [tab, setTab] = useState('mat')
   const [personas, setPersonas] = useState([])
@@ -814,6 +841,8 @@ export default function VistaEditable({ onNavigate }) {
         registros={registros}
         onAdd={handleAncAdd}
         onDelete={handleDelete}
+        eventos={eventos}
+        config={config}
       />
 
       <Toast toast={toast} />

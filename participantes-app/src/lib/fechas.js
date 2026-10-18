@@ -305,6 +305,133 @@ export function inferirAfectaReunion(
 }
 
 /**
+ * Determina el impacto completo de los eventos y excepciones de reunión sobre una semana del programa S-140.
+ *
+ * @param {Object} semana Objeto de programa_semanas ({ id, fecha_inicio, fecha_fin, ... })
+ * @param {Array} [eventos=[]] Lista de eventos_reunion
+ * @param {string} [diaReunionEntreSemana='Martes']
+ * @param {string} [diaReunionFinSemana='Sábado']
+ * @returns {Object}
+ */
+export function getImpactoEventoSemana(
+  semana,
+  eventos = [],
+  diaReunionEntreSemana = 'Martes',
+  diaReunionFinSemana = 'Sábado'
+) {
+  const vacio = {
+    evento: null,
+    cancelaEntreSemana: false,
+    esAsamblea: false,
+    esCancelada: false,
+    esVisita: false,
+    esVisitaSC: false,
+    esVisitaSucursal: false,
+    esDesplazada: false,
+    fechaEfectiva: null,
+    horaEfectiva: null,
+    tituloEvento: null,
+    descripcion: '',
+    motivo: '',
+    nombreVisitante: null,
+    oracionVisitante: true,
+  }
+
+  if (!semana || !Array.isArray(eventos) || eventos.length === 0) {
+    return vacio
+  }
+
+  const fInicio = String(semana.fecha_inicio || '').slice(0, 10)
+  const fFin = String(semana.fecha_fin || '').slice(0, 10)
+
+  // Encontrar el evento que coincide con esta semana
+  const ev = eventos.find(e => {
+    if (!e) return false
+    if (e.semana_id && e.semana_id === semana.id) return true
+
+    // Caso Asamblea Regional: dura 3 días seguidos
+    if (e.tipo_evento === 'asamblea_regional') {
+      const start = String(e.fecha_efectiva || e.fecha_original || '').slice(0, 10)
+      if (start && fInicio && fFin) {
+        const d1 = start
+        const d2 = addDaysIso(start, 1)
+        const d3 = addDaysIso(start, 2)
+        if (
+          (d1 >= fInicio && d1 <= fFin) ||
+          (d2 >= fInicio && d2 <= fFin) ||
+          (d3 >= fInicio && d3 <= fFin)
+        ) {
+          return true
+        }
+      }
+    }
+
+    const fOrig = String(e.fecha_original || '').slice(0, 10)
+    const fEfect = String(e.fecha_efectiva || '').slice(0, 10)
+
+    if (fOrig && fInicio && fFin && fOrig >= fInicio && fOrig <= fFin) return true
+    if (fEfect && fInicio && fFin && fEfect >= fInicio && fEfect <= fFin) return true
+
+    return false
+  })
+
+  if (!ev) return vacio
+
+  const tipo = ev.tipo_evento || ''
+  const afecta = ev.afecta_reunion || inferirAfectaReunion(tipo, ev.fecha_original || ev.fecha_efectiva, diaReunionEntreSemana, diaReunionFinSemana)
+  const afectaEntreSemana = afecta === 'entre_semana' || afecta === 'ambas'
+
+  // Reglas de negocio confirmadas por el usuario:
+  // 1. Asamblea Regional siempre cancela la reunión de entre semana de esa misma semana
+  // 2. Asamblea de Circuito solo cancela si afecta entre semana (ej. si se celebró en día de reunión)
+  // 3. Reunión cancelada cancela si afecta entre semana
+  const esAR = tipo === 'asamblea_regional'
+  const esAC = tipo === 'asamblea_circuito'
+  const esCanc = tipo === 'reunion_cancelada'
+  const esDesp = tipo === 'reunion_desplazada'
+  const esSC = tipo === 'visita_sc'
+  const esSuc = tipo === 'visita_sucursal'
+  const esVisita = esSC || esSuc
+
+  const cancelaEntreSemana = esAR || ((esAC || esCanc) && afectaEntreSemana)
+  const esAsamblea = esAR || (esAC && cancelaEntreSemana)
+
+  const tituloEvento = ev.titulo_evento || (
+    esAR ? 'Asamblea Regional' :
+    esAC ? 'Asamblea de Circuito' :
+    esCanc ? 'Reunión Cancelada' :
+    esDesp ? 'Reunión Desplazada' :
+    esSC ? 'Visita del Superintendente de Circuito' :
+    esSuc ? 'Visita de Representante de Sucursal' :
+    'Evento Especial'
+  )
+
+  const nombreVisitante = esVisita
+    ? (ev.nombre_visitante || (esSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
+    : null
+
+  const oracionVisitante = ev.oracion_visitante !== false
+
+  return {
+    evento: ev,
+    cancelaEntreSemana,
+    esAsamblea,
+    esCancelada: esCanc && cancelaEntreSemana,
+    esVisita,
+    esVisitaSC: esSC,
+    esVisitaSucursal: esSuc,
+    esDesplazada: esDesp,
+    fechaEfectiva: ev.fecha_efectiva || null,
+    horaEfectiva: ev.hora_efectiva || null,
+    tituloEvento,
+    descripcion: ev.descripcion ? ev.descripcion.replace(/\[VISITANTE:[^\]]+\]/, '').trim() : '',
+    motivo: tituloEvento,
+    nombreVisitante,
+    oracionVisitante,
+  }
+}
+
+/**
  * Calcula la reunión más próxima (rotando dinámicamente entre reunión de entre semana
  * y reunión de fin de semana) según los días y horas configurados, considerando
  * también excepciones y eventos especiales (asambleas, reuniones desplazadas o canceladas).

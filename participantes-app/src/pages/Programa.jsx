@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -43,8 +43,14 @@ import {
   obtenerUltimoRolSMTDama,
   evaluarImpactoMismaSemana,
 } from '../lib/asignacionesSugeridas'
+import { mapearHorariosPartesSemana } from '../lib/horarios'
 import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
-import { formatFechaLegible, formatRangoSemanaLegible, formatRangoSemanaPrograma } from '../lib/fechas'
+import {
+  formatFechaLegible,
+  formatRangoSemanaLegible,
+  formatRangoSemanaPrograma,
+  getImpactoEventoSemana,
+} from '../lib/fechas'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useEventosReunion } from '../hooks/useEventosReunion'
@@ -913,6 +919,7 @@ function FilaParte({
   clavePresidente,
   modoLectura,
   evento,
+  horaCalculada,
 }) {
   const [flashing, setFlashing] = useState(false)
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
@@ -987,7 +994,7 @@ function FilaParte({
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {parte.hora_inicio || ''}
+          {horaCalculada || parte.hora_inicio || ''}
         </div>
         <div>
           <div className="text-xs font-medium text-text1 leading-snug">{parte.titulo}</div>
@@ -1037,7 +1044,7 @@ function FilaParte({
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {parte.hora_inicio || ''}
+          {horaCalculada || parte.hora_inicio || ''}
         </div>
         <div className="min-w-0">
           <div className="text-xs font-semibold text-text1 leading-snug truncate">
@@ -1075,7 +1082,7 @@ function FilaParte({
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {parte.hora_inicio || ''}
+          {horaCalculada || parte.hora_inicio || ''}
         </div>
         <div className="min-w-0">
           <div className="text-xs font-medium text-text3 leading-snug line-through truncate">
@@ -1114,7 +1121,7 @@ function FilaParte({
     >
       {/* Hora */}
       <div className="text-xs font-mono text-text3 whitespace-nowrap">
-        {parte.hora_inicio || ''}
+        {horaCalculada || parte.hora_inicio || ''}
       </div>
 
       {/* Título y Tipo */}
@@ -1300,21 +1307,39 @@ function TarjetaSemana({
   onConfirmar,
   onConfirmarTodo,
   onEliminarSemana,
+  onLimpiarAsignaciones,
   expandida,
   onToggleExpand,
   modoLectura,
   onRevisarSemana,
   onSugerirSemana,
   evento,
+  impacto: propImpacto,
+  config,
 }) {
   const mes = semana.mes
 
-  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
-  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
-  const esVisita = esVisitaSC || esVisitaSucursal
-  const nombreVisitante = esVisita
-    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
-    : null
+  const impacto = propImpacto || getImpactoEventoSemana(semana, [evento].filter(Boolean))
+
+  const mapaHoras = useMemo(() => {
+    return mapearHorariosPartesSemana(
+      {
+        ...semana,
+        hora_efectiva: impacto?.horaEfectiva,
+      },
+      partes,
+      config
+    )
+  }, [semana, partes, config, impacto?.horaEfectiva])
+  const cancelaEntreSemana = impacto?.cancelaEntreSemana || false
+  const esVisitaSC = impacto?.esVisitaSC ?? (evento?.tipo_evento === 'visita_sc')
+  const esVisitaSucursal = impacto?.esVisitaSucursal ?? (evento?.tipo_evento === 'visita_sucursal')
+  const esVisita = impacto?.esVisita ?? (esVisitaSC || esVisitaSucursal)
+  const nombreVisitante =
+    impacto?.nombreVisitante ||
+    (esVisita
+      ? (evento?.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
+      : null)
 
   const semanaAsignados = asignaciones
     .filter(a => a.clave && partes.some(p => p.id === a.parte_id))
@@ -1328,6 +1353,10 @@ function TarjetaSemana({
         tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
       }
     })
+
+  const tieneAsignacionesPrevias = asignaciones.some(
+    a => partes.some(p => p.id === a.parte_id) && !!a.clave
+  )
 
   const partePresidente = partes.find(p => p.tipo_asignacion === 'P')
   const asigPresidente = partePresidente
@@ -1362,7 +1391,7 @@ function TarjetaSemana({
       return true
     }
     const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false && !asigP?.clave) {
+    if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false && !asigP?.clave) {
       return true
     }
 
@@ -1391,7 +1420,7 @@ function TarjetaSemana({
     totalPartes > 0 &&
     partesContables.every(p => {
       if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
-      if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false) return true
+      if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false) return true
       const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
       return !!asigP?.clave
     })
@@ -1400,17 +1429,23 @@ function TarjetaSemana({
     totalPartes > 0 &&
     partesContables.every(p => {
       if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
-      if (esVisita && p.tipo_asignacion === 'ORACION_C' && evento.oracion_visitante !== false) return true
+      if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false) return true
       const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
       return asigP?.clave && asigP.sugerido_por_app === true
     })
 
   // Visible si hay asignaciones para revisar y la semana aún no está 100% confirmada
   const mostrarBotonRevisar =
-    totalPartes > 0 && confirmadas < totalPartes && (hayAsignaciones || todasSugeridas)
+    !cancelaEntreSemana &&
+    totalPartes > 0 &&
+    confirmadas < totalPartes &&
+    (hayAsignaciones || todasSugeridas)
   // Visible si faltan partes por asignar y aún no está 100% confirmada
   const mostrarBotonSugerir =
-    !todasAsignadas && confirmadas < totalPartes && totalPartes > 0
+    !cancelaEntreSemana &&
+    !todasAsignadas &&
+    confirmadas < totalPartes &&
+    totalPartes > 0
 
   const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
@@ -1436,47 +1471,62 @@ function TarjetaSemana({
               <BookOpen className="w-3.5 h-3.5 opacity-60" />
               <span>{semana.capitulo_biblico}</span>
             </div>
-            {esVisita && (
+            {cancelaEntreSemana ? (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                  <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  {impacto.tituloEvento}
+                </span>
+              </div>
+            ) : esVisita ? (
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                   <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   {esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}: {nombreVisitante}
                 </span>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Canciones y Progreso */}
           <div className="flex items-center gap-4">
             {/* Canciones */}
-            <div className="hidden md:flex items-center gap-1">
-              {[semana.cancion_apertura, semana.cancion_vc, semana.cancion_cierre]
-                .filter(Boolean)
-                .map((c, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60"
-                  >
-                    <Music className="w-3 h-3 text-text3" />
-                    {c}
-                  </span>
-                ))}
-            </div>
+            {!cancelaEntreSemana && (
+              <div className="hidden md:flex items-center gap-1">
+                {[semana.cancion_apertura, semana.cancion_vc, semana.cancion_cierre]
+                  .filter(Boolean)
+                  .map((c, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60"
+                    >
+                      <Music className="w-3 h-3 text-text3" />
+                      {c}
+                    </span>
+                  ))}
+              </div>
+            )}
 
             {/* Progreso */}
             <div className="flex items-center gap-2.5">
-              <Badge
-                variant={
-                  pct === 100
-                    ? 'success'
-                    : pct >= 50
-                    ? 'warning'
-                    : 'neutral'
-                }
-                size="sm"
-              >
-                {confirmadas}/{totalPartes} confirmadas
-              </Badge>
+              {cancelaEntreSemana ? (
+                <Badge variant="purple" size="sm">
+                  Sin reunión ordinaria
+                </Badge>
+              ) : (
+                <Badge
+                  variant={
+                    pct === 100
+                      ? 'success'
+                      : pct >= 50
+                      ? 'warning'
+                      : 'neutral'
+                  }
+                  size="sm"
+                >
+                  {confirmadas}/{totalPartes} confirmadas
+                </Badge>
+              )}
               {expandida ? (
                 <ChevronUp className="w-4 h-4 text-text3" />
               ) : (
@@ -1533,92 +1583,164 @@ function TarjetaSemana({
       {/* Contenido Expandido */}
       {expandida && (
         <div className="px-5 py-4 space-y-5 animate-view-fade">
-          {esVisita && (
-            <div className="flex items-start sm:items-center gap-2.5 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-200">
-              <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
-              <div>
-                <span className="font-semibold">
-                  {esVisitaSC
-                    ? 'Semana de Visita del Superintendente de Circuito'
-                    : 'Semana de Visita de Representante de la Sucursal'}
-                  :{' '}
-                </span>
-                <span className="font-medium">{nombreVisitante}</span>
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
-                  El Estudio Bíblico y su lector se sustituyen por el Discurso de servicio de 30 minutos a cargo de la visita.{' '}
-                  {evento.oracion_visitante !== false
-                    ? 'La oración de conclusión también la ofrece el visitante.'
-                    : ''}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {secciones.map(sec => {
-            const partesSeccion = partes.filter(p => p.seccion === sec)
-            if (!partesSeccion.length) return null
-
-            return (
-              <div key={sec} className="space-y-2">
-                <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
-                  {SECCION_LABEL[sec]}
+          {cancelaEntreSemana ? (
+            <div className="space-y-4">
+              {tieneAsignacionesPrevias && !modoLectura && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-amber-900 dark:text-amber-200">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold">Esta semana cuenta con asignaciones guardadas previamente</p>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                        Debido a {impacto.tituloEvento}, no se celebrará la reunión ordinaria de entre semana. Las asignaciones previas han quedado inactivas.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="xs"
+                    icon={Trash2}
+                    onClick={() => onLimpiarAsignaciones?.(semana.id)}
+                    className="shrink-0 self-end sm:self-center"
+                  >
+                    Limpiar asignaciones de esta semana
+                  </Button>
                 </div>
-                {partesSeccion.map(parte => (
-                  <FilaParte
-                    key={parte.id}
-                    parte={parte}
-                    asignaciones={asignaciones}
-                    personas={personas}
-                    historial={historial}
-                    mes={mes}
-                    fechaSemana={semana.fecha_inicio}
-                    semanaAsignados={semanaAsignados}
-                    onAsignar={onAsignar}
-                    onConfirmar={onConfirmar}
-                    clavePresidente={clavePresidente}
-                    modoLectura={modoLectura}
-                    evento={evento}
-                  />
-                ))}
-              </div>
-            )
-          })}
+              )}
 
-          {!modoLectura && (
-            <div className="flex items-center justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800/80 gap-3">
-              {confirmadas < totalPartes && totalPartes > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={Sparkles}
-                  onClick={() => onSugerirSemana?.(semana.id)}
-                >
-                  {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
-                </Button>
-              )}
-              {mostrarBotonRevisar && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={CheckCircle2}
-                  onClick={() => onRevisarSemana?.(semana)}
-                >
-                  Revisar y aprobar semana
-                </Button>
-              )}
-              <Button
-                variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
-                size="sm"
-                icon={hayReconfirmaciones ? RotateCcw : CheckCheck}
-                onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
-              >
-                {hayReconfirmaciones
-                  ? 'Actualizar confirmaciones pendientes'
-                  : pct === 100 && totalPartes > 0
-                  ? 'Toda la semana confirmada'
-                  : 'Confirmar toda la semana'}
-              </Button>
+              <div className="flex flex-col sm:flex-row items-start gap-4 p-5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-800/40 text-purple-950 dark:text-purple-100">
+                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 shrink-0">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-200/60 dark:bg-purple-800/60 text-purple-900 dark:text-purple-200">
+                      {impacto.esAsamblea
+                        ? (impacto.evento?.tipo_evento === 'asamblea_regional' ? 'Asamblea Regional' : 'Asamblea de Circuito')
+                        : 'Reunión Cancelada'}
+                    </span>
+                    {impacto.fechaEfectiva && (
+                      <span className="text-xs text-text3 font-mono">
+                        {impacto.fechaEfectiva}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-base font-bold text-text1">
+                    {impacto.tituloEvento}
+                  </h4>
+                  {(impacto.motivo || impacto.descripcion) && (
+                    <p className="text-xs text-text2 leading-relaxed">
+                      {impacto.motivo || impacto.descripcion}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-text3 pt-1">
+                    Durante esta semana no se programa la reunión de entre semana en la congregación. No es necesario asignar participantes para esta semana.
+                  </p>
+                </div>
+              </div>
             </div>
+          ) : (
+            <>
+              {impacto?.esDesplazada && (
+                <div className="flex items-center gap-2.5 p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 text-xs text-blue-900 dark:text-blue-200">
+                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div>
+                    <span className="font-semibold">Reunión desplazada: </span>
+                    <span>Esta reunión se llevará a cabo el {formatFechaLegible(impacto.fechaEfectiva)} {impacto.horaEfectiva ? `a las ${impacto.horaEfectiva} hrs` : ''}.</span>
+                    {impacto.motivo && <span className="block text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">Motivo: {impacto.motivo}</span>}
+                  </div>
+                </div>
+              )}
+
+              {esVisita && (
+                <div className="flex items-start sm:items-center gap-2.5 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-200">
+                  <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+                  <div>
+                    <span className="font-semibold">
+                      {esVisitaSC
+                        ? 'Semana de Visita del Superintendente de Circuito'
+                        : 'Semana de Visita de Representante de la Sucursal'}
+                      :{' '}
+                    </span>
+                    <span className="font-medium">{nombreVisitante}</span>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                      El Estudio Bíblico y su lector se sustituyen por el Discurso de servicio de 30 minutos a cargo de la visita.{' '}
+                      {evento?.oracion_visitante !== false
+                        ? 'La oración de conclusión también la ofrece el visitante.'
+                        : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {secciones.map(sec => {
+                const partesSeccion = partes.filter(p => p.seccion === sec)
+                if (!partesSeccion.length) return null
+
+                return (
+                  <div key={sec} className="space-y-2">
+                    <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
+                      {SECCION_LABEL[sec]}
+                    </div>
+                    {partesSeccion.map(parte => (
+                      <FilaParte
+                        key={parte.id}
+                        parte={parte}
+                        asignaciones={asignaciones}
+                        personas={personas}
+                        historial={historial}
+                        mes={mes}
+                        fechaSemana={semana.fecha_inicio}
+                        semanaAsignados={semanaAsignados}
+                        onAsignar={onAsignar}
+                        onConfirmar={onConfirmar}
+                        clavePresidente={clavePresidente}
+                        modoLectura={modoLectura}
+                        evento={evento}
+                        horaCalculada={mapaHoras[parte.id]}
+                      />
+                    ))}
+                  </div>
+                )
+              })}
+
+              {!modoLectura && (
+                <div className="flex items-center justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800/80 gap-3">
+                  {confirmadas < totalPartes && totalPartes > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Sparkles}
+                      onClick={() => onSugerirSemana?.(semana.id)}
+                    >
+                      {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                    </Button>
+                  )}
+                  {mostrarBotonRevisar && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={CheckCircle2}
+                      onClick={() => onRevisarSemana?.(semana)}
+                    >
+                      Revisar y aprobar semana
+                    </Button>
+                  )}
+                  <Button
+                    variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
+                    size="sm"
+                    icon={hayReconfirmaciones ? RotateCcw : CheckCheck}
+                    onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
+                  >
+                    {hayReconfirmaciones
+                      ? 'Actualizar confirmaciones pendientes'
+                      : pct === 100 && totalPartes > 0
+                      ? 'Toda la semana confirmada'
+                      : 'Confirmar toda la semana'}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -1973,7 +2095,22 @@ function RevisarSemanaModal({
 }
 
 // ── Helper para evaluar si una semana está 100% completada ──────
-function calcularEstadoSemana(semanaId, todasPartes, todasAsignaciones, todoHistorial) {
+function calcularEstadoSemana(semanaOrId, todasPartes, todasAsignaciones, todoHistorial, eventos, config) {
+  const semanaId = typeof semanaOrId === 'object' ? semanaOrId?.id : semanaOrId
+  const semanaObj = typeof semanaOrId === 'object' ? semanaOrId : null
+
+  if (semanaObj && eventos?.length) {
+    const impacto = getImpactoEventoSemana(
+      semanaObj,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) {
+      return { totalPartes: 0, confirmadas: 0, esCompleta: true }
+    }
+  }
+
   const partesSemana = todasPartes.filter(p => p.semana_id === semanaId)
   const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
   const partesContables = partesSemana.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
@@ -2234,10 +2371,12 @@ export default function Programa() {
 
         semList.forEach(s => {
           const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
-            s.id,
+            s,
             parList,
             asiList,
-            hisList
+            hisList,
+            eventos,
+            config
           )
           totalConfirmadasEnPrograma += confirmadas
           totalPartesEnPrograma += totalPartes
@@ -2583,6 +2722,17 @@ export default function Programa() {
     const semana = semanas.find(s => s.id === parte.semana_id)
     if (!semana) return
 
+    const impacto = getImpactoEventoSemana(
+      semana,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) {
+      showToast('No se pueden confirmar asignaciones en una semana sin reunión ordinaria.')
+      return
+    }
+
     const persona = personas.find(p => p.clave === principal.clave)
     if (!persona) return
 
@@ -2766,10 +2916,61 @@ export default function Programa() {
     await fetchData()
   }
 
+  // ── Limpiar asignaciones de una semana ───────────────────
+  async function handleLimpiarAsignacionesSemana(semanaId) {
+    const semana = semanas.find(s => s.id === semanaId)
+    const impacto = semana
+      ? getImpactoEventoSemana(semana, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
+      : null
+
+    const ok = await confirm({
+      title: '¿Limpiar asignaciones de esta semana?',
+      message: impacto?.tituloEvento
+        ? `Debido a "${impacto.tituloEvento}", no se celebrará la reunión entre semana. Se eliminarán todas las asignaciones de esta semana y sus registros vinculados en el historial.`
+        : 'Se eliminarán todas las asignaciones registradas para esta semana y sus registros vinculados en el historial.',
+      danger: true,
+      confirmText: 'Limpiar asignaciones',
+    })
+    if (!ok) return
+
+    try {
+      const partesSemana = partes.filter(p => p.semana_id === semanaId)
+      const parteIds = partesSemana.map(p => p.id)
+      const asigSemana = asignaciones.filter(a => parteIds.includes(a.parte_id))
+
+      const participacionIds = asigSemana.map(a => a.participacion_id).filter(Boolean)
+      if (participacionIds.length > 0) {
+        await supabase.from('participaciones').delete().in('id', participacionIds)
+      }
+
+      const asigIds = asigSemana.map(a => a.id)
+      if (asigIds.length > 0) {
+        await supabase.from('programa_asignaciones').delete().in('id', asigIds)
+      }
+
+      showToast('Asignaciones de la semana descartadas correctamente.')
+      await fetchData()
+    } catch (err) {
+      console.error('Error al limpiar asignaciones de la semana:', err)
+      toastError('Error al limpiar asignaciones: ' + (err.message || 'Error de conexión'))
+    }
+  }
+
   // ── Confirmar toda la semana ─────────────────────────────
   async function handleConfirmarTodo(semanaId, partesSemana, asignacionesSemana) {
     const semana = semanas.find(s => s.id === semanaId)
     if (!semana) return
+
+    const impacto = getImpactoEventoSemana(
+      semana,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) {
+      showToast('No se pueden confirmar asignaciones en una semana sin reunión ordinaria.')
+      return
+    }
 
     let confirmadas = 0
 
@@ -2898,6 +3099,18 @@ export default function Programa() {
   // ── Confirmar Lote de Asignaciones (Brief #29) ─────────────
   async function handleBatchConfirmar(semana, partesSeleccionadasIds) {
     if (!semana || !partesSeleccionadasIds.length) return
+
+    const impacto = getImpactoEventoSemana(
+      semana,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) {
+      showToast('No se pueden confirmar asignaciones en una semana sin reunión ordinaria.')
+      return
+    }
+
     setIsBatchSaving(true)
 
     try {
@@ -3007,15 +3220,25 @@ export default function Programa() {
     const semana = semanas.find(s => s.id === semanaId)
     if (!semana) return
 
-    const evSemana = getEventoParaSemana(semana, eventos)
-    const esVisita = evSemana && (evSemana.tipo_evento === 'visita_sc' || evSemana.tipo_evento === 'visita_sucursal')
+    const impacto = getImpactoEventoSemana(
+      semana,
+      eventos,
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+    if (impacto.cancelaEntreSemana) {
+      showToast('No se pueden generar sugerencias para una semana sin reunión ordinaria.')
+      return
+    }
+
+    const esVisita = impacto.esVisita
 
     const TIPOS_SOLO_VISUAL = [
       'SMT_VACIO',
       'ORACION',
       'CONCLU',
       ...(esVisita ? ['EBC_CON', 'LEBC'] : []),
-      ...(esVisita && evSemana.oracion_visitante !== false ? ['ORACION_C'] : []),
+      ...(esVisita && impacto.oracionVisitante !== false ? ['ORACION_C'] : []),
     ]
     const partesSemana = partes
       .filter(p => p.semana_id === semanaId && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
@@ -3319,7 +3542,7 @@ export default function Programa() {
           ? 'Generando documento S-140 (Plantilla clásica)...'
           : 'Generando documento S-140...'
       )
-      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos)
+      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
       await generarYDescargarS140({
         congregacion,
         semanas: semanasData,
@@ -3337,7 +3560,7 @@ export default function Programa() {
   function handleAbrirVistaS140() {
     setMenuS140TopOpen(false)
     setMenuS140FabOpen(false)
-    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos)
+    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
     navigate('/s140-preview', {
       state: {
         semanas: semanasData,
@@ -3801,12 +4024,15 @@ export default function Programa() {
                     onConfirmar={handleConfirmar}
                     onConfirmarTodo={handleConfirmarTodo}
                     onEliminarSemana={handleEliminarSemana}
+                    onLimpiarAsignaciones={handleLimpiarAsignacionesSemana}
                     expandida={!!expandedWeeks[s.id]}
                     onToggleExpand={() => handleToggleExpand(s.id)}
                     modoLectura={modoLectura}
                     onRevisarSemana={setSemanaParaRevisar}
                     onSugerirSemana={handleCompletarConSugerencias}
                     evento={getEventoParaSemana(s, eventos)}
+                    impacto={getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)}
+                    config={config}
                   />
                 )
               })
@@ -3850,12 +4076,14 @@ export default function Programa() {
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
                 {semanas.map(s => {
+                  const impacto = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
                   const partesSemana = partes.filter(p => p.semana_id === s.id)
                   const asigConf = asignaciones.filter(
                     a => partesSemana.some(p => p.id === a.parte_id) && a.confirmado
                   )
                   const completada =
-                    asigConf.length === partesSemana.length && partesSemana.length > 0
+                    impacto.cancelaEntreSemana ||
+                    (asigConf.length === partesSemana.length && partesSemana.length > 0)
 
                   return (
                     <tr
@@ -3867,13 +4095,22 @@ export default function Programa() {
                           {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
                         </div>
                         {(() => {
-                          const ev = getEventoParaSemana(s, eventos)
-                          if (ev && (ev.tipo_evento === 'visita_sc' || ev.tipo_evento === 'visita_sucursal')) {
+                          if (impacto.cancelaEntreSemana) {
+                            return (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  {impacto.tituloEvento}
+                                </span>
+                              </div>
+                            )
+                          }
+                          if (impacto.esVisita) {
                             return (
                               <div className="flex items-center gap-1 mt-0.5">
                                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
                                   <Briefcase className="w-2.5 h-2.5" />
-                                  {ev.tipo_evento === 'visita_sc' ? 'Visita SC' : 'Visita Sucursal'}
+                                  {impacto.esVisitaSC ? 'Visita SC' : 'Visita Sucursal'}
                                 </span>
                               </div>
                             )
@@ -3895,9 +4132,15 @@ export default function Programa() {
                         {partesSemana.length}
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <Badge variant={completada ? 'success' : 'neutral'} size="xs">
-                          {asigConf.length}/{partesSemana.length}
-                        </Badge>
+                        {impacto.cancelaEntreSemana ? (
+                          <Badge variant="purple" size="xs">
+                            Sin reunión
+                          </Badge>
+                        ) : (
+                          <Badge variant={completada ? 'success' : 'neutral'} size="xs">
+                            {asigConf.length}/{partesSemana.length}
+                          </Badge>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <Button

@@ -120,12 +120,18 @@ function FilaHorarioS140({
   )
 }
 
-export default function Configuracion({ onNavigate }) {
+export default function Configuracion({ onNavigate, initialTab }) {
   const { config, loading, saving, guardarConfiguracion } = useConfiguracion()
   const { eventos = [] } = useEventosReunion()
   const { toast, success, error: toastError } = useToast()
 
-  const [activeTab, setActiveTab] = useState('general') // 'general' | 'horarios' | 'eventos'
+  const [activeTab, setActiveTab] = useState(initialTab || 'general') // 'general' | 'horarios' | 'eventos'
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [initialTab])
 
   const [form, setForm] = useState({
     nombreCongregacion: '',
@@ -271,6 +277,13 @@ export default function Configuracion({ onNavigate }) {
     const ampm = h >= 12 ? 'PM' : 'AM'
     return `${raw} (${formatHora12(raw)} ${ampm})`
   }, [form.horaReunionEntreSemana])
+
+  const horaFinSemanaLabel = useMemo(() => {
+    const raw = form.horaReunionFinSemana || '18:00'
+    const h = parseInt(raw.split(':')[0] || '18', 10)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    return `${raw} (${formatHora12(raw)} ${ampm})`
+  }, [form.horaReunionFinSemana])
 
   // Handlers para personalización fina por fila del lienzo S-140
   function handleToggleModoFila(filaId) {
@@ -580,9 +593,9 @@ export default function Configuracion({ onNavigate }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block text-xs font-medium text-text1 mb-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-text1">
                       Entre semana (Vida y Ministerio)
                     </label>
                     <Select
@@ -595,10 +608,35 @@ export default function Configuracion({ onNavigate }) {
                         </option>
                       ))}
                     </Select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw = form.horaReunionEntreSemana || '19:30'
+                        const h = parseInt(raw.split(':')[0] || '19', 10)
+                        const ampm = h >= 12 ? 'PM' : 'AM'
+                        setTimePickerTarget({
+                          id: '__base_hora__',
+                          titulo: 'Hora de inicio (Entre semana)',
+                          hora12: formatHora12(raw),
+                          hora24: raw,
+                          horaCompleta: `${formatHora12(raw)} ${ampm}`,
+                        })
+                      }}
+                      className="w-full h-8 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:border-blue-400 dark:hover:border-blue-500/50 text-text1 transition-all duration-150 flex items-center justify-between text-xs cursor-pointer shadow-2xs group"
+                      title="Haz clic para modificar la hora de entre semana con el reloj interactivo"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+                        <span className="font-mono font-medium text-text1 text-xs">
+                          {horaBaseLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-text3 font-sans">Cambiar hora</span>
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-text1 mb-1">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-text1">
                       Fin de semana (Pública y Atalaya)
                     </label>
                     <Select
@@ -611,6 +649,31 @@ export default function Configuracion({ onNavigate }) {
                         </option>
                       ))}
                     </Select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw = form.horaReunionFinSemana || '18:00'
+                        const h = parseInt(raw.split(':')[0] || '18', 10)
+                        const ampm = h >= 12 ? 'PM' : 'AM'
+                        setTimePickerTarget({
+                          id: '__base_hora_fin_semana__',
+                          titulo: 'Hora de inicio (Fin de semana)',
+                          hora12: formatHora12(raw),
+                          hora24: raw,
+                          horaCompleta: `${formatHora12(raw)} ${ampm}`,
+                        })
+                      }}
+                      className="w-full h-8 px-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:border-purple-400 dark:hover:border-purple-500/50 text-text1 transition-all duration-150 flex items-center justify-between text-xs cursor-pointer shadow-2xs group"
+                      title="Haz clic para modificar la hora de fin de semana con el reloj interactivo"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform shrink-0" />
+                        <span className="font-mono font-medium text-text1 text-xs">
+                          {horaFinSemanaLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-text3 font-sans">Cambiar hora</span>
+                    </button>
                   </div>
                 </div>
 
@@ -682,6 +745,34 @@ export default function Configuracion({ onNavigate }) {
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
                   <span className="font-mono font-semibold text-text1 text-xs sm:text-sm">
                     {horaBaseLabel}
+                  </span>
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-text3 uppercase tracking-wider mb-1">
+                  Hora de inicio (Fin de semana)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const raw = form.horaReunionFinSemana || '18:00'
+                    const h = parseInt(raw.split(':')[0] || '18', 10)
+                    const ampm = h >= 12 ? 'PM' : 'AM'
+                    setTimePickerTarget({
+                      id: '__base_hora_fin_semana__',
+                      titulo: 'Hora de inicio (Fin de semana)',
+                      hora12: formatHora12(raw),
+                      hora24: raw,
+                      horaCompleta: `${formatHora12(raw)} ${ampm}`,
+                    })
+                  }}
+                  className="h-9 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 hover:border-purple-400 dark:hover:border-purple-500/50 text-text1 transition-all duration-150 flex items-center gap-2 cursor-pointer shadow-2xs group"
+                  title="Haz clic para modificar la hora de fin de semana con el reloj estilo Android"
+                >
+                  <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span className="font-mono font-semibold text-text1 text-xs sm:text-sm">
+                    {horaFinSemanaLabel}
                   </span>
                 </button>
               </div>
@@ -954,7 +1045,11 @@ export default function Configuracion({ onNavigate }) {
         isOpen={!!timePickerTarget}
         onClose={() => setTimePickerTarget(null)}
         initialTime={timePickerTarget?.horaCompleta || timePickerTarget?.hora12 || '19:00'}
-        baseHourStr={form.horaReunionEntreSemana || '19:00'}
+        baseHourStr={
+          timePickerTarget?.id === '__base_hora_fin_semana__'
+            ? form.horaReunionFinSemana || '18:00'
+            : form.horaReunionEntreSemana || '19:00'
+        }
         title="Seleccionar hora"
         subtitle={timePickerTarget?.titulo}
         onConfirm={timeResult => {
@@ -970,6 +1065,8 @@ export default function Configuracion({ onNavigate }) {
                 horarioPersonalizadoFilas: Object.keys(prevCustom).length > 0 ? prevCustom : null,
               }
             })
+          } else if (timePickerTarget.id === '__base_hora_fin_semana__') {
+            handleChange('horaReunionFinSemana', timeResult.hora24)
           } else {
             handleHoraFilaChange(timePickerTarget.id, timeResult.hora12)
           }

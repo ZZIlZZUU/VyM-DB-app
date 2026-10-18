@@ -49,7 +49,7 @@ export default function S140Preview() {
         setCongregacion(nombreCfg)
 
         if (semData.length > 0) {
-          const semanasNorm = buildDatosDesdeSupabase(semData, parData, asigData, perData, evtData)
+          const semanasNorm = buildDatosDesdeSupabase(semData, parData, asigData, perData, evtData, config)
           setSemanas(semanasNorm)
         }
       } catch (err) {

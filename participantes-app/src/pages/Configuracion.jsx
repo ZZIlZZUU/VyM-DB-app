@@ -23,6 +23,9 @@ import {
   ExternalLink,
   Briefcase,
 } from 'lucide-react'
+import tesorosIcon from '../assets/icons/tesoros.svg'
+import smtIcon from '../assets/icons/smt.svg'
+import nvcIcon from '../assets/icons/nvc.svg'
 import { useConfiguracion, CONFIG_DEFAULTS } from '../hooks/useConfiguracion'
 import { useEventosReunion } from '../hooks/useEventosReunion'
 import { useToast } from '../hooks/useToast'
@@ -59,55 +62,56 @@ function FilaHorarioS140({
   dotColor = null,
 }) {
   const esEstatico = fila.modo === 'estatico'
+  const esAperturaCancion = fila.id === 'apertura_cancion'
 
   return (
-    <div className="flex items-center gap-2 sm:gap-2.5 py-1 px-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
-      {/* 1. Selector Badge [ESTÁTICO] / [DINÁMICO] */}
-      {fila.id === 'apertura_cancion' ? (
+    <div className="flex items-center gap-2.5 py-1 px-1.5 rounded-lg hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors group">
+      {/* 1. Selector Badge ESTÁTICO / DINÁMICO */}
+      {esAperturaCancion ? (
         <span
-          className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold rounded select-none shadow-2xs shrink-0 bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800"
-          title="La canción de apertura es la hora base de inicio de la reunión"
+          className="px-1.5 py-0.5 text-[9px] font-mono font-medium rounded select-none shrink-0 bg-zinc-100 text-zinc-600 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700 tracking-wider uppercase"
+          title="La canción de apertura marca el inicio oficial de la reunión"
         >
-          (ESTÁTICO)
+          FIJO
         </span>
       ) : (
         <button
           type="button"
           onClick={() => onToggleModo(fila.id)}
-          className={`px-1.5 py-0.5 text-[9.5px] font-mono font-bold rounded cursor-pointer select-none transition-all shadow-2xs shrink-0 ${
+          className={`px-1.5 py-0.5 text-[9px] font-mono font-medium rounded cursor-pointer select-none transition-all shrink-0 tracking-wider uppercase ${
             esEstatico
-              ? 'bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900'
-              : 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900'
+              ? 'bg-blue-50 text-blue-700 border border-blue-200/90 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+              : 'bg-emerald-50 text-emerald-700 border border-emerald-200/90 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
           }`}
-          title={`Modo: ${esEstatico ? 'ESTÁTICO (fijo al reloj)' : 'DINÁMICO (calculado en cascada)'}. Haz clic para alternar.`}
+          title={`Modo: ${esEstatico ? 'ESTÁTICO (hora fija en reloj)' : 'DINÁMICO (cálculo en cascada)'}. Haz clic para alternar.`}
         >
-          ({esEstatico ? 'ESTÁTICO' : 'DINÁMICO'})
+          {esEstatico ? 'ESTÁTICO' : 'DINÁMICO'}
         </button>
       )}
 
-      {/* 2. Hora modificable — abre el Pop-up de reloj tipo Android Material 3 */}
+      {/* 2. Hora modificable — abre el Pop-up de reloj interactivo */}
       <div className="relative shrink-0">
         <button
           type="button"
           onClick={() => onOpenTimePicker?.(fila)}
-          className={`w-14 sm:w-16 font-mono font-bold text-xs text-center rounded px-1 py-0.5 border transition-all cursor-pointer flex items-center justify-center gap-1 group/btn ${
+          className={`w-14 sm:w-16 font-mono text-xs text-center rounded-md px-1 py-0.5 border transition-all cursor-pointer flex items-center justify-center gap-1 group/btn ${
             esEstatico
-              ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-600 hover:border-blue-500 hover:ring-2 hover:ring-blue-500/20 shadow-2xs'
-              : 'bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 hover:bg-zinc-200/50'
+              ? 'font-semibold bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700 hover:border-blue-500 dark:hover:border-blue-400 hover:ring-2 hover:ring-blue-500/15 shadow-2xs'
+              : 'font-normal bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400 border-dashed border-zinc-300 dark:border-zinc-700/80 hover:border-zinc-400 dark:hover:border-zinc-600 hover:text-zinc-900 dark:hover:text-zinc-200'
           }`}
           title={
             esEstatico
-              ? 'Hora estática. Haz clic para cambiar la hora con el reloj estilo Android.'
-              : 'Hora dinámica calculada. Haz clic para fijar una hora con el reloj estilo Android.'
+              ? 'Hora estática fija. Haz clic para cambiar la hora con el reloj.'
+              : 'Hora dinámica calculada. Haz clic para fijar una hora con el reloj.'
           }
         >
           <span>{fila.hora12}</span>
-          <Clock className="w-2.5 h-2.5 opacity-40 group-hover/btn:opacity-100 transition-opacity text-blue-600 dark:text-blue-400 shrink-0" />
+          <Clock className="w-2.5 h-2.5 opacity-30 group-hover/btn:opacity-100 transition-opacity text-blue-600 dark:text-blue-400 shrink-0" />
         </button>
       </div>
 
       {/* 3. Título de la parte */}
-      <span className="text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 min-w-0 flex-1 truncate text-xs">
+      <span className="text-zinc-800 dark:text-zinc-200 flex items-center gap-2 min-w-0 flex-1 truncate text-xs">
         {dotColor && (
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -250,6 +254,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
         horaReunionFinSemana: config.horaReunionFinSemana || '18:00',
         anioEnCurso: config.anioEnCurso || new Date().getFullYear().toString(),
         circuito: config.circuito || '',
+        nombreSuperintendenteCircuito: config.nombreSuperintendenteCircuito || '',
         salaAuxiliarHabilitada: !!config.salaAuxiliarHabilitada,
         direccionSalon: config.direccionSalon || '',
         horarioModoTb: config.horarioModoTb || 'estatico',
@@ -703,7 +708,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
                   Nombre de archivo Word S-140 generado:
                 </span>
                 <span className="text-text1 block text-xs font-medium truncate">
-                  S-140_{cleanNombreArchivo}_2026-09.docx
+                  S-140_{cleanNombreArchivo}_{form.anioEnCurso || new Date().getFullYear()}-09.docx
                 </span>
               </div>
             </div>
@@ -851,18 +856,21 @@ export default function Configuracion({ onNavigate, initialTab }) {
             </div>
 
             {/* ── BLOQUE TEAL: TESOROS DE LA BIBLIA ── */}
-            <div className="rounded-lg overflow-hidden border border-[#367588]/30">
-              <div className="bg-[#367588] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider">
+            <div className="rounded-xl overflow-hidden border border-[#3A7E89]/25 dark:border-[#3A7E89]/35 shadow-2xs">
+              <div className="bg-[#3A7E89] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold tracking-wider">
                 <div className="flex items-center gap-2">
-                  <span>💎 TESOROS DE LA BIBLIA</span>
+                  <img src={tesorosIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
+                  <span className="font-bold text-[11px] sm:text-xs tracking-wider uppercase text-white">
+                    TESOROS DE LA BIBLIA
+                  </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleToggleSeccionModo('TB')}
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                  className={`text-[10px] font-mono tracking-wider px-2.5 py-0.5 rounded-full cursor-pointer transition-all border ${
                     form.horarioModoTb === 'estatico'
-                      ? 'bg-white/20 text-white font-bold'
-                      : 'bg-black/20 text-white/80'
+                      ? 'bg-white/25 hover:bg-white/35 text-white font-bold border-white/40 shadow-xs'
+                      : 'bg-white/10 hover:bg-white/20 text-white/90 font-medium border-white/25'
                   }`}
                   title="Haz clic para alternar toda la sección entre Estático y Dinámico"
                 >
@@ -870,7 +878,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
                 </button>
               </div>
 
-              <div className="p-3 bg-[#367588]/5 dark:bg-[#367588]/10 space-y-1 text-xs">
+              <div className="p-2.5 bg-[#3A7E89]/5 dark:bg-[#3A7E89]/10 space-y-0.5 text-xs">
                 {(simulacion?.filasDetalladas?.filter(f => f.seccion === 'TB') || []).map(f => (
                   <FilaHorarioS140
                     key={f.id}
@@ -883,18 +891,21 @@ export default function Configuracion({ onNavigate, initialTab }) {
             </div>
 
             {/* ── BLOQUE DORADO: SEAMOS MEJORES MAESTROS ── */}
-            <div className="rounded-lg overflow-hidden border border-[#d9822b]/30">
-              <div className="bg-[#d9822b] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider">
+            <div className="rounded-xl overflow-hidden border border-[#D58E00]/30 dark:border-[#D58E00]/40 shadow-2xs">
+              <div className="bg-[#D58E00] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold tracking-wider">
                 <div className="flex items-center gap-2">
-                  <span>🌾 SEAMOS MEJORES MAESTROS</span>
+                  <img src={smtIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
+                  <span className="font-bold text-[11px] sm:text-xs tracking-wider uppercase text-white">
+                    SEAMOS MEJORES MAESTROS
+                  </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleToggleSeccionModo('SMT')}
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                  className={`text-[10px] font-mono tracking-wider px-2.5 py-0.5 rounded-full cursor-pointer transition-all border ${
                     form.horarioModoSmt === 'estatico'
-                      ? 'bg-white/20 text-white font-bold'
-                      : 'bg-black/20 text-white/80'
+                      ? 'bg-white/25 hover:bg-white/35 text-white font-bold border-white/40 shadow-xs'
+                      : 'bg-white/10 hover:bg-white/20 text-white/90 font-medium border-white/25'
                   }`}
                   title="Alternar toda la sección SMT entre Estático y Dinámico"
                 >
@@ -902,7 +913,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
                 </button>
               </div>
 
-              <div className="p-3 bg-[#d9822b]/5 dark:bg-[#d9822b]/10 space-y-1 text-xs">
+              <div className="p-2.5 bg-[#D58E00]/5 dark:bg-[#D58E00]/10 space-y-0.5 text-xs">
                 {(simulacion?.filasDetalladas?.filter(f => f.seccion === 'SMT') || []).map(f => (
                   <FilaHorarioS140
                     key={f.id}
@@ -915,18 +926,21 @@ export default function Configuracion({ onNavigate, initialTab }) {
             </div>
 
             {/* ── BLOQUE ROJO: NUESTRA VIDA CRISTIANA ── */}
-            <div className="rounded-lg overflow-hidden border border-[#a13b28]/30">
-              <div className="bg-[#a13b28] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wider">
+            <div className="rounded-xl overflow-hidden border border-[#BE2D11]/30 dark:border-[#BE2D11]/40 shadow-2xs">
+              <div className="bg-[#BE2D11] text-white px-3 py-1.5 flex items-center justify-between text-xs font-semibold tracking-wider">
                 <div className="flex items-center gap-2">
-                  <span>🐑 NUESTRA VIDA CRISTIANA</span>
+                  <img src={nvcIcon} alt="" className="w-4 h-4 object-contain shrink-0" />
+                  <span className="font-bold text-[11px] sm:text-xs tracking-wider uppercase text-white">
+                    NUESTRA VIDA CRISTIANA
+                  </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleToggleSeccionModo('VC')}
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                  className={`text-[10px] font-mono tracking-wider px-2.5 py-0.5 rounded-full cursor-pointer transition-all border ${
                     form.horarioModoVc === 'estatico'
-                      ? 'bg-white/20 text-white font-bold'
-                      : 'bg-black/20 text-white/80'
+                      ? 'bg-white/25 hover:bg-white/35 text-white font-bold border-white/40 shadow-xs'
+                      : 'bg-white/10 hover:bg-white/20 text-white/90 font-medium border-white/25'
                   }`}
                   title="Alternar toda la sección VC entre Estático y Dinámico"
                 >
@@ -934,7 +948,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
                 </button>
               </div>
 
-              <div className="p-3 bg-[#a13b28]/5 dark:bg-[#a13b28]/10 space-y-1 text-xs">
+              <div className="p-2.5 bg-[#BE2D11]/5 dark:bg-[#BE2D11]/10 space-y-0.5 text-xs">
                 {(simulacion?.filasDetalladas?.filter(f => f.seccion === 'VC') || []).map(f => (
                   <FilaHorarioS140
                     key={f.id}
@@ -948,7 +962,7 @@ export default function Configuracion({ onNavigate, initialTab }) {
             </div>
 
             {/* ── CIERRE ── */}
-            <div className="space-y-1 text-xs py-1 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="space-y-0.5 text-xs py-1 border-t border-zinc-200/80 dark:border-zinc-800">
               {(simulacion?.filasDetalladas?.filter(f => f.seccion === 'CIERRE') || []).map(f => (
                 <FilaHorarioS140
                   key={f.id}
@@ -961,15 +975,19 @@ export default function Configuracion({ onNavigate, initialTab }) {
             </div>
 
             {/* ── MEDIDOR DE LOS 105 MINUTOS (SEMÁFORO) ── */}
-            <div className="mt-4 pt-3 border-t border-dashed border-zinc-300 dark:border-zinc-700 space-y-2">
+            <div className="mt-4 pt-3 border-t border-zinc-200/80 dark:border-zinc-800 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-text1">Duración total estimada:</span>
-                  <span className="font-mono font-bold text-text1">
-                    {simulacion?.meta?.duracionTotalMin} min (~{Math.floor((simulacion?.meta?.duracionTotalMin || 0)/60)}h {(simulacion?.meta?.duracionTotalMin || 0)%60}m)
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-zinc-600 dark:text-zinc-300">Duración estimada:</span>
+                  <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                    {simulacion?.meta?.duracionTotalMin} min
                   </span>
-                  <span className="text-text3 text-[11px]">
-                    (Concluye a las {simulacion?.meta?.horaFin})
+                  <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">
+                    (~{Math.floor((simulacion?.meta?.duracionTotalMin || 0) / 60)}h {(simulacion?.meta?.duracionTotalMin || 0) % 60}m)
+                  </span>
+                  <span className="text-zinc-400 dark:text-zinc-600 text-[11px]">•</span>
+                  <span className="text-zinc-500 dark:text-zinc-400 text-[11px]">
+                    Concluye a las <strong className="font-mono font-semibold text-zinc-800 dark:text-zinc-200">{simulacion?.meta?.horaFin}</strong>
                   </span>
                 </div>
 
@@ -985,9 +1003,9 @@ export default function Configuracion({ onNavigate, initialTab }) {
               </div>
 
               {/* Barra de progreso */}
-              <div className="w-full h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+              <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-300 ${
+                  className={`h-full transition-all duration-300 rounded-full ${
                     !simulacion?.meta?.esExceso105Min
                       ? 'bg-emerald-500'
                       : 'bg-amber-500'
@@ -995,9 +1013,14 @@ export default function Configuracion({ onNavigate, initialTab }) {
                   style={{ width: `${Math.min(100, Math.round(((simulacion?.meta?.duracionTotalMin || 0) / 105) * 100))}%` }}
                 />
               </div>
-              <p className="text-[11px] text-text3">
-                💡 Haz clic en los badges <strong>(ESTÁTICO)</strong> y <strong>(DINÁMICO)</strong> sobre cada parte para alternar cómo reaccionan las horas en tu congregación. Puedes escribir directamente la hora para fijarla como estática.
-              </p>
+
+              {/* Nota informativa sobria y elegante */}
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-800 text-xs">
+                <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  Haz clic en las etiquetas <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-100 uppercase">Estático</span> o <span className="font-mono font-semibold text-zinc-800 dark:text-zinc-100 uppercase">Dinámico</span> de cada parte para definir cómo se calculan las horas. Haz clic en el botón de hora para personalizarla con el reloj interactivo.
+                </p>
+              </div>
 
               {hasChanges && (
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">

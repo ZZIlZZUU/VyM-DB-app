@@ -134,4 +134,14 @@ describe('Configuracion tab eventos', () => {
     expect(html).toContain('Asamblea Regional')
     expect(html).toContain('Visita de Representante de Sucursal')
   })
+
+  it('renderiza la pestaña general con todos los campos de identidad y días base', () => {
+    const html = renderToString(<Configuracion initialTab="general" onNavigate={() => {}} />)
+    expect(html).toContain('Identidad de la Congregación')
+    expect(html).toContain('Días de Reunión Base')
+    expect(html).toContain('Nombre oficial de la congregación')
+    expect(html).toContain('Superintendente de Circuito actual')
+    expect(html).toContain('Habilitar Sala Auxiliar')
+  })
 })
+

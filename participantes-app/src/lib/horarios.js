@@ -256,7 +256,7 @@ export function obtenerHorariosS140(semana, configOpciones = '19:00') {
   const fTbDiscurso = procesarFila({
     id: 'tb_discurso',
     seccion: 'TB',
-    titulo: '1. Meditar en las cualidades de Jehová (10 mins.)',
+    titulo: '1. Tesoros de la Biblia (10 mins.)',
     numero: 1,
     duracion: 10,
     defaultModo: modoTBGlobal,

@@ -65,6 +65,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Dialog } from '../components/ui/Dialog'
+import { EmptyState } from '../components/ui/EmptyState'
 
 // ── Constantes UI ─────────────────────────────────────────────
 const SECCION_LABEL = {
@@ -2823,7 +2824,7 @@ export default function Programa() {
         }
       }
 
-      showToast('Asignación reconfirmada ✓')
+      success('Asignación reconfirmada')
       await fetchData()
       return
     }
@@ -2912,7 +2913,7 @@ export default function Programa() {
       }
     }
 
-    showToast('Asignación confirmada ✓')
+    success('Asignación confirmada')
     await fetchData()
   }
 
@@ -3974,37 +3975,36 @@ export default function Programa() {
             }`}
           >
             {semanas.length === 0 ? (
-              <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-16 px-6 text-center flex flex-col items-center justify-center min-h-[380px] shadow-2xs">
-                <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-center mb-4 text-emerald-700 dark:text-emerald-300">
-                  <Calendar className="w-8 h-8" />
-                </div>
-                <h3 className="text-base font-semibold text-text1">Sin semanas del programa</h3>
-                <p className="text-xs text-text3 max-w-md mt-1.5 mb-6 leading-relaxed">
-                  Aún no has importado el calendario de reuniones. Selecciona una Guía de Actividades
-                  disponible o sube el archivo EPUB (mwb) manualmente para comenzar.
-                </p>
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  {epubsDisponibles.length > 0 && (
+              <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-12 px-6 shadow-2xs">
+                <EmptyState
+                  icon={Calendar}
+                  title="Sin semanas del programa"
+                  description="Aún no has importado el calendario de reuniones. Selecciona una Guía de Actividades disponible o sube el archivo EPUB (mwb) manualmente para comenzar."
+                  action={
+                    epubsDisponibles.length > 0 ? (
+                      <Button
+                        variant="accent"
+                        size="md"
+                        icon={BookOpen}
+                        loading={uploading}
+                        onClick={() => handleSeleccionarEpubStorage(epubsDisponibles[0].filename)}
+                      >
+                        Cargar {formatearIssueLegible(epubsDisponibles[0].issue)}
+                      </Button>
+                    ) : null
+                  }
+                  secondaryAction={
                     <Button
-                      variant="accent"
+                      variant={epubsDisponibles.length > 0 ? 'outline' : 'accent'}
                       size="md"
-                      icon={BookOpen}
+                      icon={Upload}
                       loading={uploading}
-                      onClick={() => handleSeleccionarEpubStorage(epubsDisponibles[0].filename)}
+                      onClick={() => document.getElementById('epubInput').click()}
                     >
-                      Cargar {formatearIssueLegible(epubsDisponibles[0].issue)}
+                      Subir archivo EPUB mwb
                     </Button>
-                  )}
-                  <Button
-                    variant={epubsDisponibles.length > 0 ? 'outline' : 'accent'}
-                    size="md"
-                    icon={Upload}
-                    loading={uploading}
-                    onClick={() => document.getElementById('epubInput').click()}
-                  >
-                    Subir archivo EPUB mwb
-                  </Button>
-                </div>
+                  }
+                />
               </div>
             ) : (
               semanas.map(s => {
@@ -4055,13 +4055,19 @@ export default function Programa() {
                     Lectura Bíblica
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    ♪ Apertura
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <Music className="w-3 h-3 text-text3" /> Apertura
+                    </span>
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    ♪ Vida Cristiana
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <Music className="w-3 h-3 text-text3" /> Vida Cristiana
+                    </span>
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    ♪ Cierre
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <Music className="w-3 h-3 text-text3" /> Cierre
+                    </span>
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
                     Partes

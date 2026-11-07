@@ -11,6 +11,7 @@ import {
   Sparkles,
   Info,
   AlertTriangle,
+  LayoutGrid,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatFechaLegible, getImpactoEventoSemana, MESES } from '../lib/fechas'
@@ -22,9 +23,9 @@ import Toast from '../components/Toast'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
 import { Dialog } from '../components/ui/Dialog'
 import { Tooltip } from '../components/ui/Tooltip'
+import { EmptyState } from '../components/ui/EmptyState'
 
 // ─── Constantes ───────────────────────────────────────────────
 const MES_ABBR = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -34,6 +35,10 @@ const TIPOS_MAT_F = ['T', 'A']
 const TIPOS_MAT_M = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'LEBC', 'ORACION_C']
 const TIPOS_SM = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'P', 'TB', 'PE', 'EBC', 'LEBC', 'ORACION_C']
 const TIPOS_ANC = ['T', 'A', 'X', 'LB', 'SMT_DSC', 'P', 'TB', 'PE', 'EBC', 'VC', 'NC', 'LEBC', 'ORACION_C']
+
+// Tipos para la barra de asignaciones interactivas
+const TIPOS_BARRA_MAT = ['T', 'A', 'LB', 'SMT_DSC', 'LEBC', 'ORACION_C', 'X']
+const TIPOS_BARRA_ANC = ['P', 'TB', 'PE', 'EBC', 'LEBC', 'VC', 'NC', 'ORACION_C', 'SMT_DSC', 'LB', 'T', 'A', 'X']
 
 const TIPO_LABEL = {
   T: 'Titular',
@@ -70,15 +75,67 @@ const BADGE_STYLES = {
   ORACION_C: 'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-800/70 dark:text-zinc-300 dark:border-zinc-700/60',
 }
 
-// Intensidad elegante del mapa de calor
-function heatColor(count, max) {
-  if (!count || !max) return ''
-  const ratio = count / max
-  if (ratio <= 0) return ''
-  if (ratio <= 0.25) return 'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.05]'
-  if (ratio <= 0.5) return 'bg-emerald-500/[0.08] dark:bg-emerald-500/[0.09]'
-  if (ratio <= 0.75) return 'bg-emerald-500/[0.13] dark:bg-emerald-500/[0.14]'
-  return 'bg-emerald-500/[0.20] dark:bg-emerald-500/[0.22]'
+/**
+ * Determina el estilo de fondo suave y adaptativo de cada celda mensual.
+ * En navegación normal: contorno blanco/plateado tipo aluminio sin relleno verde.
+ * En mapa de calor: degradado esmeralda suave proporcional a la carga mensual.
+ */
+function getCellVisualClass({ recsCount, isCellTarget, isColHovered, isRowHovered, heatMap }) {
+  // 1. Objetivo directo del cursor (celda seleccionada / intersección)
+  if (isCellTarget) {
+    if (heatMap) {
+      // Modo Mapa de calor: resalte con brillo interior esmeralda
+      return 'bg-emerald-500/20 dark:bg-emerald-500/25 shadow-[inset_0_0_0_1.5px_rgba(16,185,129,0.45)] dark:shadow-[inset_0_0_0_1.5px_rgba(16,185,129,0.5)] z-10'
+    }
+    // Modo normal de navegación: contorno blanco/plateado como aluminio, sin relleno verde
+    return 'bg-zinc-100/35 dark:bg-white/[0.04] shadow-[inset_0_0_0_1.5px_rgba(148,163,184,0.85)] dark:shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.85)] z-10'
+  }
+
+  // 2. Modo Mapa de Calor: degradado suave por volumen mensual de participaciones
+  if (heatMap && recsCount > 0) {
+    let heatTone = 'bg-emerald-500/[0.08] dark:bg-emerald-500/[0.11]'
+    if (recsCount === 2) {
+      heatTone = 'bg-emerald-500/[0.18] dark:bg-emerald-500/[0.22]'
+    } else if (recsCount >= 3) {
+      heatTone = 'bg-emerald-500/[0.30] dark:bg-emerald-500/[0.35]'
+    }
+
+    if (isColHovered || isRowHovered) {
+      return `${heatTone} brightness-105 contrast-105`
+    }
+    return heatTone
+  }
+
+  // 3. Guías del cursor (columna o fila resaltadas con transición suave)
+  if (isColHovered) {
+    return heatMap
+      ? 'bg-emerald-500/[0.05] dark:bg-emerald-500/[0.07]'
+      : 'bg-zinc-100/50 dark:bg-zinc-800/35'
+  }
+  if (isRowHovered) {
+    return 'bg-zinc-100/60 dark:bg-zinc-800/40'
+  }
+
+  return 'hover:bg-zinc-100/40 dark:hover:bg-zinc-800/20'
+}
+
+/**
+ * Estilo visual del contador total de participaciones de cada fila.
+ */
+function getTotalBadgeStyle(total, maxTotal, heatMap) {
+  if (!total) return 'text-zinc-400 dark:text-zinc-600'
+  if (!heatMap || !maxTotal) {
+    return 'bg-zinc-100 dark:bg-zinc-800 text-text1 border border-zinc-200/60 dark:border-zinc-700/60 shadow-2xs'
+  }
+
+  const ratio = total / maxTotal
+  if (ratio <= 0.35) {
+    return 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 border border-emerald-300/40 dark:border-emerald-700/40 font-semibold'
+  }
+  if (ratio <= 0.7) {
+    return 'bg-emerald-500/20 text-emerald-900 dark:text-emerald-100 border border-emerald-400/50 dark:border-emerald-600/50 font-bold'
+  }
+  return 'bg-emerald-500/35 text-emerald-950 dark:text-white border border-emerald-500/60 dark:border-emerald-500/60 font-bold shadow-2xs'
 }
 
 function getTiposPermitidos(persona) {
@@ -419,11 +476,33 @@ export default function VistaEditable({ onNavigate }) {
   // Filtros Matriculados
   const [searchMat, setSearchMat] = useState('')
   const [sexoFil, setSexoFil] = useState('')
-  const [estatusFil, setEstatusFil] = useState('')
 
   // Filtros Ancianos
   const [searchAnc, setSearchAnc] = useState('')
   const [ancEstatusFil, setAncEstatusFil] = useState('')
+
+  // Filtro rápido de actividad ('todos' | 'sin_participacion')
+  const [filtroActividad, setFiltroActividad] = useState('todos')
+
+  // Tipos desactivados (filtro interactivo de tipos de asignación)
+  const [tiposDesactivados, setTiposDesactivados] = useState(() => new Set())
+
+  const toggleTipo = useCallback((tipo) => {
+    setTiposDesactivados(prev => {
+      const next = new Set(prev)
+      if (next.has(tipo)) {
+        next.delete(tipo)
+      } else {
+        next.add(tipo)
+      }
+      return next
+    })
+  }, [])
+
+  // Crosshair state & Mes actual
+  const [hoveredCol, setHoveredCol] = useState(null)
+  const [hoveredRow, setHoveredRow] = useState(null)
+  const currentMonthIdx = useMemo(() => new Date().getMonth(), [])
 
   // Modales
   const [matModal, setMatModal] = useState({ open: false, persona: null, mesIdx: 0 })
@@ -477,11 +556,17 @@ export default function VistaEditable({ onNavigate }) {
     return () => supabase.removeChannel(canal)
   }, [fetchData])
 
+  // Registros activos considerando tipos desactivados
+  const registrosFiltrados = useMemo(() => {
+    if (tiposDesactivados.size === 0) return registros
+    return registros.filter(r => !tiposDesactivados.has(r.tipo))
+  }, [registros, tiposDesactivados])
+
   // Cálculo para mapa de calor
-  const maxRegistros = (() => {
-    const conteos = personas.map(p => registros.filter(r => r.clave === p.clave).length)
+  const maxRegistros = useMemo(() => {
+    const conteos = personas.map(p => registrosFiltrados.filter(r => r.clave === p.clave).length)
     return Math.max(...conteos, 1)
-  })()
+  }, [personas, registrosFiltrados])
 
   async function handleDelete(id) {
     try {
@@ -527,7 +612,10 @@ export default function VistaEditable({ onNavigate }) {
       return false
     }
     if (sexoFil && p.sexo !== sexoFil) return false
-    if (estatusFil && p.estatus !== estatusFil) return false
+    if (filtroActividad === 'sin_participacion') {
+      const count = registrosFiltrados.filter(r => r.clave === p.clave).length
+      if (count > 0) return false
+    }
     return true
   })
 
@@ -541,8 +629,36 @@ export default function VistaEditable({ onNavigate }) {
       return false
     }
     if (ancEstatusFil && p.estatus !== ancEstatusFil) return false
+    if (filtroActividad === 'sin_participacion') {
+      const count = registrosFiltrados.filter(r => r.clave === p.clave).length
+      if (count > 0) return false
+    }
     return true
   })
+
+  const countSinPartMat = useMemo(() => {
+    return personas.filter(p => p.lista === 'Mat' && registrosFiltrados.filter(r => r.clave === p.clave).length === 0).length
+  }, [personas, registrosFiltrados])
+
+  const countSinPartAnc = useMemo(() => {
+    return personas.filter(p => p.lista === 'Anc/SM' && registrosFiltrados.filter(r => r.clave === p.clave).length === 0).length
+  }, [personas, registrosFiltrados])
+
+  const hasActiveFilters = Boolean(
+    (tab === 'mat' ? searchMat : searchAnc) ||
+    (tab === 'mat' ? sexoFil : ancEstatusFil) ||
+    filtroActividad !== 'todos' ||
+    tiposDesactivados.size > 0
+  )
+
+  const handleResetFilters = () => {
+    setSearchMat('')
+    setSearchAnc('')
+    setSexoFil('')
+    setAncEstatusFil('')
+    setFiltroActividad('todos')
+    setTiposDesactivados(new Set())
+  }
 
   if (fetchError) {
     return (
@@ -563,155 +679,292 @@ export default function VistaEditable({ onNavigate }) {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-text1">
-              Vista editable
+              Matriz Anual
             </h1>
             <Badge variant="neutral" size="sm">
               {personas.length} activos
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
-            Matriz interactiva anual de participaciones por mes.
+            Cuadrícula interactiva anual de participaciones por mes con mapa de rotación.
           </p>
         </div>
 
-        {/* Pestañas de Lista y Switch Mapa de Calor */}
-        <div className="flex items-center gap-3">
-          {/* Segmented Tab Control */}
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
-            <button
-              type="button"
-              onClick={() => setTab('mat')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                tab === 'mat'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-              }`}
-            >
-              Matriculados ({matPersonas.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('anc')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                tab === 'anc'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-              }`}
-            >
-              Ancianos y SM ({ancPersonas.length})
-            </button>
-          </div>
-
-          {/* Toggle Mapa de Calor */}
+        {/* Pestañas de Lista */}
+        <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
           <button
             type="button"
-            onClick={() => setHeatMap(h => !h)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer select-none ${
-              heatMap
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60'
-                : 'bg-surface/80 dark:bg-zinc-900/40 text-text3 border-zinc-200/80 dark:border-zinc-800/80 hover:text-text1'
+            onClick={() => setTab('mat')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              tab === 'mat'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Flame className={`w-3.5 h-3.5 ${heatMap ? 'text-emerald-600 dark:text-emerald-400' : 'text-text3'}`} />
-            <span className="hidden md:inline">Mapa de calor</span>
+            Matriculados ({matPersonas.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('anc')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              tab === 'anc'
+                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            Ancianos y SM ({ancPersonas.length})
           </button>
         </div>
       </div>
 
       {/* ── BARRA DE HERRAMIENTAS Y FILTROS ── */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
-        {/* Buscador */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Input
-            value={tab === 'mat' ? searchMat : searchAnc}
-            onChange={e => (tab === 'mat' ? setSearchMat(e.target.value) : setSearchAnc(e.target.value))}
-            placeholder={`Buscar en ${tab === 'mat' ? 'Matriculados' : 'Ancianos'}...`}
-            icon={Search}
-            size="sm"
-            className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-400 dark:focus:border-zinc-600"
-          />
-          {(tab === 'mat' ? searchMat : searchAnc) && (
-            <button
-              type="button"
-              onClick={() => (tab === 'mat' ? setSearchMat('') : setSearchAnc(''))}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 p-0.5 rounded cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      <div className="space-y-2.5 p-3 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Buscador */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Input
+              value={tab === 'mat' ? searchMat : searchAnc}
+              onChange={e => (tab === 'mat' ? setSearchMat(e.target.value) : setSearchAnc(e.target.value))}
+              placeholder={`Buscar en ${tab === 'mat' ? 'Matriculados' : 'Ancianos'}...`}
+              icon={Search}
+              size="sm"
+              className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-400 dark:focus:border-zinc-600"
+            />
+            {(tab === 'mat' ? searchMat : searchAnc) && (
+              <button
+                type="button"
+                onClick={() => (tab === 'mat' ? setSearchMat('') : setSearchAnc(''))}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 p-0.5 rounded cursor-pointer"
+                title="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Barra de tipos de asignaciones interactiva */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mr-1 hidden sm:inline select-none">
+              Tipos:
+            </span>
+            {(tab === 'mat' ? TIPOS_BARRA_MAT : TIPOS_BARRA_ANC).map(t => {
+              const isDeactivated = tiposDesactivados.has(t)
+              const label = TIPO_LABEL[t] || t
+              const style = BADGE_STYLES[t] || 'bg-zinc-100 dark:bg-zinc-800 text-text2'
+              const tooltipContent = isDeactivated
+                ? `${label} (${t}) — Desactivado (clic para activar)`
+                : `${label} (${t}) — Activo (clic para desactivar)`
+
+              return (
+                <Tooltip key={t} content={tooltipContent} side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => toggleTipo(t)}
+                    aria-label={tooltipContent}
+                    className={`inline-flex items-center justify-center min-w-5 h-4.5 px-1.5 rounded text-[10px] font-semibold font-mono border select-none cursor-pointer transition-all duration-150 ${
+                      isDeactivated
+                        ? 'opacity-25 grayscale line-through border-dashed border-zinc-400 dark:border-zinc-600 bg-zinc-200/50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 hover:opacity-60'
+                        : `${style} hover:scale-105 active:scale-95 shadow-2xs`
+                    }`}
+                  >
+                    {t}
+                  </button>
+                </Tooltip>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Filtros específicos por pestaña */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          {tab === 'mat' ? (
-            <>
-              <div className="w-32 shrink-0">
-                <Select
-                  value={sexoFil}
-                  onChange={e => setSexoFil(e.target.value)}
-                  size="sm"
-                >
-                  <option value="">Todos los sexos</option>
-                  <option value="M">Masculino</option>
-                  <option value="F">Femenino</option>
-                </Select>
-              </div>
-              <div className="w-44 shrink-0">
-                <Select
-                  value={estatusFil}
-                  onChange={e => setEstatusFil(e.target.value)}
-                  size="sm"
-                >
-                  <option value="">Todos los estatus</option>
-                  <option>Matriculado</option>
-                  <option>Matriculada</option>
-                  <option>Matriculado bautizado</option>
-                  <option>Matriculada bautizada</option>
-                </Select>
-              </div>
-            </>
-          ) : (
-            <div className="w-48 shrink-0">
-              <Select
-                value={ancEstatusFil}
-                onChange={e => setAncEstatusFil(e.target.value)}
-                size="sm"
-              >
-                <option value="">Todos los estatus</option>
-                <option>Anciano</option>
-                <option>Siervo Ministerial</option>
-              </Select>
-            </div>
-          )}
+        {/* Chips de filtro rápido e integración de Mapa de calor */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-200/50 dark:border-zinc-800/50">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mr-1">
+              Filtro rápido:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroActividad('todos')
+                if (tab === 'mat') {
+                  setSexoFil('')
+                } else {
+                  setAncEstatusFil('')
+                }
+              }}
+              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                filtroActividad === 'todos' && (tab === 'mat' ? !sexoFil : !ancEstatusFil)
+                  ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 border-zinc-700 dark:border-zinc-300 shadow-2xs'
+                  : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroActividad(f => f === 'sin_participacion' ? 'todos' : 'sin_participacion')}
+              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                filtroActividad === 'sin_participacion'
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 font-semibold shadow-2xs'
+                  : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+              }`}
+            >
+              <span>Sin participaciones</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-200/80 dark:bg-zinc-700/80">
+                {tab === 'mat' ? countSinPartMat : countSinPartAnc}
+              </span>
+            </button>
 
-          {/* Leyenda rápida */}
-          <div className="hidden lg:flex items-center gap-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-800 text-xs">
-            {(tab === 'mat' ? ['T', 'A', 'X'] : ['P', 'TB', 'PE', 'EBC', 'VC', 'NC', 'X']).map(t => (
-              <Tooltip key={t} content={TIPO_LABEL[t]} side="bottom">
-                <TypeBadge tipo={t} />
-              </Tooltip>
-            ))}
+            {tab === 'mat' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSexoFil(s => s === 'M' ? '' : 'M')}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                    sexoFil === 'M'
+                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-semibold shadow-2xs'
+                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  }`}
+                >
+                  Varones
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSexoFil(s => s === 'F' ? '' : 'F')}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                    sexoFil === 'F'
+                      ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold shadow-2xs'
+                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  }`}
+                >
+                  Mujeres
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAncEstatusFil(e => e === 'Anciano' ? '' : 'Anciano')}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                    ancEstatusFil === 'Anciano'
+                      ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold shadow-2xs'
+                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  }`}
+                >
+                  Ancianos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAncEstatusFil(e => e === 'Siervo Ministerial' ? '' : 'Siervo Ministerial')}
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                    ancEstatusFil === 'Siervo Ministerial'
+                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-semibold shadow-2xs'
+                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  }`}
+                >
+                  Siervos Ministeriales
+                </button>
+              </>
+            )}
+
+            {/* Separador */}
+            <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
+
+            {/* Toggle Mapa de calor integrado con escala visual suave */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setHeatMap(h => !h)}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all duration-200 cursor-pointer flex items-center gap-1.5 select-none ${
+                  heatMap
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-semibold shadow-2xs'
+                    : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                }`}
+                title="Alternar resaltado suave de intensidad por cantidad de participaciones"
+              >
+                <Flame className={`w-3.5 h-3.5 ${heatMap ? 'text-emerald-600 dark:text-emerald-400 fill-emerald-500/20' : 'text-text3'}`} />
+                <span>Mapa de calor</span>
+              </button>
+
+              {heatMap && (
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-text3 pl-0.5 animate-in fade-in duration-200 select-none">
+                  <span className="text-[10px] font-mono text-zinc-400">1</span>
+                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/60 dark:border-zinc-700/60">
+                    <Tooltip content="1 asignación en el mes" side="bottom">
+                      <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500/15 dark:bg-emerald-500/20 cursor-help" />
+                    </Tooltip>
+                    <Tooltip content="2 asignaciones en el mes" side="bottom">
+                      <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500/35 dark:bg-emerald-500/40 cursor-help" />
+                    </Tooltip>
+                    <Tooltip content="3 o más asignaciones en el mes" side="bottom">
+                      <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500/65 dark:bg-emerald-500/70 cursor-help" />
+                    </Tooltip>
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-400">3+</span>
+                </div>
+              )}
+            </div>
           </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="ml-auto text-xs text-text3 hover:text-text1 flex items-center gap-1 cursor-pointer transition-colors"
+              title="Restablecer todos los filtros"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Limpiar filtros</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── CUADRÍCULA SPREADSHEET / MATRIX ── */}
       <div className="relative isolate rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface overflow-hidden shadow-2xs">
         <div className="overflow-x-auto max-h-[calc(100vh-210px)]">
-          <table className="w-full text-left text-xs border-collapse min-w-full table-fixed">
+          <table
+            className="w-full text-left text-xs border-collapse min-w-full table-fixed"
+            onMouseLeave={() => {
+              setHoveredCol(null)
+              setHoveredRow(null)
+            }}
+          >
             <thead className="sticky top-0 z-30 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-xs border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
               <tr>
-                <th className="sticky left-0 top-0 z-40 w-64 min-w-[220px] px-3.5 py-2.5 font-mono text-[10px] uppercase tracking-wider bg-zinc-50/95 dark:bg-zinc-900/95 border-r border-zinc-200/80 dark:border-zinc-800/80 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
+                <th className={`sticky left-0 top-0 z-40 w-64 min-w-[220px] px-3.5 py-2.5 font-mono text-[10px] uppercase tracking-wider bg-surface border-r border-zinc-200 dark:border-zinc-800 shadow-[4px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out ${
+                  hoveredRow ? 'text-text1 font-bold' : ''
+                }`}>
                   Participante
                 </th>
-                {MES_ABBR.map(m => (
-                  <th
-                    key={m}
-                    className="px-1.5 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider"
-                  >
-                    {m}
-                  </th>
-                ))}
+                {MES_ABBR.map((m, idx) => {
+                  const isCurrent = idx === currentMonthIdx
+                  const isHovered = hoveredCol === idx
+
+                  return (
+                    <th
+                      key={m}
+                      className={`px-1.5 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider transition-all duration-200 ease-out border-r border-zinc-200/60 dark:border-zinc-800/60 ${
+                        isHovered
+                          ? heatMap
+                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold border-b-2 border-b-emerald-600 dark:border-b-emerald-400 shadow-[inset_0_-2px_0_0_rgba(16,185,129,0.8)]'
+                            : 'bg-zinc-200/60 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 font-bold border-b-2 border-b-zinc-400 dark:border-b-zinc-200 shadow-[inset_0_-2px_0_0_rgba(255,255,255,0.4)]'
+                          : isCurrent
+                            ? 'text-emerald-700 dark:text-emerald-300 font-bold border-b-2 border-b-emerald-500/60'
+                            : 'text-zinc-500 dark:text-zinc-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>{m}</span>
+                        {isCurrent && (
+                          <span
+                            className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-500/20"
+                            title="Mes en curso"
+                          />
+                        )}
+                      </div>
+                    </th>
+                  )
+                })}
                 <th className="w-16 min-w-14 px-2 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider bg-zinc-50/95 dark:bg-zinc-900/95 border-l border-zinc-200/80 dark:border-zinc-800/80">
                   Total
                 </th>
@@ -720,24 +973,40 @@ export default function VistaEditable({ onNavigate }) {
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
               {(tab === 'mat' ? matPersonas : ancPersonas).length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-16 text-center text-xs text-text3">
-                    No se encontraron participantes activos con los filtros seleccionados.
+                  <td colSpan={14} className="py-12 px-4">
+                    <EmptyState
+                      icon={LayoutGrid}
+                      title="Sin participantes para mostrar"
+                      description="No se encontraron participantes activos con los filtros seleccionados."
+                      action={
+                        hasActiveFilters
+                          ? {
+                              label: 'Limpiar filtros',
+                              onClick: handleResetFilters,
+                              icon: RotateCcw,
+                            }
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 (tab === 'mat' ? matPersonas : ancPersonas).map(p => {
-                  const total = registros.filter(r => r.clave === p.clave).length
-                  const heatBg = heatMap ? heatColor(total, maxRegistros) : ''
+                  const total = registrosFiltrados.filter(r => r.clave === p.clave).length
                   const isFemenino = p.sexo === 'F'
+                  const isRowHovered = hoveredRow === p.clave
 
                   return (
                     <tr
                       key={p.clave}
-                      className={`hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors duration-100 ${heatBg}`}
+                      onMouseEnter={() => setHoveredRow(p.clave)}
+                      className="transition-all duration-200 ease-out group"
                     >
                       {/* Columna Participante (Sticky Left) */}
                       <td
-                        className={`sticky left-0 z-20 px-3.5 py-2 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-surface shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] ${heatBg}`}
+                        className={`sticky left-0 z-20 px-3.5 py-2 border-r border-zinc-200 dark:border-zinc-800 bg-surface shadow-[4px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-all duration-200 ease-out ${
+                          isRowHovered ? 'bg-zinc-100/90 dark:bg-zinc-800/90' : 'bg-surface'
+                        }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
@@ -762,32 +1031,44 @@ export default function VistaEditable({ onNavigate }) {
 
                       {/* Columnas de los 12 Meses */}
                       {MESES.map((mes, mi) => {
-                        const recs = registros
+                        const recs = registrosFiltrados
                           .filter(r => r.clave === p.clave && r.mes === mes)
                           .sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+                        const isColHovered = hoveredCol === mi
+                        const isCellTarget = isColHovered && isRowHovered
+                        const visualClass = getCellVisualClass({
+                          recsCount: recs.length,
+                          isCellTarget,
+                          isColHovered,
+                          isRowHovered,
+                          heatMap,
+                        })
 
                         return (
                           <td
                             key={mes}
+                            onMouseEnter={() => {
+                              setHoveredCol(mi)
+                              setHoveredRow(p.clave)
+                            }}
                             onClick={() =>
                               tab === 'mat'
                                 ? setMatModal({ open: true, persona: p, mesIdx: mi })
                                 : setAncModal({ open: true, persona: p, mesIdx: mi })
                             }
-                            className="px-1 py-1.5 text-center cursor-pointer hover:bg-zinc-200/50 dark:hover:bg-zinc-700/40 transition-colors"
+                            className={`relative px-1 py-1.5 text-center cursor-pointer transition-all duration-200 ease-out border-r border-zinc-100/80 dark:border-zinc-800/50 min-h-[48px] h-12 ${visualClass}`}
                           >
                             {recs.length === 0 ? (
-                              <span className="text-zinc-300 dark:text-zinc-700 text-xs font-mono select-none">
-                                ·
-                              </span>
+                              <span className="inline-block w-1 h-1 rounded-full bg-zinc-300/60 dark:bg-zinc-700/60 select-none transition-opacity duration-200" />
                             ) : (
                               <div className="flex flex-col items-center justify-center gap-1">
                                 {recs.map(r => (
                                   <div
                                     key={r.id}
-                                    className="inline-flex items-center gap-1 leading-none"
+                                    className="inline-flex items-center gap-1 leading-none transition-transform duration-150 hover:scale-105"
                                   >
-                                    <span className="font-mono text-[10px] text-text3">
+                                    <span className="font-mono text-[10px] text-text3 select-none">
                                       {assignmentDayOfMonth(r.fecha)}
                                     </span>
                                     <TypeBadge
@@ -803,13 +1084,19 @@ export default function VistaEditable({ onNavigate }) {
                       })}
 
                       {/* Columna Total */}
-                      <td className="px-2 py-2 text-center border-l border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/20">
+                      <td
+                        className={`px-2 py-2 text-center border-l border-zinc-200/80 dark:border-zinc-800/80 transition-all duration-200 ease-out ${
+                          isRowHovered
+                            ? 'bg-zinc-100/80 dark:bg-zinc-800/60'
+                            : 'bg-zinc-50/40 dark:bg-zinc-900/20'
+                        }`}
+                      >
                         <span
-                          className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-mono font-semibold ${
-                            total > 0
-                              ? 'bg-zinc-100 dark:bg-zinc-800 text-text1 border border-zinc-200/60 dark:border-zinc-700/60'
-                              : 'text-text3'
-                          }`}
+                          className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-mono transition-all duration-200 ease-out ${getTotalBadgeStyle(
+                            total,
+                            maxRegistros,
+                            heatMap
+                          )}`}
                         >
                           {total || '—'}
                         </span>

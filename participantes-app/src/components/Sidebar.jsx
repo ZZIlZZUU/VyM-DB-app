@@ -21,19 +21,118 @@ import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 
 export const NAV_ITEMS = [
-  { id: 'home',          icon: Home,          label: 'Inicio',             section: 'Vistas',       shortcut: '0' },
-  { id: 'semanal',       icon: CalendarDays,  label: 'Vista semanal',      section: 'Vistas',       shortcut: 'W' },
-  { id: 'calendario',    icon: Calendar,      label: 'Calendario',         section: 'Vistas',       shortcut: 'K' },
-  { id: 'editable',      icon: LayoutGrid,    label: 'Vista editable',     section: 'Vistas',       shortcut: '1' },
-  { id: 'sql',           icon: Database,      label: 'Vista SQL',          section: 'Vistas',       shortcut: '2' },
-  { id: 'personas',      icon: Users,         label: 'Personas',           section: 'Gestión',      shortcut: '3' },
-  { id: 'registros',     icon: FileEdit,      label: 'Registros',          section: 'Gestión',      shortcut: '4' },
-  { id: 'programa',      icon: CalendarRange, label: 'Programa (S-140)',   section: 'Gestión',      shortcut: '5', badgeKey: 'semanasPendientes' },
-  { id: 'usuarios',      icon: ShieldCheck,   label: 'Usuarios',           section: 'Gestión',      shortcut: '6', adminOnly: true },
-  { id: 'configuracion', icon: Settings,      label: 'Configuración',      section: 'Gestión',      shortcut: 'C', adminOnly: true },
-  { id: 'exportar',      icon: ArrowUpDown,   label: 'Exportar / Importar',section: 'Herramientas', shortcut: '7' },
-  { id: 'estadisticas',  icon: BarChart3,     label: 'Estadísticas',       section: 'Herramientas', shortcut: '8' },
-  { id: 'historial',     icon: History,       label: 'Historial Cambios',  section: 'Herramientas', shortcut: '9' },
+  // ── REUNIÓN Y PROGRAMA ──
+  {
+    id: 'home',
+    icon: Home,
+    label: 'Inicio',
+    section: 'Reunión y Programa',
+    shortcut: '0',
+    keywords: ['inicio', 'dashboard', 'resumen', 'alertas', 'panel'],
+  },
+  {
+    id: 'programa',
+    icon: CalendarRange,
+    label: 'Programa Semanal',
+    section: 'Reunión y Programa',
+    shortcut: '5',
+    keywords: ['programa', 's140', 's-140', 'epub', 'asignaciones', 'semanas', 'partes'],
+    badgeKey: 'semanasPendientes',
+  },
+  {
+    id: 'semanal',
+    icon: CalendarDays,
+    label: 'Vista Semanal',
+    section: 'Reunión y Programa',
+    shortcut: 'W',
+    keywords: ['vista semanal', 'semana', 'cronograma', 'partes', 'reunion'],
+  },
+  {
+    id: 'calendario',
+    icon: Calendar,
+    label: 'Calendario de Eventos',
+    section: 'Reunión y Programa',
+    shortcut: 'K',
+    keywords: ['calendario', 'eventos', 'asambleas', 'visitas', 'fechas', 'superintendente'],
+  },
+
+  // ── PARTICIPANTES ──
+  {
+    id: 'editable',
+    icon: LayoutGrid,
+    label: 'Matriz Anual',
+    section: 'Participantes',
+    shortcut: '1',
+    keywords: ['matriz anual', 'matriz', 'cuadricula', 'editable', '12 meses', 'mapa de calor', 'rotacion'],
+  },
+  {
+    id: 'personas',
+    icon: Users,
+    label: 'Participantes',
+    section: 'Participantes',
+    shortcut: '3',
+    keywords: ['participantes', 'personas', 'hermanos', 'directorio', 'fichas', 'claves', 'mat', 'anc', 'sm'],
+  },
+  {
+    id: 'registros',
+    icon: FileEdit,
+    label: 'Historial Asignaciones',
+    section: 'Participantes',
+    shortcut: '4',
+    keywords: ['historial asignaciones', 'registros', 'participaciones', 'historial', 'intervenciones'],
+  },
+  {
+    id: 'sql',
+    icon: Database,
+    label: 'Explorador de Datos',
+    section: 'Participantes',
+    shortcut: '2',
+    keywords: ['explorador de datos', 'sql', 'vista sql', 'tablas', 'base de datos', 'consultas'],
+  },
+
+  // ── GESTIÓN Y SISTEMA ──
+  {
+    id: 'estadisticas',
+    icon: BarChart3,
+    label: 'Estadísticas',
+    section: 'Gestión y Sistema',
+    shortcut: '8',
+    keywords: ['estadisticas', 'metricas', 'graficos', 'balance', 'reportes', 'analisis'],
+  },
+  {
+    id: 'exportar',
+    icon: ArrowUpDown,
+    label: 'Exportar e Importar',
+    section: 'Gestión y Sistema',
+    shortcut: '7',
+    keywords: ['exportar', 'importar', 'respaldo', 'csv', 'json', 'descargar', 'backup'],
+  },
+  {
+    id: 'historial',
+    icon: History,
+    label: 'Auditoría de Cambios',
+    section: 'Gestión y Sistema',
+    shortcut: '9',
+    keywords: ['auditoria de cambios', 'historial cambios', 'auditoria', 'logs', 'trazabilidad', 'cambios'],
+  },
+  {
+    id: 'usuarios',
+    icon: ShieldCheck,
+    label: 'Usuarios y Accesos',
+    section: 'Gestión y Sistema',
+    shortcut: '6',
+    keywords: ['usuarios y accesos', 'usuarios', 'accesos', 'permisos', 'roles', 'lista blanca', 'admin'],
+    adminOnly: true,
+  },
+  {
+    id: 'configuracion',
+    icon: Settings,
+    label: 'Configuración',
+    section: 'Gestión y Sistema',
+    shortcut: 'C',
+    keywords: ['configuracion', 'ajustes', 'preferencias', 'congregacion', 'horarios', 'dias'],
+    adminOnly: true,
+  },
 ]
 
 export function Sidebar({
@@ -49,7 +148,7 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const [isHoverExpanded, setIsHoverExpanded] = useState(false)
-  const sections = ['Vistas', 'Gestión', 'Herramientas']
+  const sections = ['Reunión y Programa', 'Participantes', 'Gestión y Sistema']
 
   // La barra se muestra expandida si está fijada como expandida O si el usuario está haciendo hover sobre ella
   const isExpanded = !isCollapsed || isHoverExpanded
@@ -147,14 +246,17 @@ export function Sidebar({
                     key={item.id}
                     type="button"
                     onClick={() => handleNavClick(item.id)}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    className={`group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       !isExpanded ? 'justify-center px-0 h-9' : 'justify-between h-8'
                     } ${
                       isActive
-                        ? 'bg-zinc-200/90 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50 shadow-2xs'
+                        ? 'bg-zinc-200/90 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50 shadow-2xs font-semibold'
                         : 'text-text2 hover:text-text1 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50'
                     }`}
                   >
+                    {isActive && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.75 rounded-r-full bg-emerald-600 dark:bg-emerald-400" />
+                    )}
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Icon
                         className={`w-4 h-4 shrink-0 transition-colors ${

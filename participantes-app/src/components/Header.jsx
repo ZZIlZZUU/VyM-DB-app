@@ -1,4 +1,4 @@
-import { Menu, Search, Sun, Moon, Sparkles, ChevronRight, User } from 'lucide-react'
+import { Menu, Search, Sun, Moon, Sparkles, ChevronRight, User, Keyboard } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Tooltip } from './ui/Tooltip'
 import { NAV_ITEMS } from './Sidebar'
@@ -9,6 +9,7 @@ export function Header({
   onOpenMobileNav,
   onOpenPalette,
   onOpenPerfil,
+  onOpenShortcutsHelp,
   theme,
   onToggleTheme,
   userName,
@@ -76,6 +77,19 @@ export function Header({
               ⌘K
             </kbd>
           </button>
+        </Tooltip>
+
+        {/* Keyboard Shortcuts Help */}
+        <Tooltip content="Atajos de teclado" shortcut="?" side="bottom">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenShortcutsHelp}
+            aria-label="Atajos de teclado"
+            className="hidden sm:inline-flex text-text2 hover:text-text1"
+          >
+            <Keyboard className="w-4 h-4" />
+          </Button>
         </Tooltip>
 
         {/* Theme Toggle Button */}

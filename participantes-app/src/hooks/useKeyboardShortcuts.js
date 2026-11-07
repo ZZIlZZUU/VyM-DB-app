@@ -12,6 +12,7 @@ export function useKeyboardShortcuts({
   onOpenPerfil,
   onToggleTheme,
   onExportS140,
+  onOpenShortcutsHelp,
 }) {
   const gPending = useRef(false)
   const gTimer   = useRef(null)
@@ -40,6 +41,13 @@ export function useKeyboardShortcuts({
       }
 
       if (isTyping()) return
+
+      // ? → Guía de atajos de teclado
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        onOpenShortcutsHelp?.()
+        return
+      }
 
       // Secuencia G + letra
       if (e.key === 'g' || e.key === 'G') {
@@ -80,5 +88,5 @@ export function useKeyboardShortcuts({
       window.removeEventListener('keydown', handler)
       clearTimeout(gTimer.current)
     }
-  }, [onOpenPalette, onNavigate, onOpenPerfil, onToggleTheme, onExportS140])
+  }, [onOpenPalette, onNavigate, onOpenPerfil, onToggleTheme, onExportS140, onOpenShortcutsHelp])
 }

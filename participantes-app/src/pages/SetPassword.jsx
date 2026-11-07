@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { EmptyState } from '../components/ui/EmptyState'
+import { AlertTriangle } from 'lucide-react'
 
 export default function SetPassword() {
   const [password, setPassword]               = useState('')
@@ -92,22 +94,20 @@ export default function SetPassword() {
 
           {!ready ? (
             timedOut ? (
-              <div className="text-center py-4 flex flex-col items-center gap-3">
-                <div className="text-2xl">⚠️</div>
-                <div className="text-sm font-semibold text-text1">
-                  Enlace inválido o expirado
-                </div>
-                <p className="text-xs text-text3 leading-relaxed">
-                  El enlace de recuperación es inválido, ha expirado o ya fue utilizado anteriormente.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="mt-2 w-full bg-accent text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-hover transition-colors"
-                >
-                  Volver a Iniciar Sesión
-                </button>
-              </div>
+              <EmptyState
+                icon={AlertTriangle}
+                title="Enlace inválido o expirado"
+                description="El enlace de recuperación es inválido, ha expirado o ya fue utilizado anteriormente."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => navigate('/login')}
+                    className="mt-2 w-full bg-accent text-white text-xs font-medium py-2 rounded-lg hover:bg-accent-hover transition-colors cursor-pointer"
+                  >
+                    Volver a Iniciar Sesión
+                  </button>
+                }
+              />
             ) : (
               <div className="text-center py-6 text-sm text-text3 flex items-center justify-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />

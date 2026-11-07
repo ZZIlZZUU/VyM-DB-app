@@ -36,6 +36,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
 import { Dialog } from '../components/ui/Dialog'
+import { EmptyState } from '../components/ui/EmptyState'
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -995,14 +996,13 @@ CREATE TABLE participaciones (
             <span>Consultando copias en la nube...</span>
           </div>
         ) : backups.length === 0 ? (
-          <div className="py-10 text-center text-xs text-text3 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl space-y-1.5">
-            <Cloud className="w-7 h-7 mx-auto text-text3/50 stroke-[1.5]" />
-            <p className="font-medium text-text2">
-              No hay copias de seguridad {filtroFormato !== 'todos' ? `en formato ${filtroFormato.toUpperCase()}` : ''} disponibles
-            </p>
-            <p className="text-[11px] text-text3 max-w-sm mx-auto">
-              Cada vez que generes una exportación, se guardará automáticamente un respaldo en la nube.
-            </p>
+          <div className="border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl py-6 px-4">
+            <EmptyState
+              icon={Cloud}
+              compact
+              title={`No hay copias de seguridad ${filtroFormato !== 'todos' ? `en formato ${filtroFormato.toUpperCase()}` : ''} disponibles`}
+              description="Cada vez que generes una exportación manual o programada, se creará automáticamente un respaldo en la nube."
+            />
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden bg-zinc-50/40 dark:bg-zinc-900/40">

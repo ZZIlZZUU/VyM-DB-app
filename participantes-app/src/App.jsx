@@ -25,7 +25,10 @@ import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import HistorialCambios from './pages/HistorialCambios'
 import { CalendarioEventos } from './components/CalendarioEventos'
+import { AyudaAtajosModal } from './components/AyudaAtajosModal'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { EmptyState } from './components/ui/EmptyState'
+import { ShieldAlert } from 'lucide-react'
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -50,6 +53,7 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [perfilOpen, setPerfilOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false)
   const [semanasPendientes, setSemanasPendientes] = useState(0)
   const [openRegistrosCreate, setOpenRegistrosCreate] = useState(false)
 
@@ -100,6 +104,7 @@ export default function App() {
     onOpenPerfil: () => setPerfilOpen(true),
     onToggleTheme: toggleTheme,
     onExportS140: handleExportCurrentWeekS140,
+    onOpenShortcutsHelp: () => setShortcutsModalOpen(true),
   })
 
   useEffect(() => {
@@ -344,23 +349,21 @@ export default function App() {
       case 'usuarios':
         if (rol !== 'admin') {
           return (
-            <div className="py-20 px-4 text-center max-w-md mx-auto">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center text-xl mx-auto mb-4 border border-red-500/20">
-                🛡️
-              </div>
-              <h2 className="text-base font-semibold text-text1">
-                Acceso restringido
-              </h2>
-              <p className="text-xs text-text3 mt-1.5 leading-relaxed">
-                El módulo de gestión de usuarios y accesos está reservado exclusivamente para cuentas con rol de Administrador.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleNavigate('home')}
-                className="mt-5 px-4 py-2 bg-surface hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-text1 rounded-lg transition-colors cursor-pointer"
-              >
-                Volver al Inicio
-              </button>
+            <div className="py-20 px-4">
+              <EmptyState
+                icon={ShieldAlert}
+                title="Acceso restringido"
+                description="El módulo de gestión de usuarios y accesos está reservado exclusivamente para cuentas con rol de Administrador."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate('home')}
+                    className="px-4 py-2 bg-surface hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-text1 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  >
+                    Volver al Inicio
+                  </button>
+                }
+              />
             </div>
           )
         }
@@ -368,23 +371,21 @@ export default function App() {
       case 'configuracion':
         if (rol !== 'admin') {
           return (
-            <div className="py-20 px-4 text-center max-w-md mx-auto">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center text-xl mx-auto mb-4 border border-red-500/20">
-                🛡️
-              </div>
-              <h2 className="text-base font-semibold text-text1">
-                Acceso restringido
-              </h2>
-              <p className="text-xs text-text3 mt-1.5 leading-relaxed">
-                El módulo de configuración de la congregación y parámetros del sistema está reservado exclusivamente para cuentas con rol de Administrador.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleNavigate('home')}
-                className="mt-5 px-4 py-2 bg-surface hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-text1 rounded-lg transition-colors cursor-pointer"
-              >
-                Volver al Inicio
-              </button>
+            <div className="py-20 px-4">
+              <EmptyState
+                icon={ShieldAlert}
+                title="Acceso restringido"
+                description="El módulo de configuración de la congregación y parámetros del sistema está reservado exclusivamente para cuentas con rol de Administrador."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate('home')}
+                    className="px-4 py-2 bg-surface hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-text1 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  >
+                    Volver al Inicio
+                  </button>
+                }
+              />
             </div>
           )
         }
@@ -392,7 +393,7 @@ export default function App() {
       case 'exportar':
         return <Exportar />
       case 'estadisticas':
-        return <Estadisticas />
+        return <Estadisticas onNavigate={handleNavigate} />
       case 'historial':
         return <HistorialCambios />
       default:
@@ -432,6 +433,7 @@ export default function App() {
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenPerfil={() => setPerfilOpen(true)}
+          onOpenShortcutsHelp={() => setShortcutsModalOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
           userName={userName}
@@ -470,6 +472,12 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onExportS140={handleExportCurrentWeekS140}
+      />
+
+      <AyudaAtajosModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+        onNavigate={handleNavigate}
       />
 
       <Toast toast={toast} />

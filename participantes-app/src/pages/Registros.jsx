@@ -33,6 +33,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Sheet } from '../components/ui/Sheet'
 import { Tooltip } from '../components/ui/Tooltip'
+import { EmptyState } from '../components/ui/EmptyState'
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -460,14 +461,14 @@ export default function Registros({ initialOpenCreate = false, onSheetClosed } =
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-text1">
-              Registros
+              Historial de Asignaciones
             </h1>
             <Badge variant="neutral" size="sm">
               {participaciones.length} participaciones
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
-            Historial de participaciones, asignaciones manuales y control de actividad.
+            Registro cronológico de participaciones, asignaciones manuales y control de actividad.
           </p>
         </div>
 
@@ -678,8 +679,32 @@ export default function Registros({ initialOpenCreate = false, onSheetClosed } =
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={modoSeleccion ? 8 : 7} className="py-16 text-center text-xs text-text3">
-                    No se encontraron registros de participaciones con los filtros seleccionados.
+                  <td colSpan={modoSeleccion ? 8 : 7} className="py-8 px-4">
+                    <EmptyState
+                      icon={search || filterMes || filterLista || filterTipo ? Search : FileEdit}
+                      title="Sin asignaciones coincidentes"
+                      description={
+                        search || filterMes || filterLista || filterTipo
+                          ? 'No se encontraron registros de participaciones con los filtros seleccionados.'
+                          : 'Aún no hay registros de participaciones en este periodo.'
+                      }
+                      action={
+                        search || filterMes || filterLista || filterTipo ? (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => {
+                              setSearch('')
+                              setFilterMes('')
+                              setFilterLista('')
+                              setFilterTipo('')
+                            }}
+                          >
+                            Limpiar filtros
+                          </Button>
+                        ) : null
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

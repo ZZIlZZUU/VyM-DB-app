@@ -78,6 +78,7 @@ export default function CommandPalette({
       group: 'Navegación',
       action: () => onNavigate(n.id),
       shortcut: n.shortcut,
+      keywords: n.keywords || [],
     }))
 
   // Comandos de acciones
@@ -138,14 +139,17 @@ export default function CommandPalette({
           id: `persona-${p.clave}`,
           label: p.nombre,
           persona: p,
-          group: 'Personas',
+          group: 'Participantes',
           action: () => onNavigate('personas', { personaClave: p.clave, personaTab: 'historial' }),
         }))
     : []
 
-  // Comandos filtrados
+  // Comandos filtrados con soporte de sinónimos / keywords
   const filteredNav = cleanQuery
-    ? navCommands.filter(c => c.label.toLowerCase().includes(cleanQuery))
+    ? navCommands.filter(c =>
+        c.label.toLowerCase().includes(cleanQuery) ||
+        c.keywords?.some(k => k.toLowerCase().includes(cleanQuery))
+      )
     : navCommands
 
   const filteredActions = cleanQuery

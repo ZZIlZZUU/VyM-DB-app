@@ -8,6 +8,11 @@ import {
   Sun,
   Moon,
   Layout,
+  X,
+  Check,
+  Lock,
+  Sparkles,
+  ClipboardList,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatRangoSemanaLegible } from '../lib/fechas'
@@ -15,6 +20,7 @@ import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { Select } from './ui/Select'
 import { Button } from './ui/Button'
+import { EmptyState } from './ui/EmptyState'
 import Toast from './Toast'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -341,10 +347,10 @@ export default function PerfilDrawer({
             </span>
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-bg"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-bg cursor-pointer transition-colors"
               title="Cerrar panel"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -390,12 +396,13 @@ export default function PerfilDrawer({
                   onChange={e => handleVistaDefaultChange(e.target.value)}
                   size="md"
                 >
-                  <option value="home">Inicio (Home)</option>
-                  <option value="programa">Programa S-140</option>
-                  <option value="personas">Personas / Participantes</option>
-                  <option value="registros">Histórico de Registros</option>
-                  <option value="estadisticas">Estadísticas</option>
+                  <option value="home">Inicio</option>
+                  <option value="programa">Programa Semanal (S-140)</option>
                   <option value="semanal">Vista Semanal</option>
+                  <option value="editable">Matriz Anual</option>
+                  <option value="personas">Participantes</option>
+                  <option value="registros">Historial de Asignaciones</option>
+                  <option value="estadisticas">Estadísticas</option>
                 </Select>
                 <p className="text-[11px] text-text3 leading-relaxed">
                   Define la pantalla que se abrirá automáticamente al iniciar sesión o recargar la aplicación.
@@ -539,7 +546,7 @@ export default function PerfilDrawer({
                               : 'bg-accent/15 text-accent border border-accent/40 animate-pulse'
                         }`}
                       >
-                        {step1Done ? '✓' : '1'}
+                        {step1Done ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : '1'}
                       </div>
 
                       {/* Línea conectora 1 -> 2 */}
@@ -564,7 +571,7 @@ export default function PerfilDrawer({
                                 : 'bg-bg text-text3 border border-border'
                         }`}
                       >
-                        {step2Done ? '✓' : '2'}
+                        {step2Done ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : '2'}
                       </div>
 
                       {/* Línea conectora 2 -> 3 */}
@@ -589,7 +596,7 @@ export default function PerfilDrawer({
                                 : 'bg-bg text-text3 border border-border'
                         }`}
                       >
-                        {step3Done ? '✓' : '3'}
+                        {step3Done ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : '3'}
                       </div>
                     </div>
 
@@ -602,8 +609,8 @@ export default function PerfilDrawer({
                             Paso 1: Contraseña actual *
                           </label>
                           {step1Done && (
-                            <span className={`text-[10px] font-mono font-medium ${activeTextClass}`}>
-                              ✓ Ingresada
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-medium ${activeTextClass}`}>
+                              <Check className="w-3 h-3 stroke-[2.5]" /> Ingresada
                             </span>
                           )}
                         </div>
@@ -622,7 +629,7 @@ export default function PerfilDrawer({
                             type="button"
                             onClick={handleForgotCurrentPassword}
                             disabled={resetLoading}
-                            className="text-[11px] text-text3 hover:text-accent underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="text-[11px] text-text3 hover:text-accent underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                           >
                             {resetLoading ? 'Enviando correo...' : '¿Olvidaste tu contraseña actual?'}
                           </button>
@@ -632,7 +639,8 @@ export default function PerfilDrawer({
                       {/* Aviso de bloqueo si Paso 1 está incompleto */}
                       {!step1Done && (
                         <div className="text-[11px] text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2 flex items-center gap-2 font-medium animate-fade-in">
-                          <span>🔒</span> Debe introducir su contraseña actual primero para continuar.
+                          <Lock className="w-3.5 h-3.5 shrink-0 text-amber" />
+                          <span>Debe introducir su contraseña actual primero para continuar.</span>
                         </div>
                       )}
 
@@ -643,8 +651,8 @@ export default function PerfilDrawer({
                             Paso 2: Nueva contraseña *
                           </label>
                           {step2Done && (
-                            <span className={`text-[10px] font-mono font-medium ${activeTextClass}`}>
-                              ✓ 8+ caracteres
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-medium ${activeTextClass}`}>
+                              <Check className="w-3 h-3 stroke-[2.5]" /> 8+ caracteres
                             </span>
                           )}
                         </div>
@@ -655,7 +663,7 @@ export default function PerfilDrawer({
                           minLength={8}
                           disabled={!step1Done}
                           required
-                          placeholder={step1Done ? 'Mínimo 8 caracteres' : '🔒 Introduce la contraseña actual primero'}
+                          placeholder={step1Done ? 'Mínimo 8 caracteres' : 'Introduce la contraseña actual primero'}
                           className={`w-full px-3 py-2 border rounded-lg text-sm bg-surface text-text1 outline-none transition-colors disabled:bg-bg/60 disabled:cursor-not-allowed ${
                             step2Done ? (allDone ? 'border-blue/60' : 'border-accent/60') : 'border-border2 focus:border-accent'
                           }`}
@@ -669,8 +677,8 @@ export default function PerfilDrawer({
                             Paso 3: Confirmar nueva contraseña *
                           </label>
                           {step3Done && (
-                            <span className={`text-[10px] font-mono font-medium ${activeTextClass}`}>
-                              ✓ Coinciden
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-medium ${activeTextClass}`}>
+                              <Check className="w-3 h-3 stroke-[2.5]" /> Coinciden
                             </span>
                           )}
                         </div>
@@ -681,7 +689,7 @@ export default function PerfilDrawer({
                           minLength={8}
                           disabled={!step2Done}
                           required
-                          placeholder={step2Done ? 'Repite la nueva contraseña' : '🔒 Completa los pasos anteriores primero'}
+                          placeholder={step2Done ? 'Repite la nueva contraseña' : 'Completa los pasos anteriores primero'}
                           className={`w-full px-3 py-2 border rounded-lg text-sm bg-surface text-text1 outline-none transition-colors disabled:bg-bg/60 disabled:cursor-not-allowed ${
                             step3Done ? (allDone ? 'border-blue/60' : 'border-accent/60') : 'border-border2 focus:border-accent'
                           }`}
@@ -695,8 +703,9 @@ export default function PerfilDrawer({
 
                   {/* Indicador visual de 3/3 pasos completados */}
                   {allDone && (
-                    <div className="text-xs text-blue bg-blue-bg border border-blue/30 rounded-lg px-3 py-2 flex items-center justify-between animate-fade-in font-medium mt-1">
-                      <span>🎉 ¡Todos los pasos completados! Listo para actualizar.</span>
+                    <div className="text-xs text-blue bg-blue-bg border border-blue/30 rounded-lg px-3 py-2 flex items-center gap-2 animate-fade-in font-medium mt-1">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 text-blue" />
+                      <span>¡Todos los pasos completados! Listo para actualizar.</span>
                     </div>
                   )}
 
@@ -767,12 +776,13 @@ export default function PerfilDrawer({
               {loadingAsignaciones ? (
                 <div className="text-center py-8 text-xs text-text3">Buscando asignaciones...</div>
               ) : asignaciones.length === 0 ? (
-                <div className="bg-bg border border-border rounded-xl p-6 text-center">
-                  <div className="text-2xl mb-1">📋</div>
-                  <div className="text-sm font-medium text-text1">Sin asignaciones programadas</div>
-                  <p className="text-xs text-text3 mt-1">
-                    No se encontraron partes confirmadas asignadas a tu participante en el programa activo.
-                  </p>
+                <div className="bg-bg border border-border rounded-xl p-4">
+                  <EmptyState
+                    icon={ClipboardList}
+                    compact
+                    title="Sin asignaciones programadas"
+                    description="No se encontraron partes confirmadas asignadas a tu participante en el programa activo."
+                  />
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">

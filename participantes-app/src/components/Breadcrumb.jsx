@@ -5,8 +5,10 @@ export default function Breadcrumb({ view, NAV, onNavigate }) {
     <nav className="flex items-center gap-1.5 text-xs text-text3 mb-4 select-none overflow-x-auto whitespace-nowrap" aria-label="Breadcrumb">
       <button
         type="button"
-        onClick={() => onNavigate?.('editable')}
-        className="hover:text-text1 transition-colors cursor-pointer flex-shrink-0"
+        onClick={() => onNavigate?.('home')}
+        className={`hover:text-text1 transition-colors cursor-pointer flex-shrink-0 ${
+          view === 'home' ? 'text-text1 font-medium' : 'text-text3'
+        }`}
       >
         Inicio
       </button>

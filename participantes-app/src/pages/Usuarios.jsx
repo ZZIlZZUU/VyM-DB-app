@@ -25,6 +25,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { EmptyState } from '../components/ui/EmptyState'
 
 export default function Usuarios({ currentUser: propUser, currentRol: propRol }) {
   const [currentUser, setCurrentUser] = useState(propUser || null)
@@ -439,8 +440,12 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
             ) : loading ? (
               <SkeletonList rows={4} cols={2} />
             ) : usuarios.length === 0 ? (
-              <div className="py-12 text-center text-xs text-text3">
-                No hay usuarios autorizados registrados.
+              <div className="py-8">
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="Sin usuarios autorizados"
+                  description="No hay cuentas en la lista blanca de acceso. Agrega un correo autorizado arriba para conceder acceso."
+                />
               </div>
             ) : (
               usuarios.map(u => {

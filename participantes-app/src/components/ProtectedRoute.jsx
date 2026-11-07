@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { EmptyState } from './ui/EmptyState'
+import { ShieldBan } from 'lucide-react'
 
 export default function ProtectedRoute({ children }) {
   const [session, setSession]       = useState(undefined) // undefined = cargando sesión
@@ -71,20 +73,22 @@ export default function ProtectedRoute({ children }) {
   // Sesión activa pero no autorizado
   if (!autorizado) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="bg-surface border border-border2 rounded-xl p-8 max-w-sm text-center shadow-lg">
-          <div className="text-2xl mb-3">⛔</div>
-          <div className="font-medium text-text1 mb-2">Acceso no autorizado</div>
-          <div className="text-sm text-text3 mb-5 leading-relaxed">
-            Tu cuenta no tiene acceso a esta aplicación.<br />
-            Contacta al administrador para solicitar acceso.
-          </div>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="text-sm text-danger hover:underline font-medium"
-          >
-            Cerrar sesión
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-bg px-4">
+        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-lg">
+          <EmptyState
+            icon={ShieldBan}
+            title="Acceso no autorizado"
+            description="Tu cuenta no tiene permisos para acceder a esta aplicación. Contacta al administrador para solicitar acceso."
+            action={
+              <button
+                type="button"
+                onClick={() => supabase.auth.signOut()}
+                className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+              >
+                Cerrar sesión
+              </button>
+            }
+          />
         </div>
       </div>
     )

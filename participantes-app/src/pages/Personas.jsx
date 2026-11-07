@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Search,
   UserPlus,
@@ -16,6 +16,9 @@ import {
   History,
   PowerOff,
   Trash2,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatFechaLegible, formatFechaConDia } from '../lib/fechas'
@@ -31,6 +34,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Sheet } from '../components/ui/Sheet'
 import { Tooltip } from '../components/ui/Tooltip'
+import { EmptyState } from '../components/ui/EmptyState'
 
 const TIPO_LABEL = {
   P: 'Presidente',
@@ -108,18 +112,80 @@ function initials(nombre) {
 
 const FORM_EMPTY = { lista: 'Mat', sexo: 'F', nombre: '', estatus: '' }
 
+// ─── Componente Cabecera Ordenable ────────────────────────────
+function SortHeader({
+  field,
+  label,
+  currentField,
+  currentDir,
+  onSort,
+  className = '',
+  align = 'left',
+}) {
+  const isActive = currentField === field
+
+  return (
+    <th
+      onClick={() => onSort(field)}
+      className={`py-3 px-4 font-mono uppercase text-[10px] tracking-wider cursor-pointer hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors select-none group ${className}`}
+    >
+      <div
+        className={`flex items-center gap-1.5 ${
+          align === 'right'
+            ? 'justify-end'
+            : align === 'center'
+            ? 'justify-center'
+            : 'justify-start'
+        }`}
+      >
+        <span
+          className={`transition-colors ${
+            isActive
+              ? 'text-text1 font-bold'
+              : 'text-zinc-500 dark:text-zinc-400 group-hover:text-text2'
+          }`}
+        >
+          {label}
+        </span>
+        <span
+          className={`transition-colors shrink-0 ${
+            isActive
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-zinc-400/50 group-hover:text-zinc-400 dark:text-zinc-600 dark:group-hover:text-zinc-400'
+          }`}
+        >
+          {isActive ? (
+            currentDir === 'asc' ? (
+              <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+          )}
+        </span>
+      </div>
+    </th>
+  )
+}
+
 export default function Personas({
   initialPersonaClave,
   initialTab = 'historial',
   onClearInitialPersona,
 }) {
   const [personas, setPersonas] = useState([])
+  const [participaciones, setParticipaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [search, setSearch] = useState('')
   const [searchVal, setSearchVal] = useState('')
   const [filterLista, setFilterLista] = useState('')
   const [filterActivo, setFilterActivo] = useState('true')
+
+  // Ordenamiento interactivo
+  const [sortField, setSortField] = useState('nombre')
+  const [sortDirection, setSortDirection] = useState('asc')
 
   // Drawer lateral (Sheet) y formulario
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -153,12 +219,14 @@ export default function Personas({
         setFetchError(null)
       }
       try {
-        const { data, error: err } = await supabase
-          .from('personas')
-          .select('*')
-          .order('nombre')
-        if (err) throw err
-        setPersonas(data || [])
+        const [{ data: pData, error: pErr }, { data: partData, error: partErr }] = await Promise.all([
+          supabase.from('personas').select('*').order('nombre'),
+          supabase.from('participaciones').select('clave, fecha'),
+        ])
+        if (pErr) throw pErr
+        if (partErr) throw partErr
+        setPersonas(pData || [])
+        setParticipaciones(partData || [])
       } catch (err) {
         console.error('[fetchPersonas]', err)
         if (isInitial) {
@@ -242,6 +310,11 @@ export default function Personas({
         { event: '*', schema: 'public', table: 'personas' },
         () => fetchPersonas()
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'participaciones' },
+        () => fetchPersonas()
+      )
       .subscribe()
     return () => supabase.removeChannel(canal)
   }, [fetchPersonas])
@@ -263,20 +336,69 @@ export default function Personas({
     }
   }, [sheetOpen, activeSheetTab])
 
-  // Filtrado reactivo de personas
-  const filtered = personas.filter(p => {
-    if (
-      search &&
-      !p.nombre.toLowerCase().includes(search.toLowerCase()) &&
-      !p.clave.toLowerCase().includes(search.toLowerCase())
-    ) {
-      return false
+  const currentYear = useMemo(() => new Date().getFullYear().toString(), [])
+
+  // Mapa de conteo de participaciones en el año en curso
+  const conteosAnio = useMemo(() => {
+    const map = {}
+    for (const part of participaciones) {
+      if (!part.clave) continue
+      if (part.fecha && !part.fecha.startsWith(currentYear)) continue
+      map[part.clave] = (map[part.clave] || 0) + 1
     }
-    if (filterLista && p.lista !== filterLista) return false
-    if (filterActivo === 'true' && !p.activo) return false
-    if (filterActivo === 'false' && p.activo) return false
-    return true
-  })
+    return map
+  }, [participaciones, currentYear])
+
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection(field === 'participaciones' ? 'desc' : 'asc')
+    }
+  }
+
+  // Filtrado reactivo y ordenamiento multi-columna de personas
+  const filtered = useMemo(() => {
+    const list = personas.filter(p => {
+      if (
+        search &&
+        !p.nombre.toLowerCase().includes(search.toLowerCase()) &&
+        !p.clave.toLowerCase().includes(search.toLowerCase())
+      ) {
+        return false
+      }
+      if (filterLista && p.lista !== filterLista) return false
+      if (filterActivo === 'true' && !p.activo) return false
+      if (filterActivo === 'false' && p.activo) return false
+      return true
+    })
+
+    return [...list].sort((a, b) => {
+      let comparison = 0
+
+      if (sortField === 'clave') {
+        comparison = a.clave.localeCompare(b.clave, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      } else if (sortField === 'nombre') {
+        comparison = a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+      } else if (sortField === 'lista') {
+        comparison = a.lista.localeCompare(b.lista)
+      } else if (sortField === 'estatus') {
+        comparison = (a.estatus || '').localeCompare(b.estatus || '')
+      } else if (sortField === 'participaciones') {
+        const countA = conteosAnio[a.clave] || 0
+        const countB = conteosAnio[b.clave] || 0
+        comparison = countA - countB
+      } else if (sortField === 'activo') {
+        comparison = (a.activo === b.activo ? 0 : a.activo ? -1 : 1)
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }, [personas, search, filterLista, filterActivo, sortField, sortDirection, conteosAnio])
 
   // Métricas rápidas
   const totalCount = personas.length
@@ -507,7 +629,7 @@ export default function Personas({
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-text1">
-              Personas
+              Participantes
             </h1>
             <Badge variant="neutral" size="sm">
               {totalCount} registrados
@@ -620,21 +742,56 @@ export default function Personas({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 font-medium select-none">
-                <th className="py-3 px-4 w-24 font-mono uppercase text-[10px] tracking-wider">
-                  Clave
-                </th>
-                <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider min-w-[200px]">
-                  Participante
-                </th>
-                <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider hidden sm:table-cell">
-                  Lista
-                </th>
-                <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider hidden md:table-cell">
-                  Estatus
-                </th>
-                <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider text-center w-28">
-                  Estado
-                </th>
+                <SortHeader
+                  field="clave"
+                  label="Clave"
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  className="w-24"
+                />
+                <SortHeader
+                  field="nombre"
+                  label="Participante"
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  className="min-w-[200px]"
+                />
+                <SortHeader
+                  field="lista"
+                  label="Lista"
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  className="hidden sm:table-cell"
+                />
+                <SortHeader
+                  field="estatus"
+                  label="Estatus"
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  className="hidden md:table-cell"
+                />
+                <SortHeader
+                  field="participaciones"
+                  label={`Part. ${currentYear}`}
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  align="center"
+                  className="hidden lg:table-cell w-28 text-center"
+                />
+                <SortHeader
+                  field="activo"
+                  label="Estado"
+                  currentField={sortField}
+                  currentDir={sortDirection}
+                  onSort={handleSort}
+                  align="center"
+                  className="w-28 text-center"
+                />
                 <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider text-right w-24">
                   Acciones
                 </th>
@@ -643,43 +800,40 @@ export default function Personas({
             <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/60">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-8 px-4">
-                    <SkeletonList rows={8} cols={4} />
+                  <td colSpan={7} className="py-8 px-4">
+                    <SkeletonList rows={8} cols={5} />
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 px-4 text-center">
-                    <div className="flex flex-col items-center justify-center max-w-xs mx-auto space-y-3">
-                      <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-text3">
-                        <Users className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-text1">
-                          Sin participantes coincidentes
-                        </h4>
-                        <p className="text-xs text-text3 mt-0.5">
-                          {searchVal
-                            ? `No se encontraron resultados para "${searchVal}"`
-                            : 'No hay participantes registrados con los filtros seleccionados.'}
-                        </p>
-                      </div>
-                      {searchVal && (
-                        <Button
-                          variant="secondary"
-                          size="xs"
-                          onClick={() => setSearchVal('')}
-                        >
-                          Limpiar búsqueda
-                        </Button>
-                      )}
-                    </div>
+                  <td colSpan={7} className="py-8 px-4">
+                    <EmptyState
+                      icon={searchVal ? Search : Users}
+                      title="Sin participantes coincidentes"
+                      description={
+                        searchVal
+                          ? `No se encontraron resultados para "${searchVal}".`
+                          : 'No hay participantes registrados con los filtros seleccionados.'
+                      }
+                      action={
+                        searchVal ? (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => setSearchVal('')}
+                          >
+                            Limpiar búsqueda
+                          </Button>
+                        ) : null
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 filtered.map(p => {
                   const isFemenino = p.sexo === 'F'
                   const isMat = p.lista === 'Mat'
+                  const partAnioCount = conteosAnio[p.clave] || 0
 
                   return (
                     <tr
@@ -713,7 +867,7 @@ export default function Personas({
                               {p.nombre}
                             </span>
                             <span className="text-[10px] text-text3 md:hidden">
-                              {p.estatus} · {isMat ? 'Matriculados' : 'Anc/SM'}
+                              {p.estatus} · {isMat ? 'Matriculados' : 'Anc/SM'} · {partAnioCount} {partAnioCount === 1 ? 'part.' : 'part.'}
                             </span>
                           </div>
                         </div>
@@ -734,6 +888,19 @@ export default function Personas({
                         <span className="inline-flex items-center gap-1">
                           {p.estatus}
                         </span>
+                      </td>
+
+                      {/* Participaciones en el año (Métrica) */}
+                      <td className="py-3 px-4 text-center hidden lg:table-cell">
+                        {partAnioCount > 0 ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40">
+                            {partAnioCount} {partAnioCount === 1 ? 'part.' : 'part.'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-400 dark:text-zinc-600">
+                            0 part.
+                          </span>
+                        )}
                       </td>
 
                       {/* Estado Activo/Inactivo */}

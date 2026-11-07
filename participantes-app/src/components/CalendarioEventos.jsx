@@ -21,6 +21,7 @@ import { supabase } from '../lib/supabase'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
 import { Sheet } from './ui/Sheet'
+import { EmptyState } from './ui/EmptyState'
 import Toast from './Toast'
 import { useToast } from '../hooks/useToast'
 import { useConfiguracion } from '../hooks/useConfiguracion'
@@ -818,15 +819,11 @@ export function CalendarioEventos({
         {vistaModo === 'lista' && (
           <div className="p-4 sm:p-5">
             {eventos.length === 0 ? (
-              <div className="py-12 text-center space-y-2">
-                <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-text3 flex items-center justify-center mx-auto">
-                  <CalendarIcon className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-medium text-text1">No hay eventos o excepciones programadas</p>
-                <p className="text-[11px] text-text3 max-w-sm mx-auto">
-                  Cuando se programe una Visita del Superintendente, Asamblea o cambio de reunión, aparecerá aquí.
-                </p>
-              </div>
+              <EmptyState
+                icon={CalendarIcon}
+                title="No hay eventos o excepciones programadas"
+                description="Cuando se programe una Visita del Superintendente, Asamblea o cambio de reunión, aparecerá aquí."
+              />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {eventos.filter(Boolean).map(evt => {

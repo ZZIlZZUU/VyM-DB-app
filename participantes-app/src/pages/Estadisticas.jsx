@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   BarChart,
   Bar,
@@ -28,12 +28,15 @@ import {
   Info,
   PieChart as PieIcon,
   LineChart as LineIcon,
+  ArrowRight,
+  Clock,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
+import { EmptyState } from '../components/ui/EmptyState'
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -161,12 +164,23 @@ function StatCard({ title, icon: Icon, badge, children }) {
 }
 
 // ── Barra de Progreso Personalizada ───────────────────────────
-function CustomBar({ label, value, max }) {
+function CustomBar({ label, value, max, onClick }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
 
   return (
-    <div className="flex items-center gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
-      <div className="w-36 shrink-0 truncate text-xs font-medium text-text1" title={label}>
+    <div
+      onClick={onClick}
+      className={`flex items-center gap-3 py-2 px-2 rounded-lg border-b border-zinc-100 dark:border-zinc-800/50 last:border-0 transition-colors ${
+        onClick
+          ? 'cursor-pointer hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60 group'
+          : ''
+      }`}
+      title={onClick ? `Clic para ver historial de ${label}` : undefined}
+    >
+      <div
+        className="w-36 shrink-0 truncate text-xs font-medium text-text1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"
+        title={label}
+      >
         {label}
       </div>
       <div className="flex-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-full h-2 overflow-hidden">
@@ -178,17 +192,21 @@ function CustomBar({ label, value, max }) {
       <span className="font-mono text-xs font-semibold text-text2 w-8 text-right shrink-0">
         {value}
       </span>
+      {onClick && (
+        <ArrowRight className="w-3 h-3 text-zinc-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+      )}
     </div>
   )
 }
 
 // ── Componente Principal ──────────────────────────────────────
-export default function Estadisticas() {
+export default function Estadisticas({ onNavigate }) {
   const [personas, setPersonas] = useState([])
   const [participaciones, setParticipaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [filterLista, setFilterLista] = useState('')
+  const [filterRango, setFilterRango] = useState('anio') // 'anio' | '3m' | '6m' | 'mes'
   const [filterMes, setFilterMes] = useState('')
 
   const fetchData = useCallback(async () => {
@@ -224,10 +242,34 @@ export default function Estadisticas() {
     return () => supabase.removeChannel(canal)
   }, [fetchData])
 
+  // Fechas de corte para rangos temporales relativos
+  const { cutoff3m, cutoff6m, currentYearStr } = useMemo(() => {
+    const now = new Date()
+    const y = now.getFullYear().toString()
+
+    const d3 = new Date(now)
+    d3.setMonth(d3.getMonth() - 3)
+    const c3 = d3.toISOString().slice(0, 10)
+
+    const d6 = new Date(now)
+    d6.setMonth(d6.getMonth() - 6)
+    const c6 = d6.toISOString().slice(0, 10)
+
+    return { cutoff3m: c3, cutoff6m: c6, currentYearStr: y }
+  }, [])
+
   // Aplicar filtros
   const regs = participaciones.filter(r => {
     if (filterLista && r.lista !== filterLista) return false
-    if (filterMes && r.mes !== filterMes) return false
+    if (filterRango === 'mes') {
+      if (filterMes && r.mes !== filterMes) return false
+    } else if (filterRango === '3m') {
+      if (!r.fecha || r.fecha < cutoff3m) return false
+    } else if (filterRango === '6m') {
+      if (!r.fecha || r.fecha < cutoff6m) return false
+    } else if (filterRango === 'anio') {
+      if (r.fecha && !r.fecha.startsWith(currentYearStr)) return false
+    }
     return true
   })
 
@@ -266,12 +308,20 @@ export default function Estadisticas() {
   // Por persona (Top 10)
   const porPersona = {}
   regs.forEach(r => {
-    porPersona[r.nombre] = (porPersona[r.nombre] || 0) + 1
+    if (!r.clave) return
+    if (!porPersona[r.clave]) {
+      porPersona[r.clave] = {
+        clave: r.clave,
+        nombre: r.nombre,
+        count: 0,
+      }
+    }
+    porPersona[r.clave].count++
   })
-  const topPersonas = Object.entries(porPersona)
-    .sort((a, b) => b[1] - a[1])
+  const topPersonas = Object.values(porPersona)
+    .sort((a, b) => b.count - a.count)
     .slice(0, 10)
-  const maxPersona = topPersonas[0]?.[1] || 1
+  const maxPersona = topPersonas[0]?.count || 1
 
   // Personas sin participaciones
   const conRegs = new Set(regs.map(r => r.clave))
@@ -395,6 +445,50 @@ export default function Estadisticas() {
 
         {/* Filtros de la Barra */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Segmented Rango Temporal */}
+          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+            {[
+              { id: 'anio', label: 'Año completo' },
+              { id: '3m', label: 'Últimos 3 meses' },
+              { id: '6m', label: 'Últimos 6 meses' },
+              { id: 'mes', label: 'Por mes' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setFilterRango(tab.id)
+                  if (tab.id !== 'mes') setFilterMes('')
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  filterRango === tab.id
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Selector Mes (cuando filterRango === 'mes') */}
+          {filterRango === 'mes' && (
+            <div className="w-36">
+              <Select
+                value={filterMes}
+                onChange={e => setFilterMes(e.target.value)}
+                size="sm"
+              >
+                <option value="">Selecciona mes...</option>
+                {MESES.map(m => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           {/* Segmented Lista */}
           <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
             {[
@@ -417,47 +511,41 @@ export default function Estadisticas() {
             ))}
           </div>
 
-          {/* Selector Mes */}
-          <div className="w-36">
-            <Select
-              value={filterMes}
-              onChange={e => setFilterMes(e.target.value)}
-              size="sm"
-            >
-              <option value="">Todos los meses</option>
-              {MESES.map(m => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {(filterLista || filterMes) && (
+          {(filterLista || filterRango !== 'anio' || filterMes) && (
             <Button
               variant="ghost"
               size="iconSm"
               onClick={() => {
                 setFilterLista('')
+                setFilterRango('anio')
                 setFilterMes('')
               }}
-              title="Limpiar filtros"
+              title="Restablecer filtros"
             >
-              <X className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </Button>
           )}
         </div>
       </div>
 
       {totalRegs === 0 ? (
-        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-16 px-6 text-center flex flex-col items-center justify-center min-h-[380px] shadow-2xs">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/40 flex items-center justify-center mb-4 text-emerald-700 dark:text-emerald-300">
-            <BarChart3 className="w-8 h-8" />
-          </div>
-          <h3 className="text-base font-semibold text-text1">Sin estadísticas registradas</h3>
-          <p className="text-xs text-text3 max-w-sm mt-1.5 leading-relaxed">
-            No se han registrado participaciones con los filtros seleccionados para calcular las métricas.
-          </p>
+        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl p-8 shadow-2xs">
+          <EmptyState
+            icon={BarChart3}
+            title="Sin estadísticas para este periodo"
+            description="No se encontraron participaciones registradas con los filtros seleccionados."
+            action={
+              (filterLista || filterRango !== 'anio' || filterMes) ? {
+                label: 'Restablecer filtros',
+                onClick: () => {
+                  setFilterLista('')
+                  setFilterRango('anio')
+                  setFilterMes('')
+                },
+                icon: RotateCcw,
+              } : undefined
+            }
+          />
         </div>
       ) : (
         <>
@@ -752,8 +840,19 @@ export default function Estadisticas() {
                 <div className="py-12 text-center text-xs text-text3">Sin datos</div>
               ) : (
                 <div className="space-y-1">
-                  {topPersonas.map(([nombre, count]) => (
-                    <CustomBar key={nombre} label={nombre} value={count} max={maxPersona} />
+                  {topPersonas.map(p => (
+                    <CustomBar
+                      key={p.clave}
+                      label={p.nombre}
+                      value={p.count}
+                      max={maxPersona}
+                      onClick={() =>
+                        onNavigate?.('personas', {
+                          personaClave: p.clave,
+                          personaTab: 'historial',
+                        })
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -777,7 +876,14 @@ export default function Estadisticas() {
                     {sinRegs.map(p => (
                       <div
                         key={p.clave}
-                        className="p-2 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs"
+                        onClick={() =>
+                          onNavigate?.('personas', {
+                            personaClave: p.clave,
+                            personaTab: 'perfil',
+                          })
+                        }
+                        className="p-2 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs hover:bg-zinc-100/90 dark:hover:bg-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 cursor-pointer transition-all duration-150 group"
+                        title="Clic para ver detalles en Participantes"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <div
@@ -789,12 +895,19 @@ export default function Estadisticas() {
                           >
                             {initials(p.nombre)}
                           </div>
-                          <span className="font-mono text-text3 text-[11px]">{p.clave}</span>
-                          <span className="font-medium text-text1 truncate">{p.nombre}</span>
+                          <span className="font-mono text-text3 text-[11px] group-hover:text-text2">
+                            {p.clave}
+                          </span>
+                          <span className="font-medium text-text1 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {p.nombre}
+                          </span>
                         </div>
-                        <Badge variant="neutral" size="xs">
-                          {p.lista}
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="neutral" size="xs">
+                            {p.lista}
+                          </Badge>
+                          <ArrowRight className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -817,7 +930,14 @@ export default function Estadisticas() {
                     {pocaActividad.map(p => (
                       <div
                         key={p.clave}
-                        className="p-2 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs"
+                        onClick={() =>
+                          onNavigate?.('personas', {
+                            personaClave: p.clave,
+                            personaTab: 'historial',
+                          })
+                        }
+                        className="p-2 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between text-xs hover:bg-zinc-100/90 dark:hover:bg-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 cursor-pointer transition-all duration-150 group"
+                        title="Clic para ver historial en Participantes"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <div
@@ -829,12 +949,19 @@ export default function Estadisticas() {
                           >
                             {initials(p.nombre)}
                           </div>
-                          <span className="font-mono text-text3 text-[11px]">{p.clave}</span>
-                          <span className="font-medium text-text1 truncate">{p.nombre}</span>
+                          <span className="font-mono text-text3 text-[11px] group-hover:text-text2">
+                            {p.clave}
+                          </span>
+                          <span className="font-medium text-text1 truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {p.nombre}
+                          </span>
                         </div>
-                        <Badge variant="warning" size="xs">
-                          {p.count} part.
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="warning" size="xs">
+                            {p.count} part.
+                          </Badge>
+                          <ArrowRight className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                        </div>
                       </div>
                     ))}
                   </div>

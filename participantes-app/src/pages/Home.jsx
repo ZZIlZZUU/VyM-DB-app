@@ -43,6 +43,7 @@ import Toast from '../components/Toast'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { EmptyState } from '../components/ui/EmptyState'
 import { Dialog } from '../components/ui/Dialog'
 import { Input } from '../components/ui/Input'
 import { Tooltip } from '../components/ui/Tooltip'
@@ -1032,22 +1033,22 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
 
         {/* Contenido de la Semana Actual */}
         {!semanaActual || partesSemanaActual.length === 0 ? (
-          <div className="py-12 px-4 text-center flex flex-col items-center justify-center space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-text3">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-semibold text-text1">No hay programa para la semana en curso</h3>
-            <p className="text-xs text-text3 max-w-sm">
-              Sube el archivo EPUB de la guía de actividades en la sección de Programa para ver la agenda aquí.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={Upload}
-              onClick={() => onNavigate?.('programa')}
-            >
-              Ir a Programa S-140
-            </Button>
+          <div className="py-8 px-4">
+            <EmptyState
+              icon={Calendar}
+              title="No hay programa para la semana en curso"
+              description="Sube el archivo EPUB de la guía de actividades en la sección de Programa para ver la agenda aquí."
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Upload}
+                  onClick={() => onNavigate?.('programa')}
+                >
+                  Ir a Programa Semanal
+                </Button>
+              }
+            />
           </div>
         ) : (
           <div className="p-4 sm:p-5 space-y-4">

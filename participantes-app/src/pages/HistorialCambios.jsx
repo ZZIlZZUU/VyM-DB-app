@@ -23,6 +23,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Dialog } from '../components/ui/Dialog'
+import { EmptyState } from '../components/ui/EmptyState'
 
 function initials(email) {
   if (!email) return 'SY'
@@ -273,8 +274,31 @@ export default function HistorialCambios() {
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-xs text-text3">
-                    No se encontraron registros de auditoría que coincidan con la búsqueda.
+                  <td colSpan={6} className="py-8 px-4">
+                    <EmptyState
+                      icon={search || filterTabla !== 'todos' || filterAccion !== 'todos' ? Search : History}
+                      title="Sin eventos de auditoría"
+                      description={
+                        search || filterTabla !== 'todos' || filterAccion !== 'todos'
+                          ? 'No se encontraron registros de auditoría que coincidan con los filtros seleccionados.'
+                          : 'Aún no hay actividad de auditoría registrada.'
+                      }
+                      action={
+                        search || filterTabla !== 'todos' || filterAccion !== 'todos' ? (
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => {
+                              setSearch('')
+                              setFilterTabla('todos')
+                              setFilterAccion('todos')
+                            }}
+                          >
+                            Limpiar filtros
+                          </Button>
+                        ) : null
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

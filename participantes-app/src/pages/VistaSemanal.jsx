@@ -35,6 +35,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
+import { EmptyState } from '../components/ui/EmptyState'
 import { SkeletonBlock } from '../components/Skeleton'
 
 const SECCION_LABEL = {
@@ -518,14 +519,14 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-text1">
-              Vista Semanal Histórica
+              Vista Semanal
             </h1>
             <Badge variant="neutral" size="sm">
               Solo lectura
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-1">
-            Consulta rápida semana a semana del historial de asignaciones y exportación puntual del S-140.
+            Consulta rápida semana a semana del programa de asignaciones y exportación puntual del S-140.
           </p>
         </div>
 
@@ -634,23 +635,22 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
       {isTransitioning ? (
         <SkeletonSemana />
       ) : !semanaActiva || partesSemanaActiva.length === 0 ? (
-        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-16 px-6 text-center flex flex-col items-center justify-center min-h-[360px] shadow-2xs space-y-3 animate-view-fade">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-text3">
-            <CalendarDays className="w-7 h-7" />
-          </div>
-          <h3 className="text-base font-semibold text-text1">No hay datos para la semana seleccionada</h3>
-          <p className="text-xs text-text3 max-w-sm leading-relaxed">
-            No se han encontrado registros ni asignaciones del programa S-140 para este periodo. Puedes subir el archivo EPUB en la sección de Programa.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            icon={Sparkles}
-            onClick={() => onNavigate?.('programa')}
-            className="mt-2"
-          >
-            Ir a Programa S-140
-          </Button>
+        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-12 px-6 shadow-2xs animate-view-fade">
+          <EmptyState
+            icon={CalendarDays}
+            title="No hay datos para la semana seleccionada"
+            description="No se han encontrado registros ni asignaciones del programa S-140 para este periodo. Puedes subir el archivo EPUB en la sección de Programa."
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Sparkles}
+                onClick={() => onNavigate?.('programa')}
+              >
+                Ir a Programa Semanal
+              </Button>
+            }
+          />
         </div>
       ) : (
         <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xs animate-view-fade">

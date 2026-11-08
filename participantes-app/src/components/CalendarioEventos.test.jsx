@@ -56,13 +56,14 @@ describe('CalendarioEventos component rendering', () => {
   })
 
   it('renderiza con eventos existentes', () => {
+    const ym = new Date().toISOString().slice(0, 7)
     const eventosMock = [
       {
         id: '1',
         tipo_evento: 'asamblea_regional',
         titulo_evento: 'Asamblea Regional 2026',
-        fecha_original: '2026-10-16',
-        fecha_efectiva: '2026-10-16',
+        fecha_original: `${ym}-16`,
+        fecha_efectiva: `${ym}-16`,
       },
     ]
     const html = renderToString(

@@ -1,604 +1,79 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { lazy, Suspense } from 'react'
 import {
   Search,
   UserPlus,
-  Users,
-  UserCheck,
-  UserX,
-  Pencil,
-  Power,
   RotateCcw,
-  Sparkles,
-  SlidersHorizontal,
   X,
   Clock,
   Calendar,
   History,
   PowerOff,
   Trash2,
-  ArrowUpDown,
-  ChevronUp,
-  ChevronDown,
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { formatFechaLegible, formatFechaConDia } from '../lib/fechas'
-import { useToast } from '../hooks/useToast'
-import { useConfirm } from '../hooks/useConfirm'
+import { TIPO_LABEL, TIPO_COLOR } from '../lib/conflictosRotacion'
+import { usePersonasController } from '../hooks/controllers/usePersonasController'
+import { useEnvironment } from '../hooks/useEnvironment'
 import Toast from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { SkeletonList, SkeletonBlock } from '../components/Skeleton'
+import { SkeletonBlock, SkeletonList } from '../components/Skeleton'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Sheet } from '../components/ui/Sheet'
-import { Tooltip } from '../components/ui/Tooltip'
-import { EmptyState } from '../components/ui/EmptyState'
 
-const TIPO_LABEL = {
-  P: 'Presidente',
-  ORACION: 'Oración apertura',
-  ORACION_C: 'Oración cierre',
-  CONCLU: 'Palabras de conclusión',
-  TB: 'Tesoros de la Biblia',
-  PE: 'Perlas escondidas',
-  LB: 'Lectura de la Biblia',
-  SMT_EST: 'Estudiante',
-  SMT_EXP: 'Explique sus creencias',
-  SMT_DSC: 'Discurso',
-  SMT_AYU: 'Ayudante',
-  VC: 'Vida Cristiana',
-  NC: 'Nec. de la congregación',
-  EBC_CON: 'Conductor EBC',
-  LEBC: 'Lector EBC',
-  T: 'Titular',
-  A: 'Ayudante',
-  X: 'Participación',
-  EBC: 'Estudio Bíblico',
-}
+const PersonasDesktop = lazy(() => import('../environments/desktop/personas/PersonasDesktop'))
+const PersonasMobile = lazy(() => import('../environments/mobile/personas/PersonasMobile'))
 
-const TIPO_COLOR = {
-  P: 'bg-purple-50 text-purple-800 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
-  ORACION: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  ORACION_C: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  CONCLU: 'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/60',
-  TB: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
-  PE: 'bg-rose-50 text-rose-800 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40',
-  LB: 'bg-cyan-50 text-cyan-800 border-cyan-200/80 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/40',
-  SMT_EST: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
-  SMT_EXP: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
-  SMT_DSC: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
-  SMT_AYU: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  VC: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
-  NC: 'bg-red-50 text-red-800 border-red-200/80 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40',
-  EBC_CON: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
-  LEBC: 'bg-pink-50 text-pink-800 border-pink-200/80 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/40',
-  T: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
-  A: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  X: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
-  EBC: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
-}
-
-const ESTATUS_POR_SEXO_LISTA = {
-  'Mat-F': ['Matriculada', 'Matriculada bautizada'],
-  'Mat-M': ['Matriculado', 'Matriculado bautizado'],
-  'Anc/SM-M': ['Anciano', 'Siervo Ministerial'],
-}
-
-function getEstatusOpts(lista, sexo) {
-  return ESTATUS_POR_SEXO_LISTA[`${lista}-${sexo}`] || []
-}
-
-function getNextClave(personas, lista) {
-  const prefix = lista === 'Mat' ? 'M' : 'A'
-  const nums = personas
-    .filter(p => p.clave.startsWith(prefix + '-'))
-    .map(p => parseInt(p.clave.split('-')[1] || 0, 10))
-  const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return `${prefix}-${String(next).padStart(3, '0')}`
-}
-
-function initials(nombre) {
-  return (nombre || '')
-    .trim()
-    .split(' ')
-    .filter(Boolean)
-    .map(w => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-}
-
-const FORM_EMPTY = { lista: 'Mat', sexo: 'F', nombre: '', estatus: '' }
-
-// ─── Componente Cabecera Ordenable ────────────────────────────
-function SortHeader({
-  field,
-  label,
-  currentField,
-  currentDir,
-  onSort,
-  className = '',
-  align = 'left',
-}) {
-  const isActive = currentField === field
-
-  return (
-    <th
-      onClick={() => onSort(field)}
-      className={`py-3 px-4 font-mono uppercase text-[10px] tracking-wider cursor-pointer hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors select-none group ${className}`}
-    >
-      <div
-        className={`flex items-center gap-1.5 ${
-          align === 'right'
-            ? 'justify-end'
-            : align === 'center'
-            ? 'justify-center'
-            : 'justify-start'
-        }`}
-      >
-        <span
-          className={`transition-colors ${
-            isActive
-              ? 'text-text1 font-bold'
-              : 'text-zinc-500 dark:text-zinc-400 group-hover:text-text2'
-          }`}
-        >
-          {label}
-        </span>
-        <span
-          className={`transition-colors shrink-0 ${
-            isActive
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-zinc-400/50 group-hover:text-zinc-400 dark:text-zinc-600 dark:group-hover:text-zinc-400'
-          }`}
-        >
-          {isActive ? (
-            currentDir === 'asc' ? (
-              <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-            )
-          ) : (
-            <ArrowUpDown className="w-3 h-3 opacity-60 group-hover:opacity-100" />
-          )}
-        </span>
-      </div>
-    </th>
-  )
-}
-
-export default function Personas({
-  initialPersonaClave,
-  initialTab = 'historial',
-  onClearInitialPersona,
-}) {
-  const [personas, setPersonas] = useState([])
-  const [participaciones, setParticipaciones] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
-  const [search, setSearch] = useState('')
-  const [searchVal, setSearchVal] = useState('')
-  const [filterLista, setFilterLista] = useState('')
-  const [filterActivo, setFilterActivo] = useState('true')
-
-  // Ordenamiento interactivo
-  const [sortField, setSortField] = useState('nombre')
-  const [sortDirection, setSortDirection] = useState('asc')
-
-  // Drawer lateral (Sheet) y formulario
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [editClave, setEditClave] = useState(null)
-  const [form, setForm] = useState(FORM_EMPTY)
-  const [saving, setSaving] = useState(false)
-
-  // Pestañas del Sheet & Timeline Historial
-  const [activeSheetTab, setActiveSheetTab] = useState('perfil')
-  const [proximas, setProximas] = useState([])
-  const [historial, setHistorial] = useState([])
-  const [loadingHistorial, setLoadingHistorial] = useState(false)
-  const [historialFetchedFor, setHistorialFetchedFor] = useState(null)
-
-  const { toast, showToast, success, error: toastError } = useToast()
-  const { confirm, confirmProps } = useConfirm()
-  const nombreInputRef = useRef(null)
-
-  // Debounce de 250ms para búsqueda fluida
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchVal)
-    }, 250)
-    return () => clearTimeout(timer)
-  }, [searchVal])
-
-  const fetchPersonas = useCallback(
-    async (isInitial = false) => {
-      if (isInitial) {
-        setLoading(true)
-        setFetchError(null)
-      }
-      try {
-        const [{ data: pData, error: pErr }, { data: partData, error: partErr }] = await Promise.all([
-          supabase.from('personas').select('*').order('nombre'),
-          supabase.from('participaciones').select('clave, fecha'),
-        ])
-        if (pErr) throw pErr
-        if (partErr) throw partErr
-        setPersonas(pData || [])
-        setParticipaciones(partData || [])
-      } catch (err) {
-        console.error('[fetchPersonas]', err)
-        if (isInitial) {
-          setFetchError(err?.message || 'Error al conectar con la base de datos')
-        } else {
-          toastError(
-            'Error al sincronizar personas: ' + (err?.message || 'Error de conexión')
-          )
-        }
-      } finally {
-        if (isInitial) {
-          setLoading(false)
-        }
-      }
-    },
-    [toastError]
-  )
-
-  const fetchHistorialPersona = useCallback(
-    async (clave) => {
-      if (!clave) return
-      setLoadingHistorial(true)
-      try {
-        const hoyStr = new Date().toISOString().slice(0, 10)
-
-        const [asigRes, partRes] = await Promise.all([
-          supabase
-            .from('programa_asignaciones')
-            .select(`
-              id, rol, confirmado, clave,
-              programa_partes (
-                id, titulo, tipo_asignacion, duracion_min, seccion,
-                programa_semanas ( id, fecha_inicio, fecha_fin, capitulo_biblico )
-              )
-            `)
-            .eq('clave', clave),
-          supabase
-            .from('participaciones')
-            .select('*')
-            .eq('clave', clave)
-            .order('fecha', { ascending: false }),
-        ])
-
-        if (asigRes.error) throw asigRes.error
-        if (partRes.error) throw partRes.error
-
-        const futuras = (asigRes.data || [])
-          .filter(a => {
-            const fIni = a.programa_partes?.programa_semanas?.fecha_inicio
-            return fIni && String(fIni).slice(0, 10) >= hoyStr
-          })
-          .sort((a, b) => {
-            const fa = a.programa_partes?.programa_semanas?.fecha_inicio || ''
-            const fb = b.programa_partes?.programa_semanas?.fecha_inicio || ''
-            return fa.localeCompare(fb)
-          })
-
-        setProximas(futuras)
-        setHistorial(partRes.data || [])
-        setHistorialFetchedFor(clave)
-      } catch (err) {
-        console.error('[fetchHistorialPersona]', err)
-        toastError('Error al cargar historial: ' + (err?.message || 'Error de conexión'))
-      } finally {
-        setLoadingHistorial(false)
-      }
-    },
-    [toastError]
-  )
-
-  useEffect(() => {
-    fetchPersonas(true)
-  }, [fetchPersonas])
-
-  // Sincronización en tiempo real
-  useEffect(() => {
-    const canal = supabase
-      .channel('personas-mgmt-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'personas' },
-        () => fetchPersonas()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'participaciones' },
-        () => fetchPersonas()
-      )
-      .subscribe()
-    return () => supabase.removeChannel(canal)
-  }, [fetchPersonas])
-
-  // Ajustar estatus por defecto al cambiar lista o sexo en el formulario
-  useEffect(() => {
-    const opts = getEstatusOpts(form.lista, form.sexo)
-    if (opts.length && !opts.includes(form.estatus)) {
-      setForm(f => ({ ...f, estatus: opts[0] }))
-    }
-  }, [form.lista, form.sexo])
-
-  // Enfocar el input de nombre al abrir el drawer
-  useEffect(() => {
-    if (sheetOpen && activeSheetTab === 'perfil') {
-      setTimeout(() => {
-        nombreInputRef.current?.focus()
-      }, 100)
-    }
-  }, [sheetOpen, activeSheetTab])
-
-  const currentYear = useMemo(() => new Date().getFullYear().toString(), [])
-
-  // Mapa de conteo de participaciones en el año en curso
-  const conteosAnio = useMemo(() => {
-    const map = {}
-    for (const part of participaciones) {
-      if (!part.clave) continue
-      if (part.fecha && !part.fecha.startsWith(currentYear)) continue
-      map[part.clave] = (map[part.clave] || 0) + 1
-    }
-    return map
-  }, [participaciones, currentYear])
-
-  function handleSort(field) {
-    if (sortField === field) {
-      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortField(field)
-      setSortDirection(field === 'participaciones' ? 'desc' : 'asc')
-    }
-  }
-
-  // Filtrado reactivo y ordenamiento multi-columna de personas
-  const filtered = useMemo(() => {
-    const list = personas.filter(p => {
-      if (
-        search &&
-        !p.nombre.toLowerCase().includes(search.toLowerCase()) &&
-        !p.clave.toLowerCase().includes(search.toLowerCase())
-      ) {
-        return false
-      }
-      if (filterLista && p.lista !== filterLista) return false
-      if (filterActivo === 'true' && !p.activo) return false
-      if (filterActivo === 'false' && p.activo) return false
-      return true
-    })
-
-    return [...list].sort((a, b) => {
-      let comparison = 0
-
-      if (sortField === 'clave') {
-        comparison = a.clave.localeCompare(b.clave, undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        })
-      } else if (sortField === 'nombre') {
-        comparison = a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-      } else if (sortField === 'lista') {
-        comparison = a.lista.localeCompare(b.lista)
-      } else if (sortField === 'estatus') {
-        comparison = (a.estatus || '').localeCompare(b.estatus || '')
-      } else if (sortField === 'participaciones') {
-        const countA = conteosAnio[a.clave] || 0
-        const countB = conteosAnio[b.clave] || 0
-        comparison = countA - countB
-      } else if (sortField === 'activo') {
-        comparison = (a.activo === b.activo ? 0 : a.activo ? -1 : 1)
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison
-    })
-  }, [personas, search, filterLista, filterActivo, sortField, sortDirection, conteosAnio])
-
-  // Métricas rápidas
-  const totalCount = personas.length
-  const activeCount = personas.filter(p => p.activo).length
-  const inactiveCount = totalCount - activeCount
-
-  // Clave estimada para previsualización
-  const clavePreview = editClave || getNextClave(personas, form.lista)
-  const estatusOpts = getEstatusOpts(form.lista, form.sexo)
-
-  function startCreate() {
-    setEditClave(null)
-    setForm(FORM_EMPTY)
-    setActiveSheetTab('perfil')
-    setProximas([])
-    setHistorial([])
-    setHistorialFetchedFor(null)
-    setSheetOpen(true)
-  }
-
-  function startEdit(p, tab = 'perfil') {
-    setEditClave(p.clave)
-    setForm({
-      lista: p.lista,
-      sexo: p.sexo,
-      nombre: p.nombre,
-      estatus: p.estatus,
-    })
-    setActiveSheetTab(tab)
-    setProximas([])
-    setHistorial([])
-    setHistorialFetchedFor(null)
-    if (tab === 'historial') {
-      fetchHistorialPersona(p.clave)
-    }
-    setSheetOpen(true)
-  }
-
-  // Apertura programática desde CommandPalette u otra vista
-  useEffect(() => {
-    if (initialPersonaClave && personas.length > 0) {
-      const p = personas.find(per => per.clave === initialPersonaClave)
-      if (p) {
-        startEdit(p, initialTab || 'historial')
-        onClearInitialPersona?.()
-      }
-    }
-  }, [initialPersonaClave, personas, initialTab, onClearInitialPersona])
-
-  function closeSheet() {
-    setSheetOpen(false)
-    setEditClave(null)
-    setForm(FORM_EMPTY)
-    setActiveSheetTab('perfil')
-    setProximas([])
-    setHistorial([])
-    setHistorialFetchedFor(null)
-  }
-
-  async function handleSave(e) {
-    if (e) e.preventDefault()
-    const nombreClean = form.nombre.trim().replace(/\s+/g, ' ')
-    if (!nombreClean) {
-      toastError('Ingresa el nombre completo del participante')
-      return
-    }
-    if (!form.estatus) {
-      toastError('Selecciona el estatus correspondiente')
-      return
-    }
-
-    // Detección de posibles duplicados
-    const duplicado = personas.find(
-      p => p.clave !== editClave && p.nombre.trim().toLowerCase() === nombreClean.toLowerCase()
-    )
-    if (duplicado) {
-      const proceed = await confirm({
-        title: 'Posible participante duplicado',
-        message: `Ya existe un participante registrado con el nombre "${duplicado.nombre}" (Clave: ${duplicado.clave}). ¿Deseas guardarlo de todas formas con una clave distinta?`,
-        danger: false,
-      })
-      if (!proceed) return
-    }
-
-    setSaving(true)
-
-    try {
-      if (editClave) {
-        const { error: err } = await supabase
-          .from('personas')
-          .update({
-            lista: form.lista,
-            nombre: nombreClean,
-            sexo: form.sexo,
-            estatus: form.estatus,
-          })
-          .eq('clave', editClave)
-
-        if (err) throw err
-        success(`Participante ${editClave} actualizado correctamente`)
-      } else {
-        const clave = getNextClave(personas, form.lista)
-        const { error: err } = await supabase.from('personas').insert({
-          clave,
-          lista: form.lista,
-          nombre: nombreClean,
-          sexo: form.sexo,
-          estatus: form.estatus,
-          activo: true,
-        })
-
-        if (err) throw err
-        success(`Participante agregado con clave ${clave}`)
-      }
-
-      closeSheet()
-      fetchPersonas()
-    } catch (err) {
-      console.error('[handleSave]', err)
-      toastError(err?.message || 'Error al guardar en la base de datos')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDeletePersona(clave) {
-    const persona = personas.find(p => p.clave === clave)
-    if (!persona) return
-
-    const ok = await confirm({
-      title: `¿Eliminar permanentemente a ${persona.nombre}?`,
-      message: `Esta acción no se puede deshacer. Se comprobará que el participante no tenga registros históricos ni asignaciones en el programa.`,
-      danger: true,
-    })
-    if (!ok) return
-
-    setSaving(true)
-    try {
-      const [{ count: partCount, error: partErr }, { count: asigCount, error: asigErr }] = await Promise.all([
-        supabase.from('participaciones').select('*', { count: 'exact', head: true }).eq('clave', clave),
-        supabase.from('programa_asignaciones').select('*', { count: 'exact', head: true }).eq('clave', clave),
-      ])
-
-      if (partErr) throw partErr
-      if (asigErr) throw asigErr
-
-      if ((partCount || 0) > 0 || (asigCount || 0) > 0) {
-        toastError(
-          `No se puede eliminar a ${persona.nombre} porque tiene ${partCount || 0} participaciones y ${asigCount || 0} asignaciones registradas. Para ocultarlo sin perder el historial, puedes deshabilitarlo.`
-        )
-        setSaving(false)
-        return
-      }
-
-      const { error: delErr } = await supabase
-        .from('personas')
-        .delete()
-        .eq('clave', clave)
-
-      if (delErr) throw delErr
-
-      success(`Participante ${persona.nombre} (${clave}) eliminado permanentemente`)
-      closeSheet()
-      fetchPersonas()
-    } catch (err) {
-      console.error('[handleDeletePersona]', err)
-      toastError(err?.message || 'Error al eliminar participante')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function toggleActivo(p) {
-    const ok = await confirm({
-      title: p.activo
-        ? `¿Deshabilitar a ${p.nombre}?`
-        : `¿Habilitar a ${p.nombre}?`,
-      message: p.activo
-        ? 'El participante no aparecerá en las sugerencias activas, pero sus registros históricos se conservarán intactos.'
-        : 'El participante volverá a estar disponible para asignaciones y registros activos.',
-      danger: p.activo,
-    })
-    if (!ok) return
-
-    try {
-      const { error: err } = await supabase
-        .from('personas')
-        .update({ activo: !p.activo })
-        .eq('clave', p.clave)
-
-      if (err) throw err
-      showToast(
-        p.activo ? 'Participante deshabilitado' : 'Participante habilitado',
-        p.activo ? 'warning' : 'success'
-      )
-      fetchPersonas()
-    } catch (err) {
-      toastError('Error al cambiar estado: ' + err.message)
-    }
-  }
+export default function Personas(props) {
+  const { isDesktop } = useEnvironment()
+  const {
+    toast,
+    confirmProps,
+    nombreInputRef,
+    loading,
+    fetchError,
+    retryFetch,
+    searchVal,
+    setSearchVal,
+    filterLista,
+    setFilterLista,
+    filterActivo,
+    setFilterActivo,
+    sortField,
+    sortDirection,
+    handleSort,
+    filtered,
+    totalCount,
+    activeCount,
+    inactiveCount,
+    currentYear,
+    conteosAnio,
+    sheetOpen,
+    editClave,
+    form,
+    setForm,
+    updateFormLista,
+    updateFormSexo,
+    saving,
+    activeSheetTab,
+    setActiveSheetTab,
+    proximas,
+    historial,
+    loadingHistorial,
+    historialFetchedFor,
+    fetchHistorialPersona,
+    clavePreview,
+    estatusOpts,
+    startCreate,
+    startEdit,
+    closeSheet,
+    handleSave,
+    handleDeletePersona,
+    toggleActivo,
+  } = usePersonasController(props)
 
   if (fetchError) {
     return (
@@ -614,7 +89,7 @@ export default function Personas({
           variant="outline"
           size="sm"
           icon={RotateCcw}
-          onClick={() => fetchPersonas(true)}
+          onClick={retryFetch}
         >
           Reintentar conexión
         </Button>
@@ -624,7 +99,7 @@ export default function Personas({
 
   return (
     <div className="space-y-5">
-      {/* ── HEADER Y MÉTRICAS DE LA PÁGINA ── */}
+      {/* HEADER Y MÉTRICAS DE LA PÁGINA */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -665,7 +140,7 @@ export default function Personas({
         </div>
       </div>
 
-      {/* ── BARRA DE HERRAMIENTAS Y FILTROS ── */}
+      {/* BARRA DE HERRAMIENTAS Y FILTROS */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
         {/* Buscador en vivo */}
         <div className="relative flex-1 min-w-[220px]">
@@ -690,7 +165,6 @@ export default function Personas({
 
         {/* Filtros segmentados */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          {/* Filtro: Lista */}
           <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs shrink-0">
             {[
               { id: '', label: 'Todas las listas' },
@@ -712,7 +186,6 @@ export default function Personas({
             ))}
           </div>
 
-          {/* Filtro: Estado Activo/Inactivo */}
           <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs shrink-0">
             {[
               { id: 'true', label: 'Activos' },
@@ -736,247 +209,39 @@ export default function Personas({
         </div>
       </div>
 
-      {/* ── TABLA DE DATOS LINEAR / NOTION ── */}
-      <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 font-medium select-none">
-                <SortHeader
-                  field="clave"
-                  label="Clave"
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  className="w-24"
-                />
-                <SortHeader
-                  field="nombre"
-                  label="Participante"
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  className="min-w-[200px]"
-                />
-                <SortHeader
-                  field="lista"
-                  label="Lista"
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  className="hidden sm:table-cell"
-                />
-                <SortHeader
-                  field="estatus"
-                  label="Estatus"
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  className="hidden md:table-cell"
-                />
-                <SortHeader
-                  field="participaciones"
-                  label={`Part. ${currentYear}`}
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  align="center"
-                  className="hidden lg:table-cell w-28 text-center"
-                />
-                <SortHeader
-                  field="activo"
-                  label="Estado"
-                  currentField={sortField}
-                  currentDir={sortDirection}
-                  onSort={handleSort}
-                  align="center"
-                  className="w-28 text-center"
-                />
-                <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider text-right w-24">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/60">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-8 px-4">
-                    <SkeletonList rows={8} cols={5} />
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 px-4">
-                    <EmptyState
-                      icon={searchVal ? Search : Users}
-                      title="Sin participantes coincidentes"
-                      description={
-                        searchVal
-                          ? `No se encontraron resultados para "${searchVal}".`
-                          : 'No hay participantes registrados con los filtros seleccionados.'
-                      }
-                      action={
-                        searchVal ? (
-                          <Button
-                            variant="secondary"
-                            size="xs"
-                            onClick={() => setSearchVal('')}
-                          >
-                            Limpiar búsqueda
-                          </Button>
-                        ) : null
-                      }
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filtered.map(p => {
-                  const isFemenino = p.sexo === 'F'
-                  const isMat = p.lista === 'Mat'
-                  const partAnioCount = conteosAnio[p.clave] || 0
-
-                  return (
-                    <tr
-                      key={p.clave}
-                      onClick={() => startEdit(p)}
-                      className={`group hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors duration-150 ${
-                        !p.activo ? 'opacity-55' : ''
-                      }`}
-                    >
-                      {/* Clave */}
-                      <td className="py-3 px-4 font-mono font-medium text-text2">
-                        <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[11px]">
-                          {p.clave}
-                        </span>
-                      </td>
-
-                      {/* Participante (Avatar + Nombre) */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 border ${
-                              isFemenino
-                                ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20'
-                                : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20'
-                            }`}
-                          >
-                            {initials(p.nombre)}
-                          </div>
-                          <div className="min-w-0 flex flex-col">
-                            <span className="font-medium text-text1 text-xs truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                              {p.nombre}
-                            </span>
-                            <span className="text-[10px] text-text3 md:hidden">
-                              {p.estatus} · {isMat ? 'Matriculados' : 'Anc/SM'} · {partAnioCount} {partAnioCount === 1 ? 'part.' : 'part.'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Lista */}
-                      <td className="py-3 px-4 hidden sm:table-cell">
-                        <Badge
-                          variant={isMat ? 'info' : 'warning'}
-                          size="xs"
-                        >
-                          {isMat ? 'Matriculados' : 'Ancianos / SM'}
-                        </Badge>
-                      </td>
-
-                      {/* Estatus */}
-                      <td className="py-3 px-4 text-text2 hidden md:table-cell">
-                        <span className="inline-flex items-center gap-1">
-                          {p.estatus}
-                        </span>
-                      </td>
-
-                      {/* Participaciones en el año (Métrica) */}
-                      <td className="py-3 px-4 text-center hidden lg:table-cell">
-                        {partAnioCount > 0 ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40">
-                            {partAnioCount} {partAnioCount === 1 ? 'part.' : 'part.'}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-400 dark:text-zinc-600">
-                            0 part.
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Estado Activo/Inactivo */}
-                      <td className="py-3 px-4 text-center">
-                        <Badge
-                          variant={p.activo ? 'success' : 'neutral'}
-                          size="xs"
-                          dot
-                          pulse={p.activo}
-                        >
-                          {p.activo ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </td>
-
-                      {/* Acciones */}
-                      <td className="py-3 px-4 text-right">
-                        <div
-                          className="inline-flex items-center gap-1"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <Tooltip content="Editar detalles" side="left">
-                            <Button
-                              variant="ghost"
-                              size="iconXs"
-                              onClick={() => startEdit(p)}
-                              aria-label="Editar participante"
-                              className="text-text3 hover:text-text1"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                          </Tooltip>
-
-                          <Tooltip
-                            content={
-                              p.activo ? 'Deshabilitar participante' : 'Habilitar participante'
-                            }
-                            side="left"
-                          >
-                            <Button
-                              variant="ghost"
-                              size="iconXs"
-                              onClick={() => toggleActivo(p)}
-                              aria-label={
-                                p.activo ? 'Deshabilitar' : 'Habilitar'
-                              }
-                              className={
-                                p.activo
-                                  ? 'text-text3 hover:text-red-600 dark:hover:text-red-400'
-                                  : 'text-text3 hover:text-emerald-600 dark:hover:text-emerald-400'
-                              }
-                            >
-                              <Power className="w-3.5 h-3.5" />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer con conteo total de filas filtradas */}
-        {!loading && filtered.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-center justify-between text-[11px] text-text3 font-mono select-none">
-            <span>
-              Mostrando {filtered.length} de {totalCount} participantes
-            </span>
-            <span>VyM-DB Records</span>
-          </div>
+      {/* VISTA BIFURCADA POR ENTORNO: TABLA (ESCRITORIO) vs TARJETAS (MÓVIL) */}
+      <Suspense fallback={<SkeletonList rows={8} cols={5} />}>
+        {isDesktop ? (
+          <PersonasDesktop
+            loading={loading}
+            filtered={filtered}
+            totalCount={totalCount}
+            searchVal={searchVal}
+            setSearchVal={setSearchVal}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            handleSort={handleSort}
+            currentYear={currentYear}
+            conteosAnio={conteosAnio}
+            startEdit={startEdit}
+            toggleActivo={toggleActivo}
+          />
+        ) : (
+          <PersonasMobile
+            loading={loading}
+            filtered={filtered}
+            totalCount={totalCount}
+            searchVal={searchVal}
+            setSearchVal={setSearchVal}
+            currentYear={currentYear}
+            conteosAnio={conteosAnio}
+            startEdit={startEdit}
+            toggleActivo={toggleActivo}
+          />
         )}
-      </div>
+      </Suspense>
 
-      {/* ── SLIDE-OVER SHEET LATERAL (DRAWER) ── */}
+      {/* SLIDE-OVER SHEET LATERAL (DRAWER) */}
       <Sheet
         isOpen={sheetOpen}
         onClose={closeSheet}
@@ -1042,7 +307,6 @@ export default function Personas({
           )
         }
       >
-        {/* Pestañas de navegación del Sheet (solo visible al editar persona existente) */}
         {editClave && (
           <div className="flex border-b border-zinc-200/80 dark:border-zinc-800 -mx-5 -mt-5 mb-5 px-5 bg-zinc-50/70 dark:bg-zinc-900/40">
             <button
@@ -1081,10 +345,9 @@ export default function Personas({
           </div>
         )}
 
-        {/* ── PESTAÑA PERFIL ── */}
+        {/* PESTAÑA PERFIL */}
         {activeSheetTab === 'perfil' && (
           <form onSubmit={handleSave} className="space-y-4">
-            {/* Clave sugerida / Asignada */}
             <div className="p-3.5 rounded-xl bg-zinc-100/60 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between">
               <div className="flex flex-col">
                 <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -1099,7 +362,6 @@ export default function Personas({
               </Badge>
             </div>
 
-            {/* Nombre completo */}
             <div>
               <label className="block text-xs font-medium text-text2 mb-1.5">
                 Nombre completo *
@@ -1117,7 +379,6 @@ export default function Personas({
               </p>
             </div>
 
-            {/* Lista & Sexo */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-text2 mb-1.5">
@@ -1126,11 +387,7 @@ export default function Personas({
                 <Select
                   value={form.lista}
                   disabled={Boolean(editClave)}
-                  onChange={e => {
-                    const newLista = e.target.value
-                    const newSexo = newLista === 'Anc/SM' ? 'M' : form.sexo
-                    setForm(f => ({ ...f, lista: newLista, sexo: newSexo }))
-                  }}
+                  onChange={e => updateFormLista(e.target.value)}
                   size="md"
                 >
                   <option value="Mat">Matriculados</option>
@@ -1145,7 +402,7 @@ export default function Personas({
                 <Select
                   value={form.sexo}
                   disabled={form.lista === 'Anc/SM'}
-                  onChange={e => setForm(f => ({ ...f, sexo: e.target.value }))}
+                  onChange={e => updateFormSexo(e.target.value)}
                   size="md"
                 >
                   <option value="F">F — Femenino</option>
@@ -1154,7 +411,6 @@ export default function Personas({
               </div>
             </div>
 
-            {/* Estatus */}
             <div>
               <label className="block text-xs font-medium text-text2 mb-1.5">
                 Estatus de asignación *
@@ -1177,7 +433,7 @@ export default function Personas({
           </form>
         )}
 
-        {/* ── PESTAÑA HISTORIAL (TIMELINE) ── */}
+        {/* PESTAÑA HISTORIAL (TIMELINE) */}
         {activeSheetTab === 'historial' && (
           <div className="space-y-6">
             {loadingHistorial ? (
@@ -1191,7 +447,6 @@ export default function Personas({
               </div>
             ) : (
               <>
-                {/* Bloque 1 — Próximas asignaciones (solo si existen) */}
                 {proximas.length > 0 && (
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2 pb-1 border-b border-zinc-100 dark:border-zinc-800">
@@ -1252,7 +507,6 @@ export default function Personas({
                   </div>
                 )}
 
-                {/* Bloque 2 — Historial de participaciones */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between pb-1 border-b border-zinc-100 dark:border-zinc-800">
                     <div className="flex items-center gap-2">
@@ -1316,7 +570,6 @@ export default function Personas({
         )}
       </Sheet>
 
-      {/* Notificaciones y Diálogos */}
       <Toast toast={toast} />
       <ConfirmDialog {...confirmProps} />
     </div>

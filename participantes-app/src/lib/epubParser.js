@@ -1,6 +1,6 @@
 // ============================================================
 // epubParser.js — Parser del EPUB mwb para extraer semanas
-// Usa JSZip para descomprimir y DOMParser para leer el HTML
+// Usa PizZip para descomprimir y DOMParser para leer el HTML
 // ============================================================
 
 import { calcularHorariosSMT, calcularHorariosVC } from './horarios'
@@ -362,33 +362,35 @@ const HORARIOS_TB = [
   }
   
   // ============================================================
-  // Función principal exportada: recibe el File del input
+  // Función principal exportada: recibe el File/Blob/ArrayBuffer
   // Devuelve array de semanas listas para insertar en Supabase
   // ============================================================
   export async function parsearEPUB(file) {
-    // Importar JSZip dinámicamente
-    const JSZip = (await import('jszip')).default
-  
-    const zip = await JSZip.loadAsync(file)
-  
+    // Importar PizZip dinámicamente (unificado con el generador S-140)
+    const PizZip = (await import('pizzip')).default
+
+    const buffer =
+      typeof file?.arrayBuffer === 'function' ? await file.arrayBuffer() : file
+    const zip = new PizZip(buffer)
+
     // Leer el OPF para obtener el orden de los archivos
     const opfFile = Object.keys(zip.files).find(f => f.endsWith('.opf'))
     if (!opfFile) throw new Error('No se encontró el archivo OPF en el EPUB')
-  
-    const opfContent = await zip.files[opfFile].async('string')
+
+    const opfContent = zip.files[opfFile].asText()
     const opfParser  = new DOMParser()
     const opfDoc     = opfParser.parseFromString(opfContent, 'text/xml')
-  
+
     // Obtener spine (orden de lectura)
     const spineItems = Array.from(opfDoc.querySelectorAll('spine itemref'))
       .map(item => item.getAttribute('idref'))
-  
+
     // Obtener manifest (id → href)
     const manifest = {}
     opfDoc.querySelectorAll('manifest item').forEach(item => {
       manifest[item.getAttribute('id')] = item.getAttribute('href')
     })
-  
+
     // Directorio base del OPF
     const opfDir = opfFile.includes('/') ? opfFile.substring(0, opfFile.lastIndexOf('/') + 1) : ''
 
@@ -410,9 +412,9 @@ const HORARIOS_TB = [
 
       const fullPath = opfDir + href
       const zipFile  = zip.files[fullPath] || zip.files[href]
-      if (!zipFile) continue
+      if (!zipFile || zipFile.dir) continue
 
-      const content = await zipFile.async('string')
+      const content = zipFile.asText()
 
       // Solo procesar si contiene mención de mes (tolerando espacios no rompibles)
       if (!/DE[\s\u00A0]+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)/i.test(content)) continue

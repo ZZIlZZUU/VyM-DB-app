@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search,
   Calendar,
   Music,
   BookOpen,
   Check,
-  CheckCheck,
   Trash2,
   Upload,
   FileDown,
@@ -17,40 +15,33 @@ import {
   ChevronUp,
   RotateCcw,
   RefreshCw,
-  Clock,
-  AlertTriangle,
-  Info,
-  FileText,
-  Layers,
-  ArrowRight,
-  Clock3,
   X,
-  CheckCircle2,
-  AlertCircle,
   Printer,
   Briefcase,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB, inferirTipoParteSMT } from '../lib/epubParser'
+import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas'
 import {
-  sugerirCandidatos,
-  sugerirAyudante,
-  mesAnterior,
-  normalizarTipo,
-  getCargaMensualTipo,
-  tieneRachaDosSemanasSeguidas,
-  tuvoMismoTipoDosMesesSeguidos,
-  obtenerUltimoRolSMTDama,
-  evaluarImpactoMismaSemana,
-} from '../lib/asignacionesSugeridas'
-import { mapearHorariosPartesSemana } from '../lib/horarios'
-import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+  PESO_TIPO,
+  TIPO_PARTICIPACION,
+  formatearIssueLegible,
+  buildHistorialParaSemana,
+  getEventoParaSemana,
+  calcularEstadoSemana,
+} from '../lib/conflictosRotacion'
 import {
-  formatFechaLegible,
-  formatRangoSemanaLegible,
   formatRangoSemanaPrograma,
   getImpactoEventoSemana,
 } from '../lib/fechas'
+import {
+  useSemanasQuery,
+  usePartesQuery,
+  useAsignacionesQuery,
+  usePersonasQuery,
+  useParticipacionesQuery,
+} from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useEventosReunion } from '../hooks/useEventosReunion'
@@ -58,2104 +49,110 @@ import { useConfiguracion } from '../hooks/useConfiguracion'
 import Toast from '../components/Toast'
 import { SkeletonPrograma } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
+import RevisarSemanaModal from '../components/programa/RevisarSemanaModal'
+import TarjetaSemanaDesktop from '../environments/desktop/programa/TarjetaSemanaDesktop'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
-import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
-import { Tooltip } from '../components/ui/Tooltip'
-import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 
-// ── Constantes UI ─────────────────────────────────────────────
-const SECCION_LABEL = {
-  APERTURA: 'Apertura',
-  TB: 'Tesoros de la Biblia',
-  SMT: 'Seamos Mejores Maestros',
-  VC: 'Nuestra Vida Cristiana',
-  CIERRE: 'Cierre',
-}
-
-const TIPO_LABEL = {
-  P: 'Presidente',
-  ORACION: 'Oración apertura',
-  ORACION_C: 'Oración cierre',
-  OC: 'Oración cierre',
-  CONCLU: 'Palabras de conclusión',
-  TB: 'Tesoros de la Biblia',
-  PE: 'Perlas escondidas',
-  LB: 'Lectura de la Biblia',
-  SMT_EST: 'Estudiante',
-  SMT_EXP: 'Explique sus creencias',
-  SMT_EXP_M: 'Ayudante',
-  SMT_EXP_F: 'Ayudante',
-  SMT_AYU_M: 'Ayudante',
-  SMT_AYU_F: 'Ayudante',
-  SMT_DSC: 'Discurso',
-  DSC: 'Discurso',
-  SMT_AYU: 'Ayudante',
-  A: 'Ayudante',
-  T: 'Estudiante',
-  VC: 'Vida Cristiana',
-  NC: 'Nec. de la congregación',
-  EBC_CON: 'Conductor EBC',
-  EBC: 'Conductor EBC',
-  LEBC: 'Lector EBC',
-  SMT_VACIO: '—',
-}
-
-const TIPO_COLOR = {
-  P: 'bg-purple-50 text-purple-800 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
-  ORACION: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  ORACION_C: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  CONCLU: 'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/60',
-  TB: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
-  PE: 'bg-rose-50 text-rose-800 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40',
-  LB: 'bg-cyan-50 text-cyan-800 border-cyan-200/80 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/40',
-  SMT_EST: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
-  SMT_EXP: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
-  SMT_DSC: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
-  SMT_AYU: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
-  VC: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
-  NC: 'bg-red-50 text-red-800 border-red-200/80 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40',
-  EBC_CON: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
-  LEBC: 'bg-pink-50 text-pink-800 border-pink-200/80 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/40',
-  SMT_VACIO: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60',
-}
-
-// Pesos en BD (incluye claves tanto de programa_partes como de participaciones)
-const PESO_TIPO = {
-  T: 2,
-  SMT_EST: 2,
-  SMT_EXP: 2,
-  A: 1,
-  SMT_AYU: 1,
-  SMT_EXP_M: 1,
-  SMT_EXP_F: 1,
-  LB: 1,
-  DSC: 1,
-  SMT_DSC: 1,
-  TB: 1,
-  PE: 1,
-  VC: 1,
-  NC: 1,
-  EBC: 1,
-  EBC_CON: 1,
-  LEBC: 1,
-  P: 1,
-  ORACION: 0,
-  ORACION_C: 0,
-  OC: 0,
-}
-
-// Mapa tipo_asignacion → campo 'tipo' en tabla participaciones
-const TIPO_PARTICIPACION = {
-  P: 'P',
-  ORACION: 'P',
-  ORACION_C: 'OC',
-  CONCLU: 'P',
-  TB: 'TB',
-  PE: 'PE',
-  LB: 'LB',
-  SMT_EST: 'T',
-  SMT_EXP: 'T',
-  SMT_DSC: 'DSC',
-  SMT_AYU: 'A',
-  VC: 'VC',
-  NC: 'NC',
-  EBC_CON: 'EBC',
-  LEBC: 'LEBC',
-}
-
-// ── Formatear issue bimestral YYYYMM (Brief #31) ─────────────
-function formatearIssueLegible(issue) {
-  if (!issue || typeof issue !== 'string' || issue.length !== 6) return issue || ''
-  const anio = issue.slice(0, 4)
-  const mesNum = parseInt(issue.slice(4, 6), 10)
-  const bimestres = {
-    1: 'Enero - Febrero',
-    2: 'Enero - Febrero',
-    3: 'Marzo - Abril',
-    4: 'Marzo - Abril',
-    5: 'Mayo - Junio',
-    6: 'Mayo - Junio',
-    7: 'Julio - Agosto',
-    8: 'Julio - Agosto',
-    9: 'Septiembre - Octubre',
-    10: 'Septiembre - Octubre',
-    11: 'Noviembre - Diciembre',
-    12: 'Noviembre - Diciembre',
-  }
-  return `${bimestres[mesNum] || `Bimestre ${mesNum}`} ${anio}`
-}
-
-// ── Construye historial efectivo combinando BD + asignaciones en otras semanas del programa ──
-function buildHistorialParaSemana(semanaActualId, semanas, partes, asignaciones, historialBase) {
-  const base = Array.isArray(historialBase) ? historialBase : []
-  if (!Array.isArray(asignaciones) || !Array.isArray(partes) || !Array.isArray(semanas)) {
-    return base
-  }
-
-  const virtuales = []
-  for (const a of asignaciones) {
-    if (!a.clave) continue
-    const parte = partes.find(p => p.id === a.parte_id)
-    if (!parte || parte.semana_id === semanaActualId) continue
-    if (
-      parte.tipo_asignacion === 'ORACION' ||
-      parte.tipo_asignacion === 'CONCLU' ||
-      parte.tipo_asignacion === 'SMT_VACIO'
-    ) {
-      continue
-    }
-
-    // Si ya está confirmada y su participacion_id existe en historialBase, no duplicar
-    if (a.confirmado && a.participacion_id && base.some(h => h.id === a.participacion_id)) {
-      continue
-    }
-
-    const semOtra = semanas.find(s => s.id === parte.semana_id)
-    if (!semOtra) continue
-
-    const tipoPart =
-      a.rol === 'ayudante' ? 'A' : (TIPO_PARTICIPACION[parte.tipo_asignacion] || parte.tipo_asignacion)
-
-    virtuales.push({
-      id: `prog-${a.id || `${a.parte_id}-${a.rol}`}`,
-      clave: a.clave,
-      fecha: semOtra.fecha_inicio,
-      mes: semOtra.mes,
-      tipo: tipoPart,
-      peso: PESO_TIPO[tipoPart] ?? 1,
-      _virtual: true,
-    })
-  }
-
-  return virtuales.length > 0 ? [...base, ...virtuales] : base
-}
-
-// ── Detección de Conflictos de Rotación Sincronizada ──────────
-function evaluarConflictosPersona(
-  persona,
-  tipo,
-  historial,
-  mes,
-  fechaSemana,
-  yaAsignados = []
-) {
-  if (!persona || !persona.clave) return []
-  const clave = persona.clave
-  const hist = Array.isArray(historial) ? historial : []
-  const conflictos = []
-
-  // 1. Evaluar asignaciones en la misma semana (permite 1 Bajo Peso + 1 Mayor Peso en varones)
-  const impactoSem = evaluarImpactoMismaSemana(persona, tipo, yaAsignados)
-  if (impactoSem.conflicto) {
-    conflictos.push(impactoSem.conflicto)
-  }
-
-  // 2. Participó 2 semanas seguidas (intentar asignarlo por 3.ª semana consecutiva)
-  if (fechaSemana && tieneRachaDosSemanasSeguidas(clave, hist, fechaSemana)) {
-    conflictos.push({
-      tipo: 'rotacion_semanas_seguidas',
-      severity: 'warning',
-      mensaje: 'Participó 2 semanas seguidas',
-    })
-  }
-
-  // 3. Tuvo la misma asignación por más de 2 meses seguidos (M-1 y M-2)
-  if (mes && tuvoMismoTipoDosMesesSeguidos(clave, tipo, hist, mes)) {
-    const nombreTipo = TIPO_LABEL[tipo] || tipo
-    conflictos.push({
-      tipo: 'mismo_tipo_meses_seguidos',
-      severity: 'warning',
-      mensaje: `Tuvo ${nombreTipo} por más de 2 meses seguidos`,
-    })
-  }
-
-  // 4. Reglas específicas de Matriculados (estatus 'bautizado' aislado/ignorado)
-  if (persona.lista === 'Mat') {
-    const mesAnt = mes ? mesAnterior(mes) : null
-    if (mesAnt) {
-      const participoMesAnt = hist.some(
-        h => h.clave === clave && h.mes === mesAnt && normalizarTipo(h.tipo) !== 'OC'
-      )
-      if (participoMesAnt) {
-        conflictos.push({
-          tipo: 'mat_mes_anterior',
-          severity: 'warning',
-          mensaje: `Participó en ${mesAnt.toLowerCase()} (descanso mensual de matriculados)`,
-        })
-      }
-    }
-
-    if (mes) {
-      const cargaMat = hist
-        .filter(h => h.clave === clave && h.mes === mes)
-        .reduce((acc, h) => acc + getCargaMensualTipo(h.tipo), 0)
-      if (cargaMat >= 1) {
-        conflictos.push({
-          tipo: 'mat_mismo_mes',
-          severity: 'warning',
-          mensaje: `Ya tiene una asignación en ${mes.toLowerCase()}`,
-        })
-      }
-    }
-
-    // Alternancia histórica T ↔ A en Damas
-    if (persona.sexo === 'F') {
-      const esBuscandoAyudanteF =
-        tipo === 'SMT_EXP_F' || tipo === 'SMT_AYU_F' || tipo === 'SMT_AYU' || tipo === 'A'
-      const esBuscandoTitularSMT = tipo === 'SMT_EST' || tipo === 'SMT_EXP' || tipo === 'T'
-      if (esBuscandoTitularSMT || esBuscandoAyudanteF) {
-        const ultRol = obtenerUltimoRolSMTDama(clave, hist, mes ? mesAnterior(mes) : null)
-        if (
-          (esBuscandoTitularSMT && ultRol === 'T') ||
-          (esBuscandoAyudanteF && ultRol === 'A')
-        ) {
-          conflictos.push({
-            tipo: 'dama_repite_rol',
-            severity: 'info',
-            mensaje: `Su última asignación también fue como ${ultRol === 'T' ? 'Titular' : 'Ayudante'}`,
-          })
-        }
-      }
-    }
-  }
-
-  // 5. Límite mensual para Ancianos y Siervos Ministeriales (según carga efectiva del mes)
-  if (persona.lista === 'Anc/SM' && mes) {
-    const regsMes = hist.filter(
-      h => h.clave === clave && h.mes === mes && normalizarTipo(h.tipo) !== 'OC'
-    )
-    const cargaMes = regsMes.reduce((acc, h) => acc + getCargaMensualTipo(h.tipo), 0)
-    if (cargaMes >= 3) {
-      conflictos.push({
-        tipo: 'limite_mensual',
-        severity: 'warning',
-        mensaje: `Ya tiene ${regsMes.length} asignaciones este mes`,
-      })
-    }
-  }
-
-  // 6. Red de seguridad (Fallback de diagnóstico):
-  // Si el participante cayó a _score < 50 (icono ⚠️ rojo) sin ninguna advertencia explicativa,
-  // avisar al operador sin bloquear la selección.
-  const tieneAdvertencia = conflictos.some(c => c.severity === 'warning')
-  if (typeof persona._score === 'number' && persona._score < 50 && !tieneAdvertencia) {
-    conflictos.push({
-      tipo: 'error_inesperado_score',
-      severity: 'warning',
-      mensaje: `Alerta inesperada en cálculo de puntaje (Score: ${persona._score}) — posible anomalía en historial`,
-    })
-  }
-
-  return conflictos
-}
-
-// ── Helper para asociar evento de reunión a una semana ────────
-function getEventoParaSemana(s, eventos) {
-  if (!s || !eventos?.length) return null
-  const fechaInicio = String(s.fecha_inicio || '').slice(0, 10)
-  const fechaFin = String(s.fecha_fin || '').slice(0, 10)
-  return (
-    eventos.find(e => {
-      if (e.semana_id && e.semana_id === s.id) return true
-      if (e.fecha_original && fechaInicio && fechaFin && e.fecha_original >= fechaInicio && e.fecha_original <= fechaFin) return true
-      if (e.fecha_efectiva && fechaInicio && fechaFin && e.fecha_efectiva >= fechaInicio && e.fecha_efectiva <= fechaFin) return true
-      return false
-    }) || null
-  )
-}
-
-// ── Selector de Participante Inteligente ──────────────────────
-function PersonaSelector({
-  tipo,
-  value,
-  onChange,
-  personas,
-  historial,
-  mes,
-  fechaSemana,
-  yaAsignados,
-  disabled,
-  placeholder,
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [highlightedIndex, setHighlightedIndex] = useState(-1)
-  const [tooltip, setTooltip] = useState(null)
-  const inputRef = useRef(null)
-  const containerRef = useRef(null)
-  const listRef = useRef(null)
-  const triggerRef = useRef(null)
-  const hoverTimer = useRef(null)
-  const TOOLTIP_W = 260
-
-  const candidatosBase = sugerirCandidatos(
-    tipo,
-    personas,
-    historial,
-    mes,
-    yaAsignados,
-    { fechaSemana }
-  )
-
-  // Evaluar conflictos para cada persona y ordenar (solo los de severidad 'warning' van al final)
-  const candidatosConConflictos = candidatosBase.map(p => {
-    const confs = evaluarConflictosPersona(p, tipo, historial, mes, fechaSemana, yaAsignados)
-    const conflicto = confs.length > 0
-      ? {
-          severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
-          mensaje: confs.map(c => c.mensaje).join(' • '),
-          detalles: confs,
-        }
-      : null
-    return { ...p, conflicto }
-  })
-
-  // Sin advertencia primero (respetando el orden por _score), con advertencia ('warning') al final
-  const candidatos = [
-    ...candidatosConConflictos.filter(p => p.conflicto?.severity !== 'warning'),
-    ...candidatosConConflictos.filter(p => p.conflicto?.severity === 'warning'),
-  ]
-
-  const seleccionadoRaw =
-    candidatos.find(p => p.clave === value) || personas.find(p => p.clave === value)
-
-  const conflictoSeleccionado = seleccionadoRaw
-    ? (() => {
-        const confs = evaluarConflictosPersona(
-          seleccionadoRaw,
-          tipo,
-          historial,
-          mes,
-          fechaSemana,
-          yaAsignados
-        )
-        return confs.length > 0
-          ? {
-              severity: confs.some(c => c.severity === 'warning') ? 'warning' : 'info',
-              mensaje: confs.map(c => c.mensaje).join(' • '),
-              detalles: confs,
-            }
-          : null
-      })()
-    : null
-
-  const seleccionado = seleccionadoRaw
-    ? { ...seleccionadoRaw, conflicto: conflictoSeleccionado }
-    : null
-
-  const filtrados = query.trim()
-    ? candidatos.filter(
-        p =>
-          p.nombre.toLowerCase().includes(query.toLowerCase()) ||
-          p.clave.toLowerCase().includes(query.toLowerCase())
-      )
-    : candidatos
-
-  // Sincronizar índice resaltado al abrir, al cambiar búsqueda o al cambiar valor
-  useEffect(() => {
-    if (!open) return
-    if (query.trim()) {
-      setHighlightedIndex(filtrados.length > 0 ? 0 : -2)
-    } else {
-      const idx = value ? candidatos.findIndex(p => p.clave === value) : -1
-      setHighlightedIndex(idx >= 0 ? idx : -1)
-    }
-  }, [query, open, value])
-
-  // Desplazar automáticamente el elemento resaltado al área visible
-  useEffect(() => {
-    if (!open) return
-    const rafId = requestAnimationFrame(() => {
-      const container = listRef.current
-      if (!container) return
-      const el = container.querySelector(`[data-index="${highlightedIndex}"]`)
-      if (el) {
-        const cTop = container.scrollTop
-        const cBottom = cTop + container.clientHeight
-        const eTop = el.offsetTop
-        const eBottom = eTop + el.offsetHeight
-        if (eTop < cTop) {
-          container.scrollTop = eTop
-        } else if (eBottom > cBottom) {
-          container.scrollTop = eBottom - container.clientHeight
-        }
-      }
-    })
-    return () => cancelAnimationFrame(rafId)
-  }, [highlightedIndex, open])
-
-  useEffect(() => {
-    if (!open) {
-      setTooltip(null)
-      return
-    }
-    const handleOutside = e => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target) &&
-        !e.target.closest?.('[data-persona-dropdown]')
-      ) {
-        setOpen(false)
-        setTooltip(null)
-      }
-    }
-    const handleScroll = e => {
-      clearTimeout(hoverTimer.current)
-      setTooltip(null)
-      if (!containerRef.current?.contains(e.target)) {
-        setOpen(false)
-      }
-    }
-    const handleResize = () => {
-      setOpen(false)
-      setTooltip(null)
-    }
-    document.addEventListener('mousedown', handleOutside)
-    window.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('resize', handleResize)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [open])
-
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0)
-    }
-  }, [open])
-
-  useEffect(() => () => clearTimeout(hoverTimer.current), [])
-
-  function handleToggle() {
-    if (disabled) return
-    if (!open) {
-      setQuery('')
-      setTooltip(null)
-    }
-    setOpen(o => !o)
-  }
-
-  function handleSelect(clave) {
-    onChange(clave || null)
-    setOpen(false)
-    setQuery('')
-    setTooltip(null)
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      setOpen(false)
-      setQuery('')
-      setTooltip(null)
-      return
-    }
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      clearTimeout(hoverTimer.current)
-      setTooltip(null)
-      if (filtrados.length === 0) {
-        setHighlightedIndex(-1)
-        return
-      }
-      setHighlightedIndex(prev => {
-        if (prev === -2 || prev === -1) return 0
-        if (prev >= filtrados.length - 1) return -1
-        return prev + 1
-      })
-      return
-    }
-
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      clearTimeout(hoverTimer.current)
-      setTooltip(null)
-      if (filtrados.length === 0) {
-        setHighlightedIndex(-1)
-        return
-      }
-      setHighlightedIndex(prev => {
-        if (prev === -2 || prev === -1) return filtrados.length - 1
-        if (prev <= 0) return -1
-        return prev - 1
-      })
-      return
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (highlightedIndex === -1) {
-        handleSelect(null)
-      } else if (highlightedIndex >= 0 && highlightedIndex < filtrados.length) {
-        handleSelect(filtrados[highlightedIndex].clave)
-      } else if (filtrados.length > 0) {
-        handleSelect(filtrados[0].clave)
-      }
-      return
-    }
-  }
-
-  function handleItemMouseEnter(clave, e) {
-    clearTimeout(hoverTimer.current)
-    const rect = e.currentTarget.getBoundingClientRect()
-    const spaceRight = window.innerWidth - rect.right
-    const left = spaceRight >= TOOLTIP_W + 12 ? rect.right + 8 : rect.left - TOOLTIP_W - 8
-    hoverTimer.current = setTimeout(() => {
-      setTooltip({ clave, top: rect.top, left })
-    }, 150)
-  }
-
-  function handleItemMouseLeave() {
-    clearTimeout(hoverTimer.current)
-    setTooltip(null)
-  }
-
-  function getIndicador(p) {
-    if (p._score < 50) return { icon: AlertTriangle, cls: 'text-red-500' }
-    if (p._score < 80) return { icon: Clock, cls: 'text-amber-500' }
-    return { icon: Check, cls: 'text-emerald-600 dark:text-emerald-400' }
-  }
-
-  function getUltimasParticipaciones(clave) {
-    return (historial || [])
-      .filter(h => h.clave === clave && !h._virtual)
-      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-      .slice(0, 3)
-  }
-
-  function getDropdownStyle() {
-    if (!triggerRef.current) return {}
-    const rect = triggerRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceAbove = rect.top
-    const dropdownHeight = 240
-    const dropdownWidth = 260
-
-    const style = {
-      position: 'fixed',
-      zIndex: 200,
-      width: `${Math.max(rect.width, dropdownWidth)}px`,
-    }
-
-    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-      style.bottom = `${window.innerHeight - rect.top + 4}px`
-    } else {
-      style.top = `${rect.bottom + 4}px`
-    }
-
-    if (rect.left + dropdownWidth > window.innerWidth - 12) {
-      style.right = `${Math.max(12, window.innerWidth - rect.right)}px`
-    } else {
-      style.left = `${Math.max(12, rect.left)}px`
-    }
-
-    return style
-  }
-
-  const tooltipPersona = tooltip
-    ? candidatos.find(p => p.clave === tooltip.clave) || personas.find(p => p.clave === tooltip.clave)
-    : null
-  const tooltipParts = tooltip ? getUltimasParticipaciones(tooltip.clave) : []
-  const tooltipConflictos = tooltipPersona
-    ? tooltipPersona.conflicto?.detalles ||
-      evaluarConflictosPersona(tooltipPersona, tipo, historial, mes, fechaSemana, yaAsignados)
-    : []
-
-  return (
-    <div ref={containerRef} className="relative w-full">
-      {/* Trigger Button */}
-      <button
-        ref={triggerRef}
-        type="button"
-        disabled={disabled}
-        onClick={handleToggle}
-        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-all border outline-none select-none ${
-          open
-            ? 'border-emerald-600 dark:border-emerald-500 bg-surface ring-1 ring-emerald-500/20'
-            : 'border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:border-zinc-300 dark:hover:border-zinc-700'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} text-text1`}
-      >
-        {seleccionado ? (
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {(() => {
-              const Ind = getIndicador(seleccionado).icon
-              return <Ind className={`w-3.5 h-3.5 shrink-0 ${getIndicador(seleccionado).cls}`} />
-            })()}
-            <span className="font-mono text-[11px] text-text3 shrink-0">
-              {seleccionado.clave}
-            </span>
-            <span className="truncate font-medium text-text1">{seleccionado.nombre}</span>
-            {conflictoSeleccionado && (
-              <span
-                className="shrink-0 flex items-center justify-center ml-auto mr-1"
-                title={conflictoSeleccionado.mensaje}
-              >
-                {conflictoSeleccionado.severity === 'warning' ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                ) : (
-                  <Info className="w-3.5 h-3.5 text-blue-500" />
-                )}
-              </span>
-            )}
-          </div>
-        ) : (
-          <span
-            className={`${
-              placeholder ? 'text-emerald-700 dark:text-emerald-300 font-medium' : 'text-text3 italic'
-            } text-xs flex-1 truncate`}
-          >
-            {placeholder || '— Sin asignar —'}
-          </span>
-        )}
-        <ChevronDown className="w-3.5 h-3.5 text-text3 shrink-0 opacity-70" />
-      </button>
-
-      {/* Warning inline si la persona seleccionada tiene conflicto */}
-      {conflictoSeleccionado && (
-        <div
-          className={`mt-1 flex items-start gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] border animate-fade-in ${
-            conflictoSeleccionado.severity === 'warning'
-              ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25'
-              : 'bg-blue-500/10 text-blue-800 dark:text-blue-300 border-blue-500/25'
-          }`}
-        >
-          {conflictoSeleccionado.severity === 'warning' ? (
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500 mt-0.5" />
-          ) : (
-            <Info className="w-3.5 h-3.5 shrink-0 text-blue-500 mt-0.5" />
-          )}
-          <span className="leading-tight">{conflictoSeleccionado.mensaje}</span>
-        </div>
-      )}
-
-      {/* Floating Dropdown */}
-      {open && (
-        <div
-          data-persona-dropdown
-          className="fixed z-[200] bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden animate-view-fade"
-          style={getDropdownStyle()}
-        >
-          {/* Búsqueda */}
-          <div className="p-2 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50">
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Buscar nombre o clave..."
-              icon={Search}
-              size="sm"
-              className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1"
-            />
-          </div>
-
-          {/* Opciones */}
-          <div ref={listRef} className="relative max-h-48 overflow-y-auto py-1">
-            <button
-              type="button"
-              data-index="-1"
-              onClick={() => handleSelect(null)}
-              onMouseMove={() => setHighlightedIndex(-1)}
-              onMouseEnter={() => {
-                clearTimeout(hoverTimer.current)
-                setTooltip(null)
-              }}
-              className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer ${
-                highlightedIndex === -1
-                  ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1 font-medium'
-                  : 'text-text3 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
-              }`}
-            >
-              — Sin asignar —
-            </button>
-
-            {filtrados.length === 0 ? (
-              <div className="px-3 py-3 text-center text-xs text-text3 italic">
-                Sin participantes disponibles
-              </div>
-            ) : (
-              filtrados.map((p, idx) => {
-                const ind = getIndicador(p)
-                const IndIcon = ind.icon
-                const isSelected = p.clave === value
-                const isHighlighted = highlightedIndex === idx
-
-                return (
-                  <button
-                    key={p.clave}
-                    type="button"
-                    data-index={idx}
-                    onClick={() => handleSelect(p.clave)}
-                    onMouseMove={() => setHighlightedIndex(idx)}
-                    onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
-                    onMouseLeave={handleItemMouseLeave}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? isHighlighted
-                          ? 'bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-100 font-medium ring-1 ring-inset ring-emerald-500/30'
-                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium'
-                        : isHighlighted
-                        ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1'
-                        : 'hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 text-text1'
-                    }`}
-                  >
-                    <IndIcon className={`w-3.5 h-3.5 shrink-0 ${ind.cls}`} />
-                    <span className="font-mono text-text3 text-[11px] shrink-0 w-12">{p.clave}</span>
-                    <span className="truncate flex-1">{p.nombre}</span>
-                    {p.conflicto && (
-                      <span
-                        className="shrink-0 flex items-center justify-center ml-auto"
-                        title={p.conflicto.mensaje}
-                      >
-                        {p.conflicto.severity === 'warning' ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                        ) : (
-                          <Info className="w-3.5 h-3.5 text-blue-500" />
-                        )}
-                      </span>
-                    )}
-                  </button>
-                )
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Floating Hover Tooltip */}
-      {tooltip && tooltipPersona && (
-        <div
-          className="fixed z-[300] w-64 bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-3 text-xs flex flex-col gap-2 pointer-events-none animate-view-fade"
-          style={{ top: tooltip.top, left: tooltip.left }}
-        >
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-1.5">
-            <span className="font-semibold text-text1 truncate">{tooltipPersona.nombre}</span>
-            <span className="font-mono text-[10px] text-text3 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60">
-              {tooltipPersona.clave}
-            </span>
-          </div>
-
-          {/* Banner de conflictos si existen */}
-          {tooltipConflictos.length > 0 && (
-            <div
-              className={`p-2 rounded-lg border text-[11px] flex flex-col gap-1 ${
-                tooltipConflictos.some(c => c.severity === 'warning')
-                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-800 dark:text-amber-300'
-                  : 'bg-blue-500/10 border-blue-500/25 text-blue-800 dark:text-blue-300'
-              }`}
-            >
-              {tooltipConflictos.map((c, i) => (
-                <div key={i} className="flex items-start gap-1.5">
-                  {c.severity === 'warning' ? (
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  ) : (
-                    <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                  )}
-                  <span className="leading-tight">{c.mensaje}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {tooltipParts.length === 0 ? (
-            <span className="text-text3 italic text-[11px]">Sin participaciones recientes</span>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-mono text-text3 uppercase tracking-wider">
-                Últimas participaciones:
-              </span>
-              {tooltipParts.map((pt, idx) => {
-                const colorKey =
-                  {
-                    T: 'SMT_EST',
-                    A: 'SMT_AYU',
-                    EBC: 'EBC_CON',
-                    OC: 'ORACION_C',
-                  }[pt.tipo] || pt.tipo
-
-                return (
-                  <div
-                    key={idx}
-                    className="p-1.5 rounded-lg bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between"
-                  >
-                    <span className="text-[10px] text-text3 font-medium">
-                      {pt.mes} {String(pt.fecha || '').slice(0, 4)}
-                    </span>
-                    <span
-                      className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${
-                        TIPO_COLOR[colorKey] || 'bg-zinc-100 text-zinc-700'
-                      }`}
-                    >
-                      {pt.tipo}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Fila de Parte del Programa ────────────────────────────────
-function FilaParte({
-  parte,
-  asignaciones,
-  personas,
-  historial,
-  mes,
-  fechaSemana,
-  semanaAsignados,
-  onAsignar,
-  onConfirmar,
-  clavePresidente,
-  modoLectura,
-  evento,
-  horaCalculada,
-}) {
-  const [flashing, setFlashing] = useState(false)
-  const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
-  const asigAyu = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'ayudante')
-  const principal = asig[0] || null
-  const ayudante = asigAyu[0] || null
-
-  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
-  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
-  const esVisita = esVisitaSC || esVisitaSucursal
-  const nombreVisitante = esVisita
-    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
-    : null
-
-  const principalPartRecord = principal?.participacion_id
-    ? historial.find(h => h.id === principal.participacion_id)
-    : null
-  const ayudantePartRecord = ayudante?.participacion_id
-    ? historial.find(h => h.id === ayudante.participacion_id)
-    : null
-
-  const principalCambiado =
-    !!principal?.participacion_id &&
-    principalPartRecord &&
-    principalPartRecord.clave !== principal?.clave
-  const ayudanteCambiado =
-    !!ayudante?.participacion_id &&
-    ayudantePartRecord &&
-    ayudantePartRecord.clave !== ayudante?.clave
-  const ayudanteNuevo =
-    parte.requiere_ayudante &&
-    ayudante?.clave &&
-    principal?.participacion_id &&
-    !ayudante?.participacion_id
-  const ayudanteRemovido = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
-
-  const necesitaReconfirmar =
-    principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
-
-  // Slot vacío — no renderizar asignable
-  if (parte.tipo_asignacion === 'SMT_VACIO') {
-    return (
-      <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:divide-zinc-800/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-[auto_1fr_1fr]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
-        }`}
-      >
-        <div className="text-xs font-mono text-text3 w-16" />
-        <div>
-          <div className="text-xs text-text3 italic">Sin cuarta asignación</div>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-text3">
-            SMT
-          </span>
-        </div>
-        <div />
-        {!modoLectura && <div />}
-      </div>
-    )
-  }
-
-  // CONCLU y ORACION — read-only, siempre refleja al Presidente
-  if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'ORACION') {
-    const nombrePresidente = personas.find(p => p.clave === clavePresidente)?.nombre || '—'
-    return (
-      <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-[auto_1fr_1fr]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
-        }`}
-      >
-        <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {horaCalculada || parte.hora_inicio || ''}
-        </div>
-        <div>
-          <div className="text-xs font-medium text-text1 leading-snug">{parte.titulo}</div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span
-              className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${
-                TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
-              }`}
-            >
-              {parte.tipo_asignacion}
-            </span>
-          </div>
-        </div>
-
-        {modoLectura ? (
-          <div className="flex flex-col">
-            <span
-              className={
-                clavePresidente ? 'text-xs font-medium text-text1' : 'text-xs text-text3 italic'
-              }
-            >
-              {clavePresidente ? nombrePresidente : '— Asignar presidente primero'}
-            </span>
-          </div>
-        ) : (
-          <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-zinc-50/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800 rounded-lg">
-            {clavePresidente ? nombrePresidente : '— Presidente asignado —'}
-          </div>
-        )}
-        {!modoLectura && <div />}
-      </div>
-    )
-  }
-
-  // Discurso de la Visita (sustituye al EBC)
-  if (esVisita && parte.tipo_asignacion === 'EBC_CON') {
-    const tituloDiscurso = esVisitaSC
-      ? 'Discurso del Superintendente (30 mins.)'
-      : 'Discurso del Representante de la Sucursal (30 mins.)'
-
-    return (
-      <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-[auto_1fr_1fr]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
-        }`}
-      >
-        <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {horaCalculada || parte.hora_inicio || ''}
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs font-semibold text-text1 leading-snug truncate">
-            {tituloDiscurso}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
-              DISCURSO SC
-            </span>
-            <span className="text-[11px] text-text3 font-mono">30 min</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 min-w-0">
-          <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span className="text-xs font-medium truncate">{nombreVisitante}</span>
-          <Badge variant="success" size="xs" className="ml-auto shrink-0">
-            Visitante
-          </Badge>
-        </div>
-
-        {!modoLectura && <div />}
-      </div>
-    )
-  }
-
-  // Lector de EBC — En visita no se requiere lector
-  if (esVisita && parte.tipo_asignacion === 'LEBC') {
-    return (
-      <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center opacity-70 ${
-          modoLectura
-            ? 'grid-cols-[auto_1fr_1fr]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
-        }`}
-      >
-        <div className="text-xs font-mono text-text3 whitespace-nowrap">
-          {horaCalculada || parte.hora_inicio || ''}
-        </div>
-        <div className="min-w-0">
-          <div className="text-xs font-medium text-text3 leading-snug line-through truncate">
-            {parte.titulo}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-zinc-100 dark:bg-zinc-800 text-text3">
-              LEBC
-            </span>
-          </div>
-        </div>
-
-        <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-zinc-50/50 dark:bg-zinc-900/30 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
-          No requiere lector (Discurso de 30 min)
-        </div>
-
-        {!modoLectura && <div />}
-      </div>
-    )
-  }
-
-  const esOracionVisitantePredeterminada =
-    esVisita &&
-    parte.tipo_asignacion === 'ORACION_C' &&
-    evento?.oracion_visitante !== false &&
-    !principal?.clave
-
-  return (
-    <div
-      id={`parte-${parte.id}`}
-      className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center transition-all ${
-        modoLectura
-          ? 'grid-cols-[auto_1fr_1fr]'
-          : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
-      }`}
-    >
-      {/* Hora */}
-      <div className="text-xs font-mono text-text3 whitespace-nowrap">
-        {horaCalculada || parte.hora_inicio || ''}
-      </div>
-
-      {/* Título y Tipo */}
-      <div className="min-w-0">
-        <div className="text-xs font-medium text-text1 leading-snug truncate">{parte.titulo}</div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span
-            className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${
-              TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
-            }`}
-          >
-            {parte.tipo_asignacion}
-          </span>
-          {parte.duracion_min && (
-            <span className="text-[11px] text-text3 font-mono">
-              {parte.duracion_min} min
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Asignaciones: Modo Lectura vs Modo Edición */}
-      {modoLectura ? (
-        <div className="flex flex-col gap-0.5 min-w-0">
-          {esOracionVisitantePredeterminada ? (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 truncate">
-                {nombreVisitante}
-              </span>
-              <Badge variant="success" size="xs">
-                Visitante
-              </Badge>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span
-                className={`text-xs truncate ${
-                  principal?.clave ? 'font-medium text-text1' : 'text-text3 italic'
-                }`}
-              >
-                {principal?.clave
-                  ? personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave
-                  : '— Sin asignar'}
-              </span>
-              {principal?.clave && (
-                <Badge
-                  variant={
-                    principal?.confirmado && !necesitaReconfirmar
-                      ? 'success'
-                      : necesitaReconfirmar
-                      ? 'warning'
-                      : 'neutral'
-                  }
-                  size="xs"
-                >
-                  {principal?.confirmado && !necesitaReconfirmar
-                    ? 'Confirmado'
-                    : necesitaReconfirmar
-                    ? 'Reconfirmar'
-                    : 'Pendiente'}
-                </Badge>
-              )}
-            </div>
-          )}
-          {parte.requiere_ayudante && (
-            <span className="text-[11px] text-text3 truncate">
-              {ayudante?.clave
-                ? `↳ ${personas.find(p => p.clave === ayudante.clave)?.nombre ?? ayudante.clave}`
-                : principal?.clave
-                ? '↳ Sin ayudante'
-                : null}
-            </span>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Selectores de participantes */}
-          <div className="flex flex-col gap-1.5 min-w-0">
-            <PersonaSelector
-              tipo={parte.tipo_asignacion}
-              value={principal?.clave}
-              onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
-              personas={personas}
-              historial={historial}
-              mes={mes}
-              fechaSemana={fechaSemana}
-              yaAsignados={semanaAsignados
-                .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
-                .map(a =>
-                  a.parte_id === parte.id && a.rol === 'ayudante'
-                    ? { ...a, esTitularMismaParte: true }
-                    : a
-                )}
-              disabled={false}
-              placeholder={
-                esVisita && evento?.oracion_visitante !== false && parte.tipo_asignacion === 'ORACION_C'
-                  ? `${nombreVisitante} (Visitante)`
-                  : undefined
-              }
-            />
-            {parte.requiere_ayudante &&
-              (() => {
-                const titularSexo = personas.find(p => p.clave === principal?.clave)?.sexo
-                const tipoAyu =
-                  titularSexo === 'M'
-                    ? 'SMT_EXP_M'
-                    : 'SMT_EXP_F'
-                return (
-                  <PersonaSelector
-                    tipo={tipoAyu}
-                    value={ayudante?.clave}
-                    onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
-                    personas={personas}
-                    historial={historial}
-                    mes={mes}
-                    fechaSemana={fechaSemana}
-                    yaAsignados={semanaAsignados
-                      .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
-                      .map(a =>
-                        a.parte_id === parte.id && a.rol === 'principal'
-                          ? { ...a, esTitularMismaParte: true }
-                          : a
-                      )}
-                    disabled={!principal?.clave}
-                  />
-                )
-              })()}
-          </div>
-
-          {/* Botón de Confirmación */}
-          <div className="flex items-center justify-end">
-            {principal?.clave ? (
-              <Button
-                variant={
-                  necesitaReconfirmar
-                    ? 'danger'
-                    : principal?.confirmado
-                    ? 'accent'
-                    : 'outline'
-                }
-                size="xs"
-                loading={flashing}
-                onClick={async () => {
-                  setFlashing(true)
-                  await onConfirmar(parte.id, principal, ayudante)
-                  setTimeout(() => setFlashing(false), 500)
-                }}
-                icon={
-                  necesitaReconfirmar
-                    ? RotateCcw
-                    : principal?.confirmado
-                    ? Check
-                    : Check
-                }
-              >
-                {necesitaReconfirmar
-                  ? 'Reconfirmar'
-                  : principal?.confirmado
-                  ? 'Confirmado'
-                  : 'Confirmar'}
-              </Button>
-            ) : esOracionVisitantePredeterminada ? (
-              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
-                Predeterminada
-              </span>
-            ) : null}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ── Tarjeta de Semana ─────────────────────────────────────────
-function TarjetaSemana({
-  semana,
-  partes,
-  asignaciones,
-  personas,
-  historial,
-  onAsignar,
-  onConfirmar,
-  onConfirmarTodo,
-  onEliminarSemana,
-  onLimpiarAsignaciones,
-  expandida,
-  onToggleExpand,
-  modoLectura,
-  onRevisarSemana,
-  onSugerirSemana,
-  evento,
-  impacto: propImpacto,
-  config,
-}) {
-  const mes = semana.mes
-
-  const impacto = propImpacto || getImpactoEventoSemana(semana, [evento].filter(Boolean))
-
-  const mapaHoras = useMemo(() => {
-    return mapearHorariosPartesSemana(
-      {
-        ...semana,
-        hora_efectiva: impacto?.horaEfectiva,
-      },
-      partes,
-      config
-    )
-  }, [semana, partes, config, impacto?.horaEfectiva])
-  const cancelaEntreSemana = impacto?.cancelaEntreSemana || false
-  const esVisitaSC = impacto?.esVisitaSC ?? (evento?.tipo_evento === 'visita_sc')
-  const esVisitaSucursal = impacto?.esVisitaSucursal ?? (evento?.tipo_evento === 'visita_sucursal')
-  const esVisita = impacto?.esVisita ?? (esVisitaSC || esVisitaSucursal)
-  const nombreVisitante =
-    impacto?.nombreVisitante ||
-    (esVisita
-      ? (evento?.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
-      : null)
-
-  const semanaAsignados = asignaciones
-    .filter(a => a.clave && partes.some(p => p.id === a.parte_id))
-    .map(a => {
-      const parteObj = partes.find(p => p.id === a.parte_id)
-      return {
-        id: a.id,
-        parte_id: a.parte_id,
-        rol: a.rol,
-        clave: a.clave,
-        tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
-      }
-    })
-
-  const tieneAsignacionesPrevias = asignaciones.some(
-    a => partes.some(p => p.id === a.parte_id) && !!a.clave
-  )
-
-  const partePresidente = partes.find(p => p.tipo_asignacion === 'P')
-  const asigPresidente = partePresidente
-    ? asignaciones.find(a => a.parte_id === partePresidente.id && a.rol === 'principal')
-    : null
-  const clavePresidente = asigPresidente?.clave || null
-
-  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU', ...(esVisita ? ['LEBC'] : [])]
-  const partesContables = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
-  const totalPartes = partesContables.length
-
-  const hayReconfirmaciones = partesContables.some(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-    if (!asigP?.clave) return false
-
-    const pr = asigP.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
-
-    const pCambio = !!asigP.participacion_id && pr && pr.clave !== asigP.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-
-    return pCambio || aCambio || aNuevo || aRem
-  })
-
-  const confirmadas = partesContables.filter(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') {
-      return true
-    }
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false && !asigP?.clave) {
-      return true
-    }
-
-    const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
-    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-
-    const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
-    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-    const necesitaRec = pCambio || aCambio || aNuevo || aRem
-
-    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
-  }).length
-
-  const hayAsignaciones = partesContables.some(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    return !!asigP?.clave
-  })
-
-  const todasAsignadas =
-    totalPartes > 0 &&
-    partesContables.every(p => {
-      if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
-      if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false) return true
-      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-      return !!asigP?.clave
-    })
-
-  const todasSugeridas =
-    totalPartes > 0 &&
-    partesContables.every(p => {
-      if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
-      if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false) return true
-      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-      return asigP?.clave && asigP.sugerido_por_app === true
-    })
-
-  // Visible si hay asignaciones para revisar y la semana aún no está 100% confirmada
-  const mostrarBotonRevisar =
-    !cancelaEntreSemana &&
-    totalPartes > 0 &&
-    confirmadas < totalPartes &&
-    (hayAsignaciones || todasSugeridas)
-  // Visible si faltan partes por asignar y aún no está 100% confirmada
-  const mostrarBotonSugerir =
-    !cancelaEntreSemana &&
-    !todasAsignadas &&
-    confirmadas < totalPartes &&
-    totalPartes > 0
-
-  const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
-  const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
-
-  return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700/80 transition-all">
-      {/* Card Header Accordion */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/40 border-b border-zinc-100 dark:border-zinc-800/60 select-none">
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left cursor-pointer mr-3"
-        >
-          {/* Fechas y Lectura */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
-              <span className="text-sm font-semibold text-text1">
-                {formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text3 font-mono mt-0.5">
-              <BookOpen className="w-3.5 h-3.5 opacity-60" />
-              <span>{semana.capitulo_biblico}</span>
-            </div>
-            {cancelaEntreSemana ? (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
-                  <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                  {impacto.tituloEvento}
-                </span>
-              </div>
-            ) : esVisita ? (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                  <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  {esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}: {nombreVisitante}
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Canciones y Progreso */}
-          <div className="flex items-center gap-4">
-            {/* Canciones */}
-            {!cancelaEntreSemana && (
-              <div className="hidden md:flex items-center gap-1">
-                {[semana.cancion_apertura, semana.cancion_vc, semana.cancion_cierre]
-                  .filter(Boolean)
-                  .map((c, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60"
-                    >
-                      <Music className="w-3 h-3 text-text3" />
-                      {c}
-                    </span>
-                  ))}
-              </div>
-            )}
-
-            {/* Progreso */}
-            <div className="flex items-center gap-2.5">
-              {cancelaEntreSemana ? (
-                <Badge variant="purple" size="sm">
-                  Sin reunión ordinaria
-                </Badge>
-              ) : (
-                <Badge
-                  variant={
-                    pct === 100
-                      ? 'success'
-                      : pct >= 50
-                      ? 'warning'
-                      : 'neutral'
-                  }
-                  size="sm"
-                >
-                  {confirmadas}/{totalPartes} confirmadas
-                </Badge>
-              )}
-              {expandida ? (
-                <ChevronUp className="w-4 h-4 text-text3" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-text3" />
-              )}
-            </div>
-          </div>
-        </button>
-
-        {/* Acciones Rápidas */}
-        {!modoLectura && (
-          <div className="flex items-center gap-2 shrink-0">
-            {mostrarBotonRevisar && (
-              <Button
-                variant="secondary"
-                size="xs"
-                icon={CheckCircle2}
-                onClick={e => {
-                  e.stopPropagation()
-                  onRevisarSemana?.(semana)
-                }}
-                className="font-medium text-xs shadow-2xs"
-              >
-                Revisar y aprobar semana
-              </Button>
-            )}
-            {mostrarBotonSugerir && (
-              <Button
-                variant="secondary"
-                size="xs"
-                icon={Sparkles}
-                onClick={e => {
-                  e.stopPropagation()
-                  onSugerirSemana?.(semana.id)
-                }}
-                className="font-medium text-xs shadow-2xs"
-              >
-                Completar con sugerencias
-              </Button>
-            )}
-            <Button
-              variant="dangerGhost"
-              size="iconSm"
-              onClick={() => onEliminarSemana(semana.id)}
-              aria-label="Eliminar semana"
-              title="Eliminar semana"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Contenido Expandido */}
-      {expandida && (
-        <div className="px-5 py-4 space-y-5 animate-view-fade">
-          {cancelaEntreSemana ? (
-            <div className="space-y-4">
-              {tieneAsignacionesPrevias && !modoLectura && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-amber-900 dark:text-amber-200">
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-semibold">Esta semana cuenta con asignaciones guardadas previamente</p>
-                      <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-                        Debido a {impacto.tituloEvento}, no se celebrará la reunión ordinaria de entre semana. Las asignaciones previas han quedado inactivas.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="danger"
-                    size="xs"
-                    icon={Trash2}
-                    onClick={() => onLimpiarAsignaciones?.(semana.id)}
-                    className="shrink-0 self-end sm:self-center"
-                  >
-                    Limpiar asignaciones de esta semana
-                  </Button>
-                </div>
-              )}
-
-              <div className="flex flex-col sm:flex-row items-start gap-4 p-5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-800/40 text-purple-950 dark:text-purple-100">
-                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 shrink-0">
-                  <Calendar className="w-6 h-6" />
-                </div>
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-mono font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-200/60 dark:bg-purple-800/60 text-purple-900 dark:text-purple-200">
-                      {impacto.esAsamblea
-                        ? (impacto.evento?.tipo_evento === 'asamblea_regional' ? 'Asamblea Regional' : 'Asamblea de Circuito')
-                        : 'Reunión Cancelada'}
-                    </span>
-                    {impacto.fechaEfectiva && (
-                      <span className="text-xs text-text3 font-mono">
-                        {impacto.fechaEfectiva}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-base font-bold text-text1">
-                    {impacto.tituloEvento}
-                  </h4>
-                  {(impacto.motivo || impacto.descripcion) && (
-                    <p className="text-xs text-text2 leading-relaxed">
-                      {impacto.motivo || impacto.descripcion}
-                    </p>
-                  )}
-                  <p className="text-[11px] text-text3 pt-1">
-                    Durante esta semana no se programa la reunión de entre semana en la congregación. No es necesario asignar participantes para esta semana.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {impacto?.esDesplazada && (
-                <div className="flex items-center gap-2.5 p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 text-xs text-blue-900 dark:text-blue-200">
-                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <div>
-                    <span className="font-semibold">Reunión desplazada: </span>
-                    <span>Esta reunión se llevará a cabo el {formatFechaLegible(impacto.fechaEfectiva)} {impacto.horaEfectiva ? `a las ${impacto.horaEfectiva} hrs` : ''}.</span>
-                    {impacto.motivo && <span className="block text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">Motivo: {impacto.motivo}</span>}
-                  </div>
-                </div>
-              )}
-
-              {esVisita && (
-                <div className="flex items-start sm:items-center gap-2.5 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 text-xs text-emerald-900 dark:text-emerald-200">
-                  <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
-                  <div>
-                    <span className="font-semibold">
-                      {esVisitaSC
-                        ? 'Semana de Visita del Superintendente de Circuito'
-                        : 'Semana de Visita de Representante de la Sucursal'}
-                      :{' '}
-                    </span>
-                    <span className="font-medium">{nombreVisitante}</span>
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
-                      El Estudio Bíblico y su lector se sustituyen por el Discurso de servicio de 30 minutos a cargo de la visita.{' '}
-                      {evento?.oracion_visitante !== false
-                        ? 'La oración de conclusión también la ofrece el visitante.'
-                        : ''}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {secciones.map(sec => {
-                const partesSeccion = partes.filter(p => p.seccion === sec)
-                if (!partesSeccion.length) return null
-
-                return (
-                  <div key={sec} className="space-y-2">
-                    <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
-                      {SECCION_LABEL[sec]}
-                    </div>
-                    {partesSeccion.map(parte => (
-                      <FilaParte
-                        key={parte.id}
-                        parte={parte}
-                        asignaciones={asignaciones}
-                        personas={personas}
-                        historial={historial}
-                        mes={mes}
-                        fechaSemana={semana.fecha_inicio}
-                        semanaAsignados={semanaAsignados}
-                        onAsignar={onAsignar}
-                        onConfirmar={onConfirmar}
-                        clavePresidente={clavePresidente}
-                        modoLectura={modoLectura}
-                        evento={evento}
-                        horaCalculada={mapaHoras[parte.id]}
-                      />
-                    ))}
-                  </div>
-                )
-              })}
-
-              {!modoLectura && (
-                <div className="flex items-center justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800/80 gap-3">
-                  {confirmadas < totalPartes && totalPartes > 0 && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={Sparkles}
-                      onClick={() => onSugerirSemana?.(semana.id)}
-                    >
-                      {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
-                    </Button>
-                  )}
-                  {mostrarBotonRevisar && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={CheckCircle2}
-                      onClick={() => onRevisarSemana?.(semana)}
-                    >
-                      Revisar y aprobar semana
-                    </Button>
-                  )}
-                  <Button
-                    variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
-                    size="sm"
-                    icon={hayReconfirmaciones ? RotateCcw : CheckCheck}
-                    onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
-                  >
-                    {hayReconfirmaciones
-                      ? 'Actualizar confirmaciones pendientes'
-                      : pct === 100 && totalPartes > 0
-                      ? 'Toda la semana confirmada'
-                      : 'Confirmar toda la semana'}
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Modal de Revisar y Aprobar Semana (Brief #29) ──────────────
-function RevisarSemanaModal({
-  isOpen,
-  onClose,
-  semana,
-  partes,
-  asignaciones,
-  personas,
-  historial,
-  onConfirmarBatch,
-  onAsignarManual,
-  isBatchSaving,
-  evento,
-}) {
-  const esVisitaSC = evento?.tipo_evento === 'visita_sc'
-  const esVisitaSucursal = evento?.tipo_evento === 'visita_sucursal'
-  const esVisita = esVisitaSC || esVisitaSucursal
-  const nombreVisitante = esVisita
-    ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
-    : null
-
-  const TIPOS_SOLO_VISUAL = [
-    'SMT_VACIO',
-    'ORACION',
-    'CONCLU',
-    ...(esVisita ? ['EBC_CON', 'LEBC'] : []),
-    ...(esVisita && evento?.oracion_visitante !== false && !asignaciones.some(a => partes.some(p => p.id === a.parte_id && p.tipo_asignacion === 'ORACION_C' && a.clave)) ? ['ORACION_C'] : []),
-  ]
-  const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
-
-  const partesSemana = (partes || []).filter(
-    p => p.semana_id === semana?.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
-  )
-
-  const semanaAsignados = (asignaciones || [])
-    .filter(a => a.clave && partesSemana.some(p => p.id === a.parte_id))
-    .map(a => {
-      const parteObj = partesSemana.find(p => p.id === a.parte_id)
-      return {
-        id: a.id,
-        parte_id: a.parte_id,
-        rol: a.rol,
-        clave: a.clave,
-        tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
-      }
-    })
-
-  // Evaluación de partes y conflictos
-  const partesEvaluadas = partesSemana.map(parte => {
-    const asigP = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'principal')
-    const asigA = asignaciones.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
-
-    const personaP = asigP?.clave ? personas.find(p => p.clave === asigP.clave) : null
-    const personaA = asigA?.clave ? personas.find(p => p.clave === asigA.clave) : null
-    const yaConfirmada = !!asigP?.confirmado
-
-    let estado = 'verde' // 'verde' | 'amarillo' | 'rojo' | 'confirmada'
-    let advertencias = []
-
-    if (yaConfirmada) {
-      estado = 'confirmada'
-    } else if (!asigP?.clave || !personaP) {
-      estado = 'rojo'
-    } else {
-      const yaAsigParaP = semanaAsignados
-        .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
-        .map(a =>
-          a.parte_id === parte.id && a.rol === 'ayudante'
-            ? { ...a, esTitularMismaParte: true }
-            : a
-        )
-      const yaAsigParaA = semanaAsignados
-        .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
-        .map(a =>
-          a.parte_id === parte.id && a.rol === 'principal'
-            ? { ...a, esTitularMismaParte: true }
-            : a
-        )
-
-      const confsP = evaluarConflictosPersona(
-        personaP,
-        parte.tipo_asignacion,
-        historial,
-        semana?.mes,
-        semana?.fecha_inicio,
-        yaAsigParaP
-      ).filter(c => c.severity === 'warning')
-
-      const confsA =
-        parte.requiere_ayudante && personaA
-          ? evaluarConflictosPersona(
-              personaA,
-              'SMT_AYU',
-              historial,
-              semana?.mes,
-              semana?.fecha_inicio,
-              yaAsigParaA
-            ).filter(c => c.severity === 'warning')
-          : []
-
-      advertencias = [
-        ...confsP.map(c => ({ ...c, persona: personaP.nombre, esAyudante: false })),
-        ...confsA.map(c => ({ ...c, persona: personaA.nombre, esAyudante: true })),
-      ]
-
-      if (advertencias.length > 0) {
-        estado = 'amarillo'
-      } else {
-        estado = 'verde'
-      }
-    }
-
-    return {
-      parte,
-      asigP,
-      asigA,
-      personaP,
-      personaA,
-      estado,
-      advertencias,
-    }
-  })
-
-  // Estado de checkboxes seleccionados
-  const [seleccionadas, setSeleccionadas] = useState({})
-
-  useEffect(() => {
-    if (!isOpen || !semana) {
-      setSeleccionadas({})
-      return
-    }
-    const initial = {}
-    partesEvaluadas.forEach(item => {
-      // 🟢 pre-marcado, 🟡 desmarcado por defecto, 🔴 o confirmada no seleccionable
-      if (item.estado === 'verde') {
-        initial[item.parte.id] = true
-      } else {
-        initial[item.parte.id] = false
-      }
-    })
-    setSeleccionadas(initial)
-  }, [isOpen, semana?.id])
-
-  if (!isOpen || !semana) return null
-
-  const totalPartes = partesSemana.length
-  const partesPendientes = partesEvaluadas.filter(p => p.estado !== 'confirmada')
-  const totalPendientes = partesPendientes.length
-  const totalAdvertencias = partesEvaluadas.filter(p => p.estado === 'amarillo').length
-  const seleccionadasCount = Object.values(seleccionadas).filter(Boolean).length
-
-  const handleToggle = parteId => {
-    setSeleccionadas(prev => ({
-      ...prev,
-      [parteId]: !prev[parteId],
-    }))
-  }
-
-  const handleConfirmar = () => {
-    const ids = Object.keys(seleccionadas).filter(id => seleccionadas[id])
-    onConfirmarBatch(semana, ids)
-  }
-
-  return (
-    <Dialog
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Revisar semana — ${formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}`}
-      description={`${totalPartes} partes (${totalPendientes} pendientes) · ${totalAdvertencias} con advertencias`}
-      size="lg"
-      footer={
-        <div className="flex items-center justify-between w-full">
-          <span className="text-xs text-text2 font-medium">
-            {seleccionadasCount} de {totalPendientes} partes pendientes seleccionadas
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              disabled={isBatchSaving}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="accent"
-              size="sm"
-              disabled={seleccionadasCount === 0 || isBatchSaving}
-              onClick={handleConfirmar}
-            >
-              {isBatchSaving ? 'Confirmando...' : 'Confirmar seleccionadas'}
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <div className="space-y-4">
-        {esVisita && (
-          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
-            <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>
-              <strong>{esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}:</strong> {nombreVisitante} (Discurso de 30 min y oración final a cargo de la visita).
-            </span>
-          </div>
-        )}
-        {secciones.map(sec => {
-          const partesSec = partesEvaluadas.filter(item => item.parte.seccion === sec)
-          if (!partesSec.length) return null
-
-          return (
-            <div key={sec} className="space-y-2">
-              <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
-                {SECCION_LABEL[sec]}
-              </div>
-
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                {partesSec.map(item => {
-                  const { parte, personaP, personaA, estado, advertencias } = item
-                  const isChecked = !!seleccionadas[parte.id]
-
-                  return (
-                    <div
-                      key={parte.id}
-                      className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 px-1.5 rounded-lg"
-                    >
-                      {/* Checkbox o Placeholder */}
-                      <div className="pt-0.5 shrink-0">
-                        {estado === 'confirmada' ? (
-                          <div className="w-4 h-4 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                          </div>
-                        ) : estado !== 'rojo' ? (
-                          <input
-                            type="checkbox"
-                            id={`chk-${parte.id}`}
-                            checked={isChecked}
-                            onChange={() => handleToggle(parte.id)}
-                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 bg-surface dark:bg-zinc-800 cursor-pointer"
-                          />
-                        ) : (
-                          <div className="w-4 h-4" />
-                        )}
-                      </div>
-
-                      {/* Info de la parte */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border shrink-0 ${
-                              TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
-                            }`}
-                          >
-                            {parte.tipo_asignacion}
-                          </span>
-                          <span className="text-xs font-semibold text-text1 truncate">
-                            {parte.titulo}
-                          </span>
-                        </div>
-
-                        {/* Nombre sugerido */}
-                        <div className="mt-1 text-xs text-text2">
-                          {personaP ? (
-                            <span className="font-medium text-text1">
-                              {personaP.nombre}
-                              {personaA && (
-                                <span className="font-normal text-text2 ml-1">
-                                  / {personaA.nombre}{' '}
-                                  <span className="text-text3 text-[11px]">(Ayudante)</span>
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-text3 italic">Sin asignación</span>
-                          )}
-                        </div>
-
-                        {/* Mensajes de advertencia */}
-                        {estado === 'amarillo' && advertencias.length > 0 && (
-                          <div className="mt-1.5 flex flex-col gap-0.5">
-                            {advertencias.map((adv, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400/90 font-medium"
-                              >
-                                <AlertTriangle className="w-3 h-3 shrink-0" />
-                                <span>
-                                  {adv.esAyudante ? `Ayudante: ${adv.mensaje}` : adv.mensaje}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Semáforo indicador / Enlace */}
-                      <div className="shrink-0 flex flex-col items-end gap-1">
-                        {estado === 'confirmada' && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                            <Check className="w-3 h-3" />
-                            Confirmada
-                          </span>
-                        )}
-
-                        {estado === 'verde' && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Sin conflictos
-                          </span>
-                        )}
-
-                        {estado === 'amarillo' && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                            <AlertTriangle className="w-3 h-3" />
-                            Advertencia
-                          </span>
-                        )}
-
-                        {estado === 'rojo' && (
-                          <div className="flex flex-col items-end gap-1">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20">
-                              <AlertCircle className="w-3 h-3" />
-                              Sin sugerencia
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onAsignarManual(parte.id)}
-                              className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
-                            >
-                              <span>Asignar manualmente</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </Dialog>
-  )
-}
-
-// ── Helper para evaluar si una semana está 100% completada ──────
-function calcularEstadoSemana(semanaOrId, todasPartes, todasAsignaciones, todoHistorial, eventos, config) {
-  const semanaId = typeof semanaOrId === 'object' ? semanaOrId?.id : semanaOrId
-  const semanaObj = typeof semanaOrId === 'object' ? semanaOrId : null
-
-  if (semanaObj && eventos?.length) {
-    const impacto = getImpactoEventoSemana(
-      semanaObj,
-      eventos,
-      config?.diaReunionEntreSemana,
-      config?.diaReunionFinSemana
-    )
-    if (impacto.cancelaEntreSemana) {
-      return { totalPartes: 0, confirmadas: 0, esCompleta: true }
-    }
-  }
-
-  const partesSemana = todasPartes.filter(p => p.semana_id === semanaId)
-  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
-  const partesContables = partesSemana.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
-  const totalPartes = partesContables.length
-  if (totalPartes === 0) return { totalPartes: 0, confirmadas: 0, esCompleta: false }
-
-  const confirmadas = partesContables.filter(p => {
-    const asigParte = todasAsignaciones.filter(a => a.parte_id === p.id && a.confirmado)
-    const asigP = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    const asigA = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-
-    const pr = asigP?.participacion_id ? todoHistorial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? todoHistorial.find(h => h.id === asigA.participacion_id) : null
-    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-    const necesitaRec = pCambio || aCambio || aNuevo || aRem
-
-    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
-  }).length
-
-  return {
-    totalPartes,
-    confirmadas,
-    esCompleta: confirmadas === totalPartes,
-  }
-}
-
-// ── Componente Principal ──────────────────────────────────────
 export default function Programa() {
   const { config } = useConfiguracion()
   const { eventos } = useEventosReunion()
-  const [semanas, setSemanas] = useState([])
-  const [partes, setPartes] = useState([])
-  const [asignaciones, setAsignaciones] = useState([])
-  const [personas, setPersonas] = useState([])
-  const [historial, setHistorial] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
+  const { toast, showToast, success, error: toastError, dismiss } = useToast()
+  const { confirm, confirmProps } = useConfirm()
+  const navigate = useNavigate()
+
+  // Datos desde la caché global de TanStack Query
+  const {
+    data: semanas = [],
+    isLoading: loadingSemanas,
+    error: errSemanas,
+    refetch: refetchSemanas,
+  } = useSemanasQuery()
+  const {
+    data: rawPartes = [],
+    isLoading: loadingPartes,
+    error: errPartes,
+    refetch: refetchPartes,
+  } = usePartesQuery()
+  const {
+    data: asignaciones = [],
+    isLoading: loadingAsig,
+    error: errAsig,
+    refetch: refetchAsig,
+  } = useAsignacionesQuery()
+  const {
+    data: allPersonas = [],
+    isLoading: loadingPer,
+    error: errPer,
+    refetch: refetchPer,
+  } = usePersonasQuery()
+  const {
+    data: rawHistorial = [],
+    isLoading: loadingHis,
+    error: errHis,
+    refetch: refetchHis,
+  } = useParticipacionesQuery()
+
+  const personas = useMemo(
+    () => allPersonas.filter(p => p.activo),
+    [allPersonas]
+  )
+
+  const historial = useMemo(
+    () => [...rawHistorial].sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || ''))),
+    [rawHistorial]
+  )
+
+  const partes = useMemo(() => {
+    return rawPartes.map(p => {
+      if (p.seccion === 'SMT' && p.tipo_asignacion === 'SMT_DSC' && p.titulo) {
+        const inferido = inferirTipoParteSMT(p.titulo)
+        if (inferido.tipo !== 'SMT_DSC') {
+          return {
+            ...p,
+            tipo_asignacion: inferido.tipo,
+            requiere_ayudante: inferido.requiere_ayudante,
+          }
+        }
+      }
+      return p
+    })
+  }, [rawPartes])
+
+  // Auto-reparación silenciosa en BD si hay partes SMT mal etiquetadas
+  useEffect(() => {
+    rawPartes.forEach(p => {
+      if (p.seccion === 'SMT' && p.tipo_asignacion === 'SMT_DSC' && p.titulo) {
+        const inferido = inferirTipoParteSMT(p.titulo)
+        if (inferido.tipo !== 'SMT_DSC') {
+          supabase
+            .from('programa_partes')
+            .update({
+              tipo_asignacion: inferido.tipo,
+              requiere_ayudante: inferido.requiere_ayudante,
+            })
+            .eq('id', p.id)
+            .then()
+        }
+      }
+    })
+  }, [rawPartes])
+
+  const loading = loadingSemanas || loadingPartes || loadingAsig || loadingPer || loadingHis
+  const fetchError =
+    errSemanas?.message ||
+    errPartes?.message ||
+    errAsig?.message ||
+    errPer?.message ||
+    errHis?.message ||
+    null
+
+  const congregacion = config?.nombreCongregacion || 'Congregacion del Recreo'
+
   const [uploading, setUploading] = useState(false)
   const [vistaTab, setVistaTab] = useState('semanas')
-  const [congregacion, setCongregacion] = useState('Congregacion del Recreo')
   const [expandedWeeks, setExpandedWeeks] = useState({})
   const [modoLectura, setModoLectura] = useState(() => {
     try {
@@ -2174,21 +171,37 @@ export default function Programa() {
   const [semanaParaRevisar, setSemanaParaRevisar] = useState(null)
   const [isBatchSaving, setIsBatchSaving] = useState(false)
 
-  // ── Flujo EPUB Automático (Brief #31) ──
+  // Flujo EPUB Automático (Brief #31)
   const [epubsDisponibles, setEpubsDisponibles] = useState([])
   const [nuevoEpubDisponible, setNuevoEpubDisponible] = useState(null)
-  const [selectedEpubIssue, setSelectedEpubIssue] = useState('')
   const [isSyncingEpubs, setIsSyncingEpubs] = useState(false)
   const [menuGuiasOpen, setMenuGuiasOpen] = useState(false)
   const menuGuiasRef = useRef(null)
   const [mostrarFabS140, setMostrarFabS140] = useState(false)
   const checkedEpubRef = useRef(false)
 
-  const navigate = useNavigate()
   const [menuS140TopOpen, setMenuS140TopOpen] = useState(false)
   const [menuS140FabOpen, setMenuS140FabOpen] = useState(false)
   const menuS140TopRef = useRef(null)
   const menuS140FabRef = useRef(null)
+  const botonS140TopRef = useRef(null)
+
+  const refreshPrograma = useCallback(() => {
+    invalidateAppQueries([
+      QUERY_KEYS.semanas,
+      QUERY_KEYS.partes,
+      QUERY_KEYS.asignaciones,
+      QUERY_KEYS.participaciones,
+    ])
+  }, [])
+
+  const retryFetch = useCallback(() => {
+    refetchSemanas()
+    refetchPartes()
+    refetchAsig()
+    refetchPer()
+    refetchHis()
+  }, [refetchSemanas, refetchPartes, refetchAsig, refetchPer, refetchHis])
 
   // Cerrar menús al hacer clic fuera
   useEffect(() => {
@@ -2207,24 +220,18 @@ export default function Programa() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const botonS140TopRef = useRef(null)
-
-  // Mostrar FAB flotante de Descargar S-140 al hacer scroll hacia abajo o cuando el botón superior deja de ser visible
+  // Mostrar FAB flotante de Descargar S-140 al hacer scroll hacia abajo
   useEffect(() => {
     const mainEl = document.querySelector('main')
 
     function checkVisibility() {
-      // 1. Si el botón superior está montado, verificar si está fuera de la vista
       if (botonS140TopRef.current) {
         const rect = botonS140TopRef.current.getBoundingClientRect()
-        // Si el botón ya subió más allá del header (top <= 55px) o su bottom está arriba
         if (rect.bottom < 65) {
           setMostrarFabS140(true)
           return
         }
       }
-
-      // 2. Fallback por posición de scroll del elemento scrolleable de la app (<main>)
       const scrollPos = mainEl ? mainEl.scrollTop : (window.scrollY || document.documentElement.scrollTop)
       setMostrarFabS140(scrollPos > 150)
     }
@@ -2234,7 +241,6 @@ export default function Programa() {
     }
     window.addEventListener('scroll', checkVisibility, { passive: true, capture: true })
 
-    // Observer para detectar cuando el botón superior sale del viewport
     let observer = null
     if (typeof IntersectionObserver !== 'undefined' && botonS140TopRef.current) {
       observer = new IntersectionObserver(
@@ -2253,200 +259,81 @@ export default function Programa() {
     }
   }, [semanas.length])
 
-  const { toast, showToast, success, error: toastError, dismiss } = useToast()
-  const { confirm, confirmProps } = useConfirm()
-
   useEffect(() => {
     try {
       localStorage.setItem('programa_modoLectura', String(modoLectura))
-    } catch {}
+    } catch {
+      // ignore storage errors
+    }
   }, [modoLectura])
 
-  const handleToggleExpand = semanaId => {
+  // Detección de programa completado al 100% en la sesión activa
+  const resumenProgresoPrograma = useMemo(() => {
+    if (loading) return null
+    let totalConfirmadasEnPrograma = 0
+    let totalPartesEnPrograma = 0
+    let semanasCompletadas = 0
+
+    semanas.forEach(s => {
+      const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
+        s,
+        partes,
+        asignaciones,
+        historial,
+        eventos,
+        config
+      )
+      totalConfirmadasEnPrograma += confirmadas
+      totalPartesEnPrograma += totalPartes
+      if (esCompleta) {
+        semanasCompletadas++
+      }
+    })
+
+    const isNowProgramComplete =
+      semanas.length > 0 && semanasCompletadas === semanas.length
+
+    return {
+      isNowProgramComplete,
+      totalSemanas: semanas.length,
+      totalAsignaciones: totalConfirmadasEnPrograma,
+      totalPartes: totalPartesEnPrograma,
+    }
+  }, [loading, semanas, partes, asignaciones, historial, eventos, config])
+
+  useEffect(() => {
+    if (!resumenProgresoPrograma) return
+    const { isNowProgramComplete, totalSemanas, totalAsignaciones, totalPartes } =
+      resumenProgresoPrograma
+
+    if (!isInitialLoadedRef.current) {
+      wasProgramCompleteRef.current = isNowProgramComplete
+      isInitialLoadedRef.current = true
+      return
+    }
+
+    const timer = setTimeout(() => {
+      if (!wasProgramCompleteRef.current && isNowProgramComplete) {
+        dismiss()
+        setToastProgramaCompleto({
+          totalSemanas,
+          totalAsignaciones,
+          totalPartes,
+        })
+      } else if (!isNowProgramComplete) {
+        setToastProgramaCompleto(null)
+      }
+      wasProgramCompleteRef.current = isNowProgramComplete
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [resumenProgresoPrograma, dismiss])
+
+  const handleToggleExpand = useCallback(semanaId => {
     setExpandedWeeks(prev => ({ ...prev, [semanaId]: !prev[semanaId] }))
-  }
+  }, [])
 
-  const fetchData = useCallback(
-    async (isInitial = false) => {
-      if (isInitial) {
-        setLoading(true)
-        setFetchError(null)
-      }
-      try {
-        const [
-          { data: sem, error: semErr },
-          { data: par, error: parErr },
-          { data: asi, error: asiErr },
-          { data: per, error: perErr },
-          { data: his, error: hisErr },
-          { data: cfg, error: cfgErr },
-        ] = await Promise.all([
-          supabase.from('programa_semanas').select('*').order('fecha_inicio'),
-          supabase.from('programa_partes').select('*').order('numero_parte'),
-          supabase.from('programa_asignaciones').select('*'),
-          supabase.from('personas').select('*').eq('activo', true).order('nombre'),
-          supabase.from('participaciones').select('*').order('fecha'),
-          supabase.from('configuracion').select('*'),
-        ])
-        if (semErr) throw semErr
-        if (parErr) throw parErr
-        if (asiErr) throw asiErr
-        if (perErr) throw perErr
-        if (hisErr) throw hisErr
-
-        if (cfgErr) {
-          console.warn('Error al cargar la configuración:', cfgErr)
-        }
-
-        const parReparadas = (par || []).map(p => {
-          if (p.seccion === 'SMT' && p.tipo_asignacion === 'SMT_DSC' && p.titulo) {
-            const inferido = inferirTipoParteSMT(p.titulo)
-            if (inferido.tipo !== 'SMT_DSC') {
-              supabase
-                .from('programa_partes')
-                .update({
-                  tipo_asignacion: inferido.tipo,
-                  requiere_ayudante: inferido.requiere_ayudante,
-                })
-                .eq('id', p.id)
-                .then()
-              return {
-                ...p,
-                tipo_asignacion: inferido.tipo,
-                requiere_ayudante: inferido.requiere_ayudante,
-              }
-            }
-          }
-          return p
-        })
-
-        setSemanas(sem || [])
-        setPartes(parReparadas)
-        setAsignaciones(asi || [])
-        setPersonas(per || [])
-        setHistorial(his || [])
-        const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
-        if (nombreCfg) setCongregacion(nombreCfg)
-
-        // Si las semanas en BD ya tienen cargada la versión sugerida en el banner, descartarla automáticamente
-        if (sem && sem.length > 0) {
-          setNuevoEpubDisponible(prev => {
-            if (!prev) return null
-            const yaCargado = sem.some(
-              s =>
-                s.epub_filename === prev.filename ||
-                (prev.issue &&
-                  String(s.anio) === prev.issue.slice(0, 4) &&
-                  ((prev.issue.endsWith('11') &&
-                    (s.mes?.toLowerCase().includes('noviembre') ||
-                      s.mes?.toLowerCase().includes('diciembre'))) ||
-                    (prev.issue.endsWith('09') &&
-                      (s.mes?.toLowerCase().includes('septiembre') ||
-                        s.mes?.toLowerCase().includes('octubre'))) ||
-                    (prev.issue.endsWith('07') &&
-                      (s.mes?.toLowerCase().includes('julio') ||
-                        s.mes?.toLowerCase().includes('agosto'))) ||
-                    (prev.issue.endsWith('05') &&
-                      (s.mes?.toLowerCase().includes('mayo') ||
-                        s.mes?.toLowerCase().includes('junio'))) ||
-                    (prev.issue.endsWith('03') &&
-                      (s.mes?.toLowerCase().includes('marzo') ||
-                        s.mes?.toLowerCase().includes('abril'))) ||
-                    (prev.issue.endsWith('01') &&
-                      (s.mes?.toLowerCase().includes('enero') ||
-                        s.mes?.toLowerCase().includes('febrero')))))
-            )
-            return yaCargado ? null : prev
-          })
-        }
-
-        // ── Detección de programa completado al 100% en la sesión activa ──
-        const semList = sem || []
-        const parList = parReparadas
-        const asiList = asi || []
-        const hisList = his || []
-
-        let totalConfirmadasEnPrograma = 0
-        let totalPartesEnPrograma = 0
-        let semanasCompletadas = 0
-
-        semList.forEach(s => {
-          const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
-            s,
-            parList,
-            asiList,
-            hisList,
-            eventos,
-            config
-          )
-          totalConfirmadasEnPrograma += confirmadas
-          totalPartesEnPrograma += totalPartes
-          if (esCompleta) {
-            semanasCompletadas++
-          }
-        })
-
-        const isNowProgramComplete =
-          semList.length > 0 && semanasCompletadas === semList.length
-
-        if (!isInitialLoadedRef.current) {
-          wasProgramCompleteRef.current = isNowProgramComplete
-          isInitialLoadedRef.current = true
-        } else {
-          // Si el programa recién pasó de incompleto a 100% completo en la sesión activa
-          if (!wasProgramCompleteRef.current && isNowProgramComplete) {
-            dismiss()
-            setToastProgramaCompleto({
-              totalSemanas: semList.length,
-              totalAsignaciones: totalConfirmadasEnPrograma,
-              totalPartes: totalPartesEnPrograma,
-            })
-          }
-
-          // Si el usuario desconfirmó alguna parte y el programa ya no está 100% completo, ocultar el toast
-          if (!isNowProgramComplete) {
-            setToastProgramaCompleto(null)
-          }
-
-          wasProgramCompleteRef.current = isNowProgramComplete
-        }
-      } catch (err) {
-        console.error('[fetchData]', err)
-        if (isInitial) {
-          setFetchError(err?.message || 'Error al conectar con la base de datos')
-        } else {
-          toastError('Error al sincronizar datos: ' + (err?.message || 'Error de conexión'))
-        }
-      } finally {
-        if (isInitial) {
-          setLoading(false)
-        }
-      }
-    },
-    [toastError, dismiss]
-  )
-
-  useEffect(() => {
-    fetchData(true)
-  }, [fetchData])
-
-  useEffect(() => {
-    const canal = supabase
-      .channel('programa-sync-matrix')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_semanas' }, () =>
-        fetchData()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_partes' }, () =>
-        fetchData()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_asignaciones' }, () =>
-        fetchData()
-      )
-      .subscribe()
-    return () => supabase.removeChannel(canal)
-  }, [fetchData])
-
-  // ── Flujo EPUB Automático (Brief #31) ───────────────────────
+  // Flujo EPUB Automático (Brief #31)
   const cargarEpubsDisponibles = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -2461,83 +348,78 @@ export default function Programa() {
     }
   }, [])
 
-  // Función para sincronizar las guías EPUB con Supabase Storage y JW.org
-  const sincronizarGuiaEpub = useCallback(async (manual = false) => {
-    if (manual) {
-      setIsSyncingEpubs(true)
-      showToast('Buscando guías en JW.org...')
-    }
-    try {
-      const { data, error } = await supabase.functions.invoke('fetch-epub', {
-        body: { sync: true },
-      })
-      console.log('[fetch-epub sincronización]', data, error)
-
-      if (!error && data) {
-        if (data.epubs && data.epubs.length > 0) {
-          setEpubsDisponibles(data.epubs)
-        } else {
-          await cargarEpubsDisponibles()
-        }
-
-        if (manual) {
-          if (data.downloadedCount > 0) {
-            success(`${data.downloadedCount} nueva(s) guía(s) descargada(s)`)
-          } else {
-            showToast('Las guías ya están sincronizadas')
-          }
-        }
-
-        // Verificar si la última edición disponible en Storage ya está cargada en el programa
-        const latest = data.latestEpub
-        if (latest) {
-          const { data: semActuales } = await supabase
-            .from('programa_semanas')
-            .select('epub_filename, anio, mes')
-
-          const yaCargado = semActuales?.some(
-            s =>
-              s.epub_filename === latest.filename ||
-              (latest.issue &&
-                String(s.anio) === latest.issue.slice(0, 4) &&
-                ((latest.issue.endsWith('11') &&
-                  (s.mes?.toLowerCase().includes('noviembre') ||
-                    s.mes?.toLowerCase().includes('diciembre'))) ||
-                  (latest.issue.endsWith('09') &&
-                    (s.mes?.toLowerCase().includes('septiembre') ||
-                      s.mes?.toLowerCase().includes('octubre'))) ||
-                  (latest.issue.endsWith('07') &&
-                    (s.mes?.toLowerCase().includes('julio') ||
-                      s.mes?.toLowerCase().includes('agosto'))) ||
-                  (latest.issue.endsWith('05') &&
-                    (s.mes?.toLowerCase().includes('mayo') ||
-                      s.mes?.toLowerCase().includes('junio'))) ||
-                  (latest.issue.endsWith('03') &&
-                    (s.mes?.toLowerCase().includes('marzo') ||
-                      s.mes?.toLowerCase().includes('abril'))) ||
-                  (latest.issue.endsWith('01') &&
-                    (s.mes?.toLowerCase().includes('enero') ||
-                      s.mes?.toLowerCase().includes('febrero')))))
-          )
-          if (!yaCargado) {
-            setNuevoEpubDisponible(latest)
-          } else {
-            setNuevoEpubDisponible(null)
-          }
-        }
-      } else if (error) {
-        console.error('[fetch-epub error]', error)
-        if (manual) toastError('Error al sincronizar: ' + (error.message || 'Error desconocido'))
+  const sincronizarGuiaEpub = useCallback(
+    async (manual = false) => {
+      if (manual) {
+        setIsSyncingEpubs(true)
+        showToast('Buscando guías en JW.org...')
       }
-    } catch (err) {
-      console.warn('Sincronización de EPUB omitida o error de red:', err)
-      if (manual) toastError('Error de red al sincronizar guías')
-    } finally {
-      if (manual) setIsSyncingEpubs(false)
-    }
-  }, [cargarEpubsDisponibles, showToast, success, toastError])
+      try {
+        const { data, error } = await supabase.functions.invoke('fetch-epub', {
+          body: { sync: true },
+        })
 
-  // Al montar la vista, invocar sincronización de guías
+        if (!error && data) {
+          if (data.epubs && data.epubs.length > 0) {
+            setEpubsDisponibles(data.epubs)
+          } else {
+            await cargarEpubsDisponibles()
+          }
+
+          if (manual) {
+            if (data.downloadedCount > 0) {
+              success(`${data.downloadedCount} nueva(s) guía(s) descargada(s)`)
+            } else {
+              showToast('Las guías ya están sincronizadas')
+            }
+          }
+
+          const latest = data.latestEpub
+          if (latest) {
+            const { data: semActuales } = await supabase
+              .from('programa_semanas')
+              .select('epub_filename, anio, mes')
+
+            const yaCargado = semActuales?.some(
+              s =>
+                s.epub_filename === latest.filename ||
+                (latest.issue &&
+                  String(s.anio) === latest.issue.slice(0, 4) &&
+                  ((latest.issue.endsWith('11') &&
+                    (s.mes?.toLowerCase().includes('noviembre') ||
+                      s.mes?.toLowerCase().includes('diciembre'))) ||
+                    (latest.issue.endsWith('09') &&
+                      (s.mes?.toLowerCase().includes('septiembre') ||
+                        s.mes?.toLowerCase().includes('octubre'))) ||
+                    (latest.issue.endsWith('07') &&
+                      (s.mes?.toLowerCase().includes('julio') ||
+                        s.mes?.toLowerCase().includes('agosto'))) ||
+                    (latest.issue.endsWith('05') &&
+                      (s.mes?.toLowerCase().includes('mayo') ||
+                        s.mes?.toLowerCase().includes('junio'))) ||
+                    (latest.issue.endsWith('03') &&
+                      (s.mes?.toLowerCase().includes('marzo') ||
+                        s.mes?.toLowerCase().includes('abril'))) ||
+                    (latest.issue.endsWith('01') &&
+                      (s.mes?.toLowerCase().includes('enero') ||
+                        s.mes?.toLowerCase().includes('febrero')))))
+            )
+            setNuevoEpubDisponible(yaCargado ? null : latest)
+          }
+        } else if (error) {
+          console.error('[fetch-epub error]', error)
+          if (manual) toastError('Error al sincronizar: ' + (error.message || 'Error desconocido'))
+        }
+      } catch (err) {
+        console.warn('Sincronización de EPUB omitida o error de red:', err)
+        if (manual) toastError('Error de red al sincronizar guías')
+      } finally {
+        if (manual) setIsSyncingEpubs(false)
+      }
+    },
+    [cargarEpubsDisponibles, showToast, success, toastError]
+  )
+
   useEffect(() => {
     if (checkedEpubRef.current) return
     checkedEpubRef.current = true
@@ -2546,8 +428,6 @@ export default function Programa() {
     sincronizarGuiaEpub(false)
   }, [cargarEpubsDisponibles, sincronizarGuiaEpub])
 
-  // Función centralizada para procesar un archivo EPUB (sea de File input o Blob de Storage)
-  // Borra limpiamente las semanas previas antes de insertar las nuevas
   async function procesarArchivoEPUB(fileOrBlob, filename) {
     if (semanas && semanas.length > 0) {
       const ok = await confirm({
@@ -2564,7 +444,6 @@ export default function Programa() {
     showToast('Eliminando semanas anteriores y cargando las nuevas...')
 
     try {
-      // 1. Borrar asignaciones, partes y semanas existentes en Supabase
       await supabase
         .from('programa_asignaciones')
         .delete()
@@ -2580,7 +459,6 @@ export default function Programa() {
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000')
 
-      // 2. Extraer y procesar las semanas desde el archivo EPUB
       const semanasParsed = await parsearEPUB(fileOrBlob)
       if (!semanasParsed || semanasParsed.length === 0) {
         throw new Error('No se encontraron semanas en el archivo EPUB. Comprueba que sea una Guía de Actividades válida.')
@@ -2646,7 +524,7 @@ export default function Programa() {
         success(`${insertadas} semanas importadas exitosamente`)
       }
       setNuevoEpubDisponible(null)
-      await fetchData()
+      refreshPrograma()
     } catch (err) {
       console.error(err)
       toastError('Error al procesar el EPUB: ' + err.message)
@@ -2655,7 +533,6 @@ export default function Programa() {
     }
   }
 
-  // Subida manual desde explorador de archivos (fallback)
   async function handleEPUB(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -2663,7 +540,6 @@ export default function Programa() {
     e.target.value = ''
   }
 
-  // Descarga y procesamiento de EPUB desde Supabase Storage
   async function handleSeleccionarEpubStorage(filename) {
     if (!filename) return
     setUploading(true)
@@ -2694,7 +570,7 @@ export default function Programa() {
           await supabase.from('participaciones').delete().eq('id', asigExistente.participacion_id)
         }
         await supabase.from('programa_asignaciones').delete().eq('id', existingId)
-        await fetchData()
+        refreshPrograma()
       }
       return
     }
@@ -2707,10 +583,9 @@ export default function Programa() {
       await supabase.from('programa_asignaciones').insert(payload)
     }
 
-    await fetchData()
+    refreshPrograma()
   }
 
-  // ── Confirmar asignación individual ─────────────────────
   async function handleConfirmar(parteId, principal, ayudante) {
     if (!principal?.clave) return
 
@@ -2764,7 +639,6 @@ export default function Programa() {
     const esReconfirmacion =
       principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
 
-    // Reconfirmar
     if (esReconfirmacion) {
       if (principal.participacion_id) {
         await supabase.from('participaciones').delete().eq('id', principal.participacion_id)
@@ -2825,11 +699,10 @@ export default function Programa() {
       }
 
       success('Asignación reconfirmada')
-      await fetchData()
+      refreshPrograma()
       return
     }
 
-    // Desconfirmar
     if (principal.confirmado) {
       if (principal.participacion_id) {
         await supabase.from('participaciones').delete().eq('id', principal.participacion_id)
@@ -2857,11 +730,10 @@ export default function Programa() {
       }
 
       showToast('Asignación desconfirmada')
-      await fetchData()
+      refreshPrograma()
       return
     }
 
-    // Confirmar por primera vez
     const { data: partData } = await supabase
       .from('participaciones')
       .insert({
@@ -2914,10 +786,9 @@ export default function Programa() {
     }
 
     success('Asignación confirmada')
-    await fetchData()
+    refreshPrograma()
   }
 
-  // ── Limpiar asignaciones de una semana ───────────────────
   async function handleLimpiarAsignacionesSemana(semanaId) {
     const semana = semanas.find(s => s.id === semanaId)
     const impacto = semana
@@ -2950,14 +821,13 @@ export default function Programa() {
       }
 
       showToast('Asignaciones de la semana descartadas correctamente.')
-      await fetchData()
+      refreshPrograma()
     } catch (err) {
       console.error('Error al limpiar asignaciones de la semana:', err)
       toastError('Error al limpiar asignaciones: ' + (err.message || 'Error de conexión'))
     }
   }
 
-  // ── Confirmar toda la semana ─────────────────────────────
   async function handleConfirmarTodo(semanaId, partesSemana, asignacionesSemana) {
     const semana = semanas.find(s => s.id === semanaId)
     if (!semana) return
@@ -2980,8 +850,9 @@ export default function Programa() {
         parte.tipo_asignacion === 'ORACION' ||
         parte.tipo_asignacion === 'CONCLU' ||
         parte.tipo_asignacion === 'SMT_VACIO'
-      )
+      ) {
         continue
+      }
 
       const asigP = asignacionesSemana.find(a => a.parte_id === parte.id && a.rol === 'principal')
       const asigA = asignacionesSemana.find(a => a.parte_id === parte.id && a.rol === 'ayudante')
@@ -3010,10 +881,12 @@ export default function Programa() {
       if (asigP.confirmado && !esReconfirmacion) continue
 
       if (esReconfirmacion) {
-        if (asigP.participacion_id)
+        if (asigP.participacion_id) {
           await supabase.from('participaciones').delete().eq('id', asigP.participacion_id)
-        if (asigA?.participacion_id)
+        }
+        if (asigA?.participacion_id) {
           await supabase.from('participaciones').delete().eq('id', asigA.participacion_id)
+        }
       }
 
       const { data: partData } = await supabase
@@ -3073,10 +946,9 @@ export default function Programa() {
     if (confirmadas > 0) {
       success(`${confirmadas} asignaciones confirmadas en la semana`)
     }
-    await fetchData()
+    refreshPrograma()
   }
 
-  // ── Asignación Manual desde Modal de Revisión (Brief #29) ──
   const handleAsignarManual = useCallback(
     parteId => {
       if (!semanaParaRevisar) return
@@ -3097,7 +969,6 @@ export default function Programa() {
     [semanaParaRevisar]
   )
 
-  // ── Confirmar Lote de Asignaciones (Brief #29) ─────────────
   async function handleBatchConfirmar(semana, partesSeleccionadasIds) {
     if (!semana || !partesSeleccionadasIds.length) return
 
@@ -3169,7 +1040,6 @@ export default function Programa() {
         return
       }
 
-      // 1 único INSERT masivo en Supabase para todas las participaciones
       const { data: insertedParts, error: insertError } = await supabase
         .from('participaciones')
         .insert(participacionesAInsertar)
@@ -3177,7 +1047,6 @@ export default function Programa() {
 
       if (insertError) throw insertError
 
-      // 1 único UPSERT masivo en Supabase para todas las asignaciones
       const asignacionesUpdates = asignacionesMap.map(item => ({
         id: item.asigId,
         confirmado: true,
@@ -3191,23 +1060,22 @@ export default function Programa() {
       if (updateError) throw updateError
 
       setSemanaParaRevisar(null)
-      const totalConfirmadas = idsSeleccionados.length
+      const totalConfirmadas = partesSeleccionadasIds.length
       success(`${totalConfirmadas} partes confirmadas`)
 
-      // Si todas las partes contables de la semana quedaron confirmadas, disparar también el toast del Brief #23
       const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
       const partesContablesSemana = partes.filter(
         p => p.semana_id === semana.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
       )
       const todasQuedanConfirmadas = partesContablesSemana.every(p => {
         const asig = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-        return idsSeleccionados.includes(p.id) || asig?.confirmado
+        return partesSeleccionadasIds.includes(p.id) || asig?.confirmado
       })
       if (todasQuedanConfirmadas) {
         success('¡Semana completada al 100%!')
       }
 
-      await fetchData()
+      refreshPrograma()
     } catch (err) {
       console.error('[handleBatchConfirmar]', err)
       toastError('Error al confirmar asignaciones en lote: ' + err.message)
@@ -3216,7 +1084,6 @@ export default function Programa() {
     }
   }
 
-  // ── Completar semana con motor de sugerencias ─────────────
   async function handleCompletarConSugerencias(semanaId) {
     const semana = semanas.find(s => s.id === semanaId)
     if (!semana) return
@@ -3276,7 +1143,6 @@ export default function Programa() {
       const opcionesSem = { fechaSemana: semana.fecha_inicio }
       const yaAsignadosSemana = []
 
-      // 1. Personas ya asignadas en partes confirmadas
       partesSemana.forEach(p => {
         const asigP = asigSemana.find(a => a.parte_id === p.id && a.rol === 'principal')
         const asigA = asigSemana.find(a => a.parte_id === p.id && a.rol === 'ayudante')
@@ -3288,7 +1154,6 @@ export default function Programa() {
         }
       })
 
-      // 2. Identificar Presidente confirmado si ya existe
       const parteP = partesSemana.find(p => p.tipo_asignacion === 'P')
       let clavePresidente = null
       if (parteP) {
@@ -3300,7 +1165,6 @@ export default function Programa() {
         }
       }
 
-      // Ordenar partes para sugerir: P primero, luego las demás, y ORACION_C al final
       const partesOrdenadas = [...partesSemana].sort((a, b) => {
         if (a.tipo_asignacion === 'P') return -1
         if (b.tipo_asignacion === 'P') return 1
@@ -3456,7 +1320,6 @@ export default function Programa() {
             }
           }
         } else {
-          // Todas las demás partes (TB, PE, LB, SMT_DSC, VC, NC, EBC_CON, LEBC, etc.)
           const candidatos = sugerirCandidatos(
             tipo,
             personas,
@@ -3484,7 +1347,6 @@ export default function Programa() {
         return
       }
 
-      // Separar en updates (si ya existe fila no confirmada) e inserts
       const updates = []
       const inserts = []
 
@@ -3524,14 +1386,14 @@ export default function Programa() {
       }
 
       success('Sugerencias generadas para la semana')
-      await fetchData()
+      refreshPrograma()
     } catch (err) {
       console.error('[handleCompletarConSugerencias]', err)
       toastError('Error al generar sugerencias: ' + err.message)
     }
   }
 
-  // ── Generar documento S-140 (Completo) ───────────────────
+  // Generar documento S-140 bajo demanda (Dynamic Import)
   async function handleGenerarDocx(modo = 'auto') {
     if (!semanas || semanas.length === 0) {
       toastError('No hay semanas en el programa para generar el documento S-140.')
@@ -3543,6 +1405,7 @@ export default function Programa() {
           ? 'Generando documento S-140 (Plantilla clásica)...'
           : 'Generando documento S-140...'
       )
+      const { generarYDescargarS140, buildDatosDesdeSupabase } = await import('../lib/generarS140')
       const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
       await generarYDescargarS140({
         congregacion,
@@ -3557,10 +1420,10 @@ export default function Programa() {
     }
   }
 
-  // ── Abrir Vista Nativa S-140 / PDF (Brief 34) ────────────
-  function handleAbrirVistaS140() {
+  async function handleAbrirVistaS140() {
     setMenuS140TopOpen(false)
     setMenuS140FabOpen(false)
+    const { buildDatosDesdeSupabase } = await import('../lib/generarS140')
     const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
     navigate('/s140-preview', {
       state: {
@@ -3571,7 +1434,6 @@ export default function Programa() {
     })
   }
 
-  // ── Eliminar semana ──────────────────────────────────────
   async function handleEliminarSemana(semanaId) {
     const ok = await confirm({
       title: '¿Eliminar esta semana?',
@@ -3596,14 +1458,14 @@ export default function Programa() {
         return next
       })
       showToast('Semana eliminada')
-      await fetchData()
+      refreshPrograma()
     } catch (err) {
       console.error('Error al eliminar semana:', err)
       toastError('Error al eliminar semana: ' + (err?.message || 'Error de conexión'))
     }
   }
 
-  if (loading) {
+  if (loading && semanas.length === 0) {
     return (
       <div className="py-6">
         <SkeletonPrograma cards={4} />
@@ -3616,7 +1478,7 @@ export default function Programa() {
       <div className="flex flex-col items-center justify-center py-20 px-4 bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl max-w-lg mx-auto text-center space-y-4">
         <h3 className="text-base font-semibold text-text1">Error de carga</h3>
         <p className="text-xs text-text3 font-mono">{fetchError}</p>
-        <Button variant="outline" size="sm" icon={RotateCcw} onClick={() => fetchData(true)}>
+        <Button variant="outline" size="sm" icon={RotateCcw} onClick={retryFetch}>
           Reintentar
         </Button>
       </div>
@@ -3625,7 +1487,7 @@ export default function Programa() {
 
   return (
     <div className="space-y-5">
-      {/* ── BANNER PERSISTENTE NUEVO EPUB DISPONIBLE (Brief #31) ── */}
+      {/* BANNER PERSISTENTE NUEVO EPUB DISPONIBLE */}
       {nuevoEpubDisponible && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 p-3.5 sm:p-4 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/90 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 shadow-2xs">
           <div className="flex items-center gap-3">
@@ -3665,7 +1527,7 @@ export default function Programa() {
         </div>
       )}
 
-      {/* ── HEADER Y ACCIONES PRINCIPALES ── */}
+      {/* HEADER Y ACCIONES PRINCIPALES */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -3683,7 +1545,6 @@ export default function Programa() {
 
         {/* Toolbar de Acciones */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Segmented View Selector */}
           <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
             <button
               type="button"
@@ -3709,7 +1570,6 @@ export default function Programa() {
             </button>
           </div>
 
-          {/* Toggle Modo Edición / Modo Lectura */}
           <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
             <button
               type="button"
@@ -3737,7 +1597,6 @@ export default function Programa() {
             </button>
           </div>
 
-          {/* Sub-menú de Guías de Actividades (Brief #31) */}
           {!modoLectura && (
             <div className="relative" ref={menuGuiasRef}>
               <input
@@ -3767,7 +1626,6 @@ export default function Programa() {
 
               {menuGuiasOpen && (
                 <div className="absolute right-0 mt-1.5 w-72 rounded-xl bg-surface border border-zinc-200/90 dark:border-zinc-800/90 shadow-xl py-1.5 z-50 animate-fade-in text-xs">
-                  {/* Encabezado del sub-menú */}
                   <div className="px-3 py-1.5 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 mb-1">
                     <span className="font-semibold text-text1 text-[11px] uppercase tracking-wider">
                       Guías disponibles
@@ -3788,7 +1646,6 @@ export default function Programa() {
                     </button>
                   </div>
 
-                  {/* Lista de guías en Storage */}
                   <div className="max-h-56 overflow-y-auto px-1 space-y-0.5">
                     {epubsDisponibles.length === 0 ? (
                       <div className="px-3 py-3 text-center text-text3 text-[11px]">
@@ -3829,7 +1686,6 @@ export default function Programa() {
                     )}
                   </div>
 
-                  {/* Acciones secundarias */}
                   <div className="mt-1 pt-1 border-t border-zinc-100 dark:border-zinc-800/80 px-1 space-y-0.5">
                     <button
                       type="button"
@@ -3865,7 +1721,7 @@ export default function Programa() {
             </div>
           )}
 
-          {/* Botón Generar S-140 con menú desplegable (Brief 34) */}
+          {/* Botón Generar S-140 con menú desplegable */}
           <div className="relative" ref={menuS140TopRef}>
             <div className="inline-flex rounded-lg shadow-sm">
               <Button
@@ -3941,14 +1797,13 @@ export default function Programa() {
         </div>
       </div>
 
-      {/* ── VISTA POR SEMANAS ── */}
+      {/* VISTA POR SEMANAS */}
       {vistaTab === 'semanas' && (
         <div
           className={`space-y-4 relative transition-all duration-300 ${
             uploading ? 'pointer-events-none select-none' : ''
           }`}
         >
-          {/* Overlay visual: vista oscurecida, no cliqueable con feedback claro */}
           {uploading && (
             <div className="absolute inset-0 z-30 bg-zinc-950/40 dark:bg-black/60 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-fade-in min-h-[260px]">
               <div className="bg-surface/95 dark:bg-zinc-900/95 border border-zinc-200/90 dark:border-zinc-800/90 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3.5 max-w-sm">
@@ -3969,9 +1824,7 @@ export default function Programa() {
 
           <div
             className={`space-y-4 transition-opacity duration-200 ${
-              uploading
-                ? 'opacity-30 filter grayscale-[50%]'
-                : ''
+              uploading ? 'opacity-30 filter grayscale-[50%]' : ''
             }`}
           >
             {semanas.length === 0 ? (
@@ -4013,7 +1866,7 @@ export default function Programa() {
                   partesSemana.some(p => p.id === a.parte_id)
                 )
                 return (
-                  <TarjetaSemana
+                  <TarjetaSemanaDesktop
                     key={s.id}
                     semana={s}
                     partes={partesSemana}
@@ -4041,7 +1894,7 @@ export default function Programa() {
         </div>
       )}
 
-      {/* ── VISTA RESUMEN MENSUAL ── */}
+      {/* VISTA RESUMEN MENSUAL */}
       {vistaTab === 'resumen' && (
         <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
@@ -4100,29 +1953,21 @@ export default function Programa() {
                         <div className="font-semibold text-text1 text-xs">
                           {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
                         </div>
-                        {(() => {
-                          if (impacto.cancelaEntreSemana) {
-                            return (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-medium">
-                                  <Calendar className="w-2.5 h-2.5" />
-                                  {impacto.tituloEvento}
-                                </span>
-                              </div>
-                            )
-                          }
-                          if (impacto.esVisita) {
-                            return (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
-                                  <Briefcase className="w-2.5 h-2.5" />
-                                  {impacto.esVisitaSC ? 'Visita SC' : 'Visita Sucursal'}
-                                </span>
-                              </div>
-                            )
-                          }
-                          return null
-                        })()}
+                        {impacto.cancelaEntreSemana ? (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                              <Calendar className="w-2.5 h-2.5" />
+                              {impacto.tituloEvento}
+                            </span>
+                          </div>
+                        ) : impacto.esVisita ? (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                              <Briefcase className="w-2.5 h-2.5" />
+                              {impacto.esVisitaSC ? 'Visita SC' : 'Visita Sucursal'}
+                            </span>
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 font-mono text-text2">{s.capitulo_biblico}</td>
                       <td className="px-3 py-3 font-mono text-center text-text3">
@@ -4168,11 +2013,10 @@ export default function Programa() {
         </div>
       )}
 
-      {/* ── TOAST PERSISTENTE AL COMPLETAR EL PROGRAMA AL 100% ── */}
+      {/* TOAST PERSISTENTE AL COMPLETAR EL PROGRAMA AL 100% */}
       {toastProgramaCompleto && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-slide-up select-none">
           <div className="bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-surface/95 dark:to-zinc-900/95 backdrop-blur-md border border-emerald-500/30 dark:border-emerald-500/25 rounded-2xl p-4 shadow-xl shadow-emerald-500/10 dark:shadow-emerald-950/30 flex flex-col gap-3">
-            {/* Cabecera del Toast */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0 shadow-2xs">
@@ -4204,7 +2048,6 @@ export default function Programa() {
               </button>
             </div>
 
-            {/* Mensaje integrado de confirmación de asignaciones */}
             <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300 font-medium px-3 py-2 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20">
               <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span className="truncate">
@@ -4212,7 +2055,6 @@ export default function Programa() {
               </span>
             </div>
 
-            {/* Botones de acción */}
             <div className="flex items-center justify-end gap-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80">
               <Button
                 variant="ghost"
@@ -4238,7 +2080,7 @@ export default function Programa() {
         </div>
       )}
 
-      {/* ── MODAL REVISIÓN Y APROBACIÓN DE SEMANA (Brief #29) ── */}
+      {/* MODAL REVISIÓN Y APROBACIÓN DE SEMANA */}
       <RevisarSemanaModal
         isOpen={!!semanaParaRevisar}
         onClose={() => setSemanaParaRevisar(null)}
@@ -4257,7 +2099,7 @@ export default function Programa() {
         isBatchSaving={isBatchSaving}
       />
 
-      {/* ── BOTÓN FLOTANTE S-140 AL HACER SCROLL (Brief 34) ── */}
+      {/* BOTÓN FLOTANTE S-140 AL HACER SCROLL */}
       {mostrarFabS140 && semanas.length > 0 && (
         <div className="fixed bottom-6 right-6 z-40 animate-fade-in" ref={menuS140FabRef}>
           {menuS140FabOpen && (

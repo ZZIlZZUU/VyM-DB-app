@@ -1,48 +1,77 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
-import { exportarS140SemanaActual } from './lib/generarS140'
-import { getImpactoEventoSemana } from './lib/fechas'
+import { useRealtimeCacheSync } from './core/realtimeSync'
+import { useSemanasPendientesCount } from './core/queries/useAppQueries'
+import { useEventosReunion } from './hooks/useEventosReunion'
 import { useConfirm } from './hooks/useConfirm'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useTheme } from './hooks/useTheme'
 import { useToast } from './hooks/useToast'
 import Toast from './components/Toast'
 import ConfirmDialog from './components/ConfirmDialog'
-import PerfilDrawer from './components/PerfilDrawer'
-import CommandPalette from './components/CommandPalette'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
-import Home from './pages/Home'
-import VistaSemanal from './pages/VistaSemanal'
-import VistaEditable from './pages/VistaEditable'
-import VistaSql from './pages/VistaSql'
-import Personas from './pages/Personas'
-import Registros from './pages/Registros'
-import Exportar from './pages/Exportar'
-import Estadisticas from './pages/Estadisticas'
-import Programa from './pages/Programa'
-import Usuarios from './pages/Usuarios'
-import Configuracion from './pages/Configuracion'
-import HistorialCambios from './pages/HistorialCambios'
-import { CalendarioEventos } from './components/CalendarioEventos'
-import { AyudaAtajosModal } from './components/AyudaAtajosModal'
+import BottomNavBar from './environments/mobile/shell/BottomNavBar'
+import { SkeletonList } from './components/Skeleton'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { EmptyState } from './components/ui/EmptyState'
 import { ShieldAlert } from 'lucide-react'
 
+// Lazy-loaded pages (Code-Splitting por vista)
+const Home              = lazy(() => import('./pages/Home'))
+const VistaSemanal      = lazy(() => import('./pages/VistaSemanal'))
+const VistaEditable     = lazy(() => import('./pages/VistaEditable'))
+const VistaSql          = lazy(() => import('./pages/VistaSql'))
+const Personas          = lazy(() => import('./pages/Personas'))
+const Registros         = lazy(() => import('./pages/Registros'))
+const Exportar          = lazy(() => import('./pages/Exportar'))
+const Estadisticas      = lazy(() => import('./pages/Estadisticas'))
+const Programa          = lazy(() => import('./pages/Programa'))
+const Usuarios          = lazy(() => import('./pages/Usuarios'))
+const Configuracion     = lazy(() => import('./pages/Configuracion'))
+const HistorialCambios  = lazy(() => import('./pages/HistorialCambios'))
+const CalendarioEventos = lazy(() =>
+  import('./components/CalendarioEventos').then(m => ({ default: m.CalendarioEventos }))
+)
+
+// Lazy-loaded global overlays
+const PerfilDrawer     = lazy(() => import('./components/PerfilDrawer'))
+const CommandPalette   = lazy(() => import('./components/CommandPalette'))
+const AyudaAtajosModal = lazy(() =>
+  import('./components/AyudaAtajosModal').then(m => ({ default: m.AyudaAtajosModal }))
+)
+
+const VALID_VIEWS = [
+  'home',
+  'semanal',
+  'calendario',
+  'editable',
+  'sql',
+  'personas',
+  'registros',
+  'programa',
+  'usuarios',
+  'configuracion',
+  'exportar',
+  'estadisticas',
+  'historial',
+]
+
+function resolveViewFromPath(pathname = window.location.pathname) {
+  try {
+    const p = pathname.replace(/^\//, '').split('/')[0]
+    if (VALID_VIEWS.includes(p)) return p
+    if (!p) return localStorage.getItem('pref_vista_default') || 'home'
+    return 'home'
+  } catch {
+    return 'home'
+  }
+}
+
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { toast, showToast, success, error: toastError } = useToast()
-  const [view, setView] = useState(() => {
-    try {
-      const p = window.location.pathname.replace(/^\//, '').split('/')[0]
-      const validViews = ['home', 'semanal', 'calendario', 'editable', 'sql', 'personas', 'registros', 'programa', 'usuarios', 'configuracion', 'exportar', 'estadisticas', 'historial']
-      if (validViews.includes(p)) return p
-      return localStorage.getItem('pref_vista_default') || 'home'
-    } catch {
-      return 'home'
-    }
-  })
+  const [view, setView] = useState(() => resolveViewFromPath())
   const [selectedSemanaId, setSelectedSemanaId] = useState(null)
   const [selectedPersonaClave, setSelectedPersonaClave] = useState(null)
   const [selectedPersonaTab, setSelectedPersonaTab] = useState('historial')
@@ -54,7 +83,6 @@ export default function App() {
   const [perfilOpen, setPerfilOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false)
-  const [semanasPendientes, setSemanasPendientes] = useState(0)
   const [openRegistrosCreate, setOpenRegistrosCreate] = useState(false)
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -64,8 +92,11 @@ export default function App() {
   })
 
   const { confirm, confirmProps } = useConfirm()
-
   const [configuracionInitialTab, setConfiguracionInitialTab] = useState(null)
+
+  // Caché global de eventos y conteo reactivo de semanas pendientes (0 queries redundantes)
+  const { eventos } = useEventosReunion()
+  const semanasPendientes = useSemanasPendientesCount(eventos)
 
   const handleNavigate = useCallback((targetView, params) => {
     if (params?.semanaId) {
@@ -78,18 +109,32 @@ export default function App() {
     if (params?.tab) {
       setConfiguracionInitialTab(params.tab)
     }
-    setView(targetView)
-    if (targetView && targetView !== 'home') {
-      window.history.replaceState(null, '', `/${targetView}`)
-    } else {
-      window.history.replaceState(null, '', '/')
-    }
+
+    setView(prevView => {
+      const nextUrl = targetView && targetView !== 'home' ? `/${targetView}` : '/'
+      if (window.location.pathname !== nextUrl) {
+        window.history.pushState({ view: targetView, params: params || null }, '', nextUrl)
+      }
+      return targetView || prevView
+    })
     setMobileOpen(false)
+  }, [])
+
+  // Sincronización con botón/gesto "Atrás" y "Adelante" del navegador (PC y Móvil)
+  useEffect(() => {
+    function handlePopState(event) {
+      const targetView = event.state?.view || resolveViewFromPath(window.location.pathname)
+      setView(targetView)
+      setMobileOpen(false)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
   const handleExportCurrentWeekS140 = useCallback(async () => {
     try {
       showToast('Generando S-140 de la semana actual...')
+      const { exportarS140SemanaActual } = await import('./lib/generarS140')
       await exportarS140SemanaActual()
       success('S-140 de la semana actual descargado')
     } catch (err) {
@@ -158,137 +203,15 @@ export default function App() {
     }
   }, [])
 
-  const fetchSemanasPendientes = useCallback(async () => {
-    try {
-      const [
-        { data: sem },
-        { data: par },
-        { data: asi },
-        { data: his },
-        { data: evs },
-        { data: cfg },
-      ] = await Promise.all([
-        supabase.from('programa_semanas').select('id, fecha_inicio, fecha_fin'),
-        supabase.from('programa_partes').select('id, semana_id, tipo_asignacion, requiere_ayudante'),
-        supabase.from('programa_asignaciones').select('parte_id, rol, confirmado, participacion_id, clave'),
-        supabase.from('participaciones').select('id, clave'),
-        supabase.from('eventos_reunion').select('*'),
-        supabase.from('configuracion_global').select('clave, valor'),
-      ])
-
-      if (!sem || sem.length === 0) {
-        setSemanasPendientes(0)
-        return
-      }
-
-      const partes = par || []
-      const asignaciones = asi || []
-      const historial = his || []
-      const eventos = evs || []
-      const configMap = {}
-      ;(cfg || []).forEach(r => {
-        if (r?.clave) configMap[r.clave] = r.valor
-      })
-      const diaEntre = configMap.dia_reunion_entre_semana || 'Martes'
-      const diaFin = configMap.dia_reunion_fin_semana || 'Sábado'
-
-      const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
-      let pendientes = 0
-
-      for (const s of sem) {
-        const impacto = getImpactoEventoSemana(s, eventos, diaEntre, diaFin)
-        if (impacto.cancelaEntreSemana) continue
-
-        const partesSemana = partes.filter(
-          p => p.semana_id === s.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
-        )
-        const totalPartes = partesSemana.length
-        if (totalPartes === 0) continue
-
-        const confirmadas = partesSemana.filter(p => {
-          const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-          const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-          if (!asigP?.clave || !asigP.confirmado) return false
-
-          const pr = asigP.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-          const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
-          const pCambio = !!asigP.participacion_id && pr && pr.clave !== asigP.clave
-          const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-          const aNuevo = p.requiere_ayudante && asigA?.clave && asigP.participacion_id && !asigA?.participacion_id
-          const aRem = p.requiere_ayudante && !asigA?.clave && ar
-          const necesitaRec = pCambio || aCambio || aNuevo || aRem
-
-          return !necesitaRec
-        }).length
-
-        if (confirmadas < totalPartes) {
-          pendientes++
-        }
-      }
-
-      setSemanasPendientes(pendientes)
-    } catch (err) {
-      console.error('Error fetching pending weeks:', err)
-    }
-  }, [])
-
   useEffect(() => {
     fetchUserData()
-    fetchSemanasPendientes()
-  }, [fetchUserData, fetchSemanasPendientes])
-
-  // Realtime para sincronizar nombre y rol si cambian en usuarios_autorizados
-  useEffect(() => {
-    const canal = supabase
-      .channel('app-user-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'usuarios_autorizados' },
-        () => fetchUserData()
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(canal)
-    }
   }, [fetchUserData])
 
-  // Realtime para actualizar contador de semanas pendientes
-  useEffect(() => {
-    const canal = supabase
-      .channel('asignaciones-badge-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_semanas' }, () =>
-        fetchSemanasPendientes()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_partes' }, () =>
-        fetchSemanasPendientes()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_asignaciones' }, () =>
-        fetchSemanasPendientes()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'eventos_reunion' }, () =>
-        fetchSemanasPendientes()
-      )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion_global' }, () =>
-        fetchSemanasPendientes()
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(canal)
-    }
-  }, [fetchSemanasPendientes])
-
-  // Realtime connection status
-  useEffect(() => {
-    const channel = supabase.channel('__status__').subscribe(status => {
-      if (status === 'SUBSCRIBED') setRtStatus('conectado')
-      if (status === 'CHANNEL_ERROR') setRtStatus('error')
-      if (status === 'TIMED_OUT') setRtStatus('desconectado')
-      if (status === 'CLOSED') setRtStatus('desconectado')
-    })
-    return () => supabase.removeChannel(channel)
-  }, [])
+  // Único suscriptor Realtime multiplexado para toda la app
+  useRealtimeCacheSync({
+    onStatusChange: setRtStatus,
+    onUserTableChange: fetchUserData,
+  })
 
   async function handleLogout() {
     const ok = await confirm({
@@ -309,7 +232,7 @@ export default function App() {
             rol={rol}
             onOpenRegistrosCreate={() => {
               setOpenRegistrosCreate(true)
-              setView('registros')
+              handleNavigate('registros')
             }}
           />
         )
@@ -441,44 +364,63 @@ export default function App() {
         />
 
         {/* Scrollable Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6">
           <div key={view} className="w-full animate-view-fade">
             <ErrorBoundary title="Error al cargar la sección">
-              {renderView()}
+              <Suspense fallback={<SkeletonList rows={6} cols={4} />}>
+                {renderView()}
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>
       </div>
 
-      {/* Drawers & Modals */}
-      <PerfilDrawer
-        open={perfilOpen}
-        onClose={() => setPerfilOpen(false)}
-        user={user}
-        rol={rol}
-        onLogout={handleLogout}
-        onUserUpdated={fetchUserData}
-        theme={theme}
-        onToggleTheme={toggleTheme}
+      {/* Barra de Navegación Inferior Nativa (Solo Móvil < 768px) */}
+      <BottomNavBar
+        currentView={view}
+        onNavigate={handleNavigate}
+        semanasPendientes={semanasPendientes}
+        mobileOpen={mobileOpen}
+        onOpenMobileNav={() => setMobileOpen(v => !v)}
       />
 
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
-        rol={rol}
-        onNavigate={handleNavigate}
-        onOpenPerfil={() => setPerfilOpen(true)}
-        onLogout={handleLogout}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onExportS140={handleExportCurrentWeekS140}
-      />
+      {/* Drawers & Modals (Lazy-loaded on demand) */}
+      <Suspense fallback={null}>
+        {perfilOpen && (
+          <PerfilDrawer
+            open={perfilOpen}
+            onClose={() => setPerfilOpen(false)}
+            user={user}
+            rol={rol}
+            onLogout={handleLogout}
+            onUserUpdated={fetchUserData}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          />
+        )}
 
-      <AyudaAtajosModal
-        isOpen={shortcutsModalOpen}
-        onClose={() => setShortcutsModalOpen(false)}
-        onNavigate={handleNavigate}
-      />
+        {paletteOpen && (
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            rol={rol}
+            onNavigate={handleNavigate}
+            onOpenPerfil={() => setPerfilOpen(true)}
+            onLogout={handleLogout}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onExportS140={handleExportCurrentWeekS140}
+          />
+        )}
+
+        {shortcutsModalOpen && (
+          <AyudaAtajosModal
+            isOpen={shortcutsModalOpen}
+            onClose={() => setShortcutsModalOpen(false)}
+            onNavigate={handleNavigate}
+          />
+        )}
+      </Suspense>
 
       <Toast toast={toast} />
     </div>

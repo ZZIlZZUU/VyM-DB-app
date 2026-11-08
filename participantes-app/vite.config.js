@@ -90,4 +90,29 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts'
+          if (id.includes('docxtemplater')) return 'vendor-docxtemplater'
+          if (id.includes('pizzip')) return 'vendor-pizzip'
+          if (id.includes('@supabase')) return 'vendor-supabase'
+          if (id.includes('@tanstack/react-query')) return 'vendor-query'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          if (id.includes('vaul')) return 'vendor-vaul'
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/react-router') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'vendor-react'
+          }
+          return undefined
+        },
+      },
+    },
+  },
 })

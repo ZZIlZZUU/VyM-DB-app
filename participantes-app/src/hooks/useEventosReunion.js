@@ -1,16 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+let memoryEventos = null
+let inflightEventosPromise = null
+
 export function useEventosReunion() {
   const [eventos, setEventos] = useState(() => {
+    if (memoryEventos) return memoryEventos
     try {
       const cached = localStorage.getItem('app_eventos_cache')
-      return cached ? JSON.parse(cached) : []
+      if (cached) {
+        memoryEventos = JSON.parse(cached)
+        return memoryEventos
+      }
+      return []
     } catch {
       return []
     }
   })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!memoryEventos)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -26,31 +34,51 @@ export function useEventosReunion() {
     return { nombre_visitante: '', oracion_visitante: true }
   }
 
-  const fetchEventos = useCallback(async () => {
+  const fetchEventos = useCallback(async (force = true) => {
     try {
       setError(null)
-      const { data, error: err } = await supabase
+      if (!force && memoryEventos) {
+        setEventos(memoryEventos)
+        setLoading(false)
+        return memoryEventos
+      }
+
+      if (!force && inflightEventosPromise) {
+        const res = await inflightEventosPromise
+        if (res) setEventos(res)
+        return res
+      }
+
+      inflightEventosPromise = supabase
         .from('eventos_reunion')
         .select('*')
         .order('fecha_original', { ascending: true })
+        .then(({ data, error: err }) => {
+          if (err) {
+            console.warn('[useEventosReunion] Tabla no encontrada o error:', err.message)
+            return null
+          }
+          const procesados = (data || []).map(row => {
+            const meta = extraerMetaVisitante(row.descripcion)
+            return {
+              ...row,
+              nombre_visitante: row.nombre_visitante || meta.nombre_visitante || '',
+              oracion_visitante: row.oracion_visitante != null ? row.oracion_visitante : meta.oracion_visitante,
+            }
+          })
+          memoryEventos = procesados
+          localStorage.setItem('app_eventos_cache', JSON.stringify(procesados))
+          return procesados
+        })
+        .finally(() => {
+          inflightEventosPromise = null
+        })
 
-      if (err) {
-        // Si la tabla no ha sido creada aún en Supabase, manejar con gracia
-        console.warn('[useEventosReunion] Tabla no encontrada o error:', err.message)
-        return
+      const procesados = await inflightEventosPromise
+      if (procesados) {
+        setEventos(procesados)
+        window.dispatchEvent(new CustomEvent('eventos-actualizados', { detail: procesados }))
       }
-
-      const procesados = (data || []).map(row => {
-        const meta = extraerMetaVisitante(row.descripcion)
-        return {
-          ...row,
-          nombre_visitante: row.nombre_visitante || meta.nombre_visitante || '',
-          oracion_visitante: row.oracion_visitante != null ? row.oracion_visitante : meta.oracion_visitante,
-        }
-      })
-
-      setEventos(procesados)
-      localStorage.setItem('app_eventos_cache', JSON.stringify(procesados))
     } catch (err) {
       console.warn('[useEventosReunion] Excepción al obtener eventos:', err)
       setError(err?.message || 'Error al obtener eventos')
@@ -60,20 +88,26 @@ export function useEventosReunion() {
   }, [])
 
   useEffect(() => {
-    fetchEventos()
+    fetchEventos(false)
 
-    const canalId = `eventos-reunion-sync-${Math.random().toString(36).slice(2, 8)}`
-    const canal = supabase
-      .channel(canalId)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'eventos_reunion' },
-        () => fetchEventos()
-      )
-      .subscribe()
+    function handleRealtimeChange(e) {
+      if (e.detail?.table === 'eventos_reunion') {
+        fetchEventos(true)
+      }
+    }
+
+    function handleLocalEventosUpdate(e) {
+      if (Array.isArray(e.detail)) {
+        setEventos(e.detail)
+      }
+    }
+
+    window.addEventListener('vym-realtime-change', handleRealtimeChange)
+    window.addEventListener('eventos-actualizados', handleLocalEventosUpdate)
 
     return () => {
-      supabase.removeChannel(canal)
+      window.removeEventListener('vym-realtime-change', handleRealtimeChange)
+      window.removeEventListener('eventos-actualizados', handleLocalEventosUpdate)
     }
   }, [fetchEventos])
 

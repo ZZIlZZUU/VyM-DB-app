@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
-import { parsearFechas, inferirTipoParteSMT } from './epubParser'
+import PizZip from 'pizzip'
+import { parsearFechas, inferirTipoParteSMT, parsearEPUB } from './epubParser'
 
 describe('parsearFechas — Extracción de fechas de la Guía de Actividades', () => {
   describe('Formato mismo mes', () => {
@@ -142,4 +144,45 @@ describe('inferirTipoParteSMT — Clasificación de partes de Seamos Mejores Mae
     })
   })
 })
+
+describe('parsearEPUB — Descompresión y lectura con PizZip', () => {
+  it('extrae correctamente una semana desde un EPUB en memoria construido con PizZip', async () => {
+    const zip = new PizZip()
+    zip.file(
+      'OEBPS/content.opf',
+      `<?xml version="1.0" encoding="utf-8"?>
+      <package xmlns="http://www.idpf.org/2007/opf">
+        <metadata><title>Guía de actividades 2026</title></metadata>
+        <manifest><item id="sem1" href="semana1.xhtml" media-type="application/xhtml+xml"/></manifest>
+        <spine><itemref idref="sem1"/></spine>
+      </package>`
+    )
+    zip.file(
+      'OEBPS/semana1.xhtml',
+      `<!DOCTYPE html><html><body>
+        <h1>2-8 DE NOVIEMBRE</h1>
+        <h2>PROVERBIOS 25</h2>
+        <h3>Canción 10 y oración</h3>
+        <h3 class="du-color--teal-700">1. La sabiduría divina (10 mins.)</h3>
+        <h3 class="du-color--teal-700">2. Busquemos perlas escondidas (10 mins.)</h3>
+        <h3 class="du-color--teal-700">3. Lectura de la Biblia (4 mins.)</h3>
+        <h3 class="du-color--gold-700">4. Empiece conversaciones (3 mins.)</h3>
+        <h3>Canción 25</h3>
+        <h3 class="du-color--maroon-600">5. Necesidades de la congregación (15 mins.)</h3>
+        <h3 class="du-color--maroon-600">6. Estudio bíblico de la congregación (30 mins.)</h3>
+        <h3>Canción 30 y oración</h3>
+      </body></html>`
+    )
+
+    const buffer = zip.generate({ type: 'uint8array' })
+    const semanas = await parsearEPUB(buffer)
+
+    expect(semanas).toHaveLength(1)
+    expect(semanas[0].fecha_inicio).toBe('2026-11-02')
+    expect(semanas[0].fecha_fin).toBe('2026-11-08')
+    expect(semanas[0].capitulo_biblico).toBe('PROVERBIOS 25')
+    expect(semanas[0].partes.length).toBeGreaterThan(0)
+  })
+})
+
 

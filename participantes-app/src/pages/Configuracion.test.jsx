@@ -81,14 +81,15 @@ describe('Configuracion tab eventos', () => {
   })
 
   it('renderiza la pestaña eventos con eventos reales de la BD sin crashear', () => {
+    const ym = new Date().toISOString().slice(0, 7)
     const eventosReales = [
       {
         id: '2d3742ed-2fee-4c18-9c0c-466e006b4f67',
         semana_id: 'f3c258ad-6df6-453d-b884-0f9095990abb',
         tipo_evento: 'asamblea_regional',
         titulo_evento: 'Asamblea Regional',
-        fecha_original: '2026-11-02',
-        fecha_efectiva: '2026-10-17',
+        fecha_original: `${ym}-02`,
+        fecha_efectiva: `${ym}-17`,
         hora_efectiva: null,
         afecta_reunion: 'fin_semana',
         descripcion: '[VISITANTE: Alejandro Guanaco Giordani | ORACION: true]',
@@ -102,8 +103,8 @@ describe('Configuracion tab eventos', () => {
         semana_id: 'f3c258ad-6df6-453d-b884-0f9095990abb',
         tipo_evento: 'visita_sucursal',
         titulo_evento: 'Visita de Representante de Sucursal',
-        fecha_original: '2026-11-02',
-        fecha_efectiva: '2026-10-20',
+        fecha_original: `${ym}-02`,
+        fecha_efectiva: `${ym}-20`,
         hora_efectiva: null,
         afecta_reunion: 'entre_semana',
         descripcion: '[VISITANTE: Alejandro Guanaco Giordani | ORACION: true]',

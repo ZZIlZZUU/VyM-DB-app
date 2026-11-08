@@ -27,7 +27,14 @@ import {
   Loader2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+import {
+  usePersonasQuery,
+  useParticipacionesQuery,
+  useSemanasQuery,
+  usePartesQuery,
+  useAsignacionesQuery,
+} from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import {
   formatFechaLegible,
   formatRangoSemanaLegible,
@@ -99,15 +106,42 @@ function getProximoMesInfo() {
 export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
   const { config: globalConfig, guardarConfiguracion: guardarGlobalConfig } = useConfiguracion()
   const { eventos: eventosReunion } = useEventosReunion()
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
 
-  const [personas, setPersonas] = useState([])
-  const [participaciones, setParticipaciones] = useState([])
-  const [semanas, setSemanas] = useState([])
-  const [partes, setPartes] = useState([])
-  const [asignaciones, setAsignaciones] = useState([])
-  const [configuracion, setConfiguracion] = useState([])
+  const {
+    data: personas = [],
+    isLoading: loadingPer,
+    error: errPer,
+  } = usePersonasQuery()
+  const {
+    data: participaciones = [],
+    isLoading: loadingPart,
+    error: errPart,
+  } = useParticipacionesQuery()
+  const {
+    data: semanas = [],
+    isLoading: loadingSem,
+    error: errSem,
+  } = useSemanasQuery()
+  const {
+    data: partes = [],
+    isLoading: loadingPar,
+    error: errPar,
+  } = usePartesQuery()
+  const {
+    data: asignaciones = [],
+    isLoading: loadingAsi,
+    error: errAsi,
+  } = useAsignacionesQuery()
+
+  const loading = loadingPer || loadingPart || loadingSem || loadingPar || loadingAsi
+  const fetchError =
+    errPer?.message ||
+    errPart?.message ||
+    errSem?.message ||
+    errPar?.message ||
+    errAsi?.message ||
+    null
+
   const [congregacion, setCongregacion] = useState('')
   const [anioEnCurso, setAnioEnCurso] = useState(new Date().getFullYear().toString())
 
@@ -130,78 +164,21 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
 
   const { toast, success, error: toastError, showToast } = useToast()
 
-  const fetchData = useCallback(async () => {
-    try {
-      setFetchError(null)
-      const [
-        { data: per, error: perErr },
-        { data: part, error: partErr },
-        { data: sem, error: semErr },
-        { data: par, error: parErr },
-        { data: asi, error: asiErr },
-        { data: cfg, error: cfgErr },
-      ] = await Promise.all([
-        supabase.from('personas').select('*').order('nombre'),
-        supabase.from('participaciones').select('*').order('fecha'),
-        supabase.from('programa_semanas').select('*').order('fecha_inicio'),
-        supabase.from('programa_partes').select('*').order('numero_parte'),
-        supabase.from('programa_asignaciones').select('*'),
-        supabase.from('configuracion').select('*'),
-      ])
-
-      if (perErr) throw perErr
-      if (partErr) throw partErr
-      if (semErr) throw semErr
-      if (parErr) throw parErr
-      if (asiErr) throw asiErr
-      if (cfgErr) console.warn('[configuracion error]', cfgErr)
-
-      setPersonas(per || [])
-      setParticipaciones(part || [])
-      setSemanas(sem || [])
-      setPartes(par || [])
-      setAsignaciones(asi || [])
-      setConfiguracion(cfg || [])
-
-      const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
-      const anioCfg = cfg?.find(r => r.clave === 'anio_en_curso')?.valor
-
-      if (nombreCfg) setCongregacion(nombreCfg)
-      else setCongregacion('Congregacion del Recreo')
-
-      if (anioCfg) setAnioEnCurso(anioCfg)
-    } catch (err) {
-      console.error('[Home fetchData]', err)
-      setFetchError(err?.message || 'Error al sincronizar datos')
-    } finally {
-      setLoading(false)
-    }
+  const fetchData = useCallback(() => {
+    invalidateAppQueries([
+      QUERY_KEYS.personas,
+      QUERY_KEYS.participaciones,
+      QUERY_KEYS.programaSemanas,
+      QUERY_KEYS.programaPartes,
+      QUERY_KEYS.programaAsignaciones,
+      QUERY_KEYS.configuracion,
+    ])
   }, [])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
-
-  // Subscripciones Realtime
-  useEffect(() => {
-    const canal = supabase
-      .channel('home-dashboard-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personas' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_semanas' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_partes' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_asignaciones' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, () => fetchData())
-      .subscribe()
-
-    return () => supabase.removeChannel(canal)
-  }, [fetchData])
 
   // ── ESTADOS DE ONBOARDING Y ASISTENTE (Brief #30) ──────────────
   const paso1Completo =
     localStorage.getItem('onboarding_step1') === 'true' ||
-    configuracion.some(r => r.clave === 'nombre_congregacion' && r.valor?.trim()) ||
-    configuracion.some(r => r.clave === 'configuracion_inicial_completada')
+    Boolean(globalConfig?.nombreCongregacion?.trim())
   const paso2Completo = personas.length > 0
   const paso3Completo = semanas.length > 0
   const todosPasosCompletos = paso1Completo && paso2Completo && paso3Completo
@@ -529,6 +506,7 @@ export default function Home({ onNavigate, onOpenRegistrosCreate, rol }) {
 
     setGeneratingDocx(true)
     try {
+      const { generarYDescargarS140, buildDatosDesdeSupabase } = await import('../lib/generarS140')
       // Filtrar las semanas del mes actual o tomar las 4-5 primeras
       let semanasParaDocx = semanasMesActual.length > 0 ? semanasMesActual : semanas.slice(0, 5)
       const semanasNorm = buildDatosDesdeSupabase(semanasParaDocx, partes, asignaciones, personas, eventosReunion, globalConfig)

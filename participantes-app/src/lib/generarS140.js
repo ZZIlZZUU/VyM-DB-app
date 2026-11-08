@@ -10,6 +10,11 @@
 // La plantilla debe estar en: /public/S-140_plantilla.docx
 // ============================================================
 
+async function cargarPizZip() {
+  const { default: PizZip } = await import('pizzip')
+  return PizZip
+}
+
 async function cargarDocxtemplater() {
   const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([
     import('pizzip'),
@@ -441,12 +446,13 @@ export async function generarYDescargarS140({
     arrayBuffer = await response.arrayBuffer()
   }
 
-  const { PizZip } = await cargarDocxtemplater()
   let zipFinal = null
 
   // 2. Compilar con generador nativo dinámico (si modo !== 'clasico')
+  // Solo carga PizZip (~28 kB), evitando descargar docxtemplater (~155 kB)
   if (modo !== 'clasico') {
     try {
+      const PizZip = await cargarPizZip()
       zipFinal = crearDocxNativo({
         PizZip,
         templateArrayBuffer: arrayBuffer,

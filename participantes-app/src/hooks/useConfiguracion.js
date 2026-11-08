@@ -71,31 +71,60 @@ export function parseConfigRows(rows) {
   }
 }
 
+// Caché compartida en memoria y promesa en vuelo para evitar fetches duplicados entre componentes
+let memoryConfig = null
+let inflightConfigPromise = null
+
 export function useConfiguracion() {
   const [config, setConfig] = useState(() => {
+    if (memoryConfig) return memoryConfig
     const cached = localStorage.getItem('app_config_cache')
     if (cached) {
       try {
-        return { ...CONFIG_DEFAULTS, ...JSON.parse(cached) }
+        memoryConfig = { ...CONFIG_DEFAULTS, ...JSON.parse(cached) }
+        return memoryConfig
       } catch {
         return { ...CONFIG_DEFAULTS }
       }
     }
     return { ...CONFIG_DEFAULTS }
   })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!memoryConfig)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const fetchConfig = useCallback(async () => {
+  const fetchConfig = useCallback(async (force = false) => {
     try {
       setError(null)
-      const { data, error: err } = await supabase.from('configuracion').select('*')
-      if (err) throw err
+      if (!force && memoryConfig) {
+        setConfig(memoryConfig)
+        setLoading(false)
+        return memoryConfig
+      }
 
-      const parsed = parseConfigRows(data || [])
+      if (!force && inflightConfigPromise) {
+        const parsed = await inflightConfigPromise
+        setConfig(parsed)
+        return parsed
+      }
+
+      inflightConfigPromise = supabase
+        .from('configuracion')
+        .select('*')
+        .then(({ data, error: err }) => {
+          if (err) throw err
+          const parsed = parseConfigRows(data || [])
+          memoryConfig = parsed
+          localStorage.setItem('app_config_cache', JSON.stringify(parsed))
+          return parsed
+        })
+        .finally(() => {
+          inflightConfigPromise = null
+        })
+
+      const parsed = await inflightConfigPromise
       setConfig(parsed)
-      localStorage.setItem('app_config_cache', JSON.stringify(parsed))
+      return parsed
     } catch (err) {
       console.warn('[useConfiguracion] Error al obtener configuracion:', err)
       setError(err?.message || 'Error al sincronizar configuración')
@@ -105,21 +134,27 @@ export function useConfiguracion() {
   }, [])
 
   useEffect(() => {
-    fetchConfig()
+    fetchConfig(false)
 
-    // Suscripción Realtime para propagar cambios instantáneamente a todas las pestañas
-    const canalId = `configuracion-global-sync-${Math.random().toString(36).slice(2, 8)}`
-    const canal = supabase
-      .channel(canalId)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'configuracion' },
-        () => fetchConfig()
-      )
-      .subscribe()
+    function handleRealtimeChange(e) {
+      if (e.detail?.table === 'configuracion') {
+        fetchConfig(true)
+      }
+    }
+
+    function handleLocalConfigUpdate(e) {
+      if (e.detail) {
+        memoryConfig = e.detail
+        setConfig(e.detail)
+      }
+    }
+
+    window.addEventListener('vym-realtime-change', handleRealtimeChange)
+    window.addEventListener('configuracion-actualizada', handleLocalConfigUpdate)
 
     return () => {
-      supabase.removeChannel(canal)
+      window.removeEventListener('vym-realtime-change', handleRealtimeChange)
+      window.removeEventListener('configuracion-actualizada', handleLocalConfigUpdate)
     }
   }, [fetchConfig])
 
@@ -178,6 +213,7 @@ export function useConfiguracion() {
         horarioPersonalizadoFilas: nuevosValores.horarioPersonalizadoFilas || null,
       }
 
+      memoryConfig = updated
       setConfig(updated)
       localStorage.setItem('app_config_cache', JSON.stringify(updated))
       localStorage.setItem('onboarding_step1', 'true')

@@ -17,8 +17,14 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
-import { generarYDescargarS140, buildDatosDesdeSupabase } from '../lib/generarS140'
+import {
+  usePersonasQuery,
+  useParticipacionesQuery,
+  useSemanasQuery,
+  usePartesQuery,
+  useAsignacionesQuery,
+} from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import {
   formatFechaLegible,
   formatRangoSemanaLegible,
@@ -160,15 +166,42 @@ function SkeletonSemana() {
 export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
   const { config } = useConfiguracion()
   const { eventos } = useEventosReunion()
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
 
-  const [semanas, setSemanas] = useState([])
-  const [partes, setPartes] = useState([])
-  const [asignaciones, setAsignaciones] = useState([])
-  const [personas, setPersonas] = useState([])
-  const [participaciones, setParticipaciones] = useState([])
-  const [congregacion, setCongregacion] = useState('')
+  const {
+    data: semanas = [],
+    isLoading: loadingSem,
+    error: errSem,
+  } = useSemanasQuery()
+  const {
+    data: partes = [],
+    isLoading: loadingPar,
+    error: errPar,
+  } = usePartesQuery()
+  const {
+    data: asignaciones = [],
+    isLoading: loadingAsi,
+    error: errAsi,
+  } = useAsignacionesQuery()
+  const {
+    data: personas = [],
+    isLoading: loadingPer,
+    error: errPer,
+  } = usePersonasQuery()
+  const {
+    data: participaciones = [],
+    isLoading: loadingPart,
+    error: errPart,
+  } = useParticipacionesQuery()
+
+  const loading = loadingSem || loadingPar || loadingAsi || loadingPer || loadingPart
+  const fetchError =
+    errSem?.message ||
+    errPar?.message ||
+    errAsi?.message ||
+    errPer?.message ||
+    errPart?.message ||
+    null
+  const congregacion = config?.nombreCongregacion || 'Congregacion del Recreo'
 
   // Estados de navegación temporal
   const [selectedYear, setSelectedYear] = useState('')
@@ -196,65 +229,15 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
 
   const { toast, success, error: toastError } = useToast()
 
-  const fetchData = useCallback(async () => {
-    try {
-      setFetchError(null)
-      const [
-        { data: sem, error: semErr },
-        { data: par, error: parErr },
-        { data: asi, error: asiErr },
-        { data: per, error: perErr },
-        { data: part, error: partErr },
-        { data: cfg, error: cfgErr },
-      ] = await Promise.all([
-        supabase.from('programa_semanas').select('*').order('fecha_inicio'),
-        supabase.from('programa_partes').select('*').order('numero_parte'),
-        supabase.from('programa_asignaciones').select('*'),
-        supabase.from('personas').select('*').order('nombre'),
-        supabase.from('participaciones').select('*').order('fecha'),
-        supabase.from('configuracion').select('*'),
-      ])
-
-      if (semErr) throw semErr
-      if (parErr) throw parErr
-      if (asiErr) throw asiErr
-      if (perErr) throw perErr
-      if (partErr) throw partErr
-      if (cfgErr) console.warn('[configuracion error]', cfgErr)
-
-      setSemanas(sem || [])
-      setPartes(par || [])
-      setAsignaciones(asi || [])
-      setPersonas(per || [])
-      setParticipaciones(part || [])
-
-      const nombreCfg = cfg?.find(r => r.clave === 'nombre_congregacion')?.valor
-      setCongregacion(nombreCfg || 'Congregacion del Recreo')
-    } catch (err) {
-      console.error('[VistaSemanal fetchData]', err)
-      setFetchError(err?.message || 'Error al cargar los datos de semanas')
-    } finally {
-      setLoading(false)
-    }
+  const fetchData = useCallback(() => {
+    invalidateAppQueries([
+      QUERY_KEYS.programaSemanas,
+      QUERY_KEYS.programaPartes,
+      QUERY_KEYS.programaAsignaciones,
+      QUERY_KEYS.personas,
+      QUERY_KEYS.participaciones,
+    ])
   }, [])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
-
-  // Realtime updates
-  useEffect(() => {
-    const canal = supabase
-      .channel('vista-semanal-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_semanas' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_partes' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'programa_asignaciones' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personas' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, () => fetchData())
-      .subscribe()
-
-    return () => supabase.removeChannel(canal)
-  }, [fetchData])
 
   // ── Extraer Años Disponibles ───────────────────────────────────
   const aniosDisponibles = useMemo(() => {
@@ -467,6 +450,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     if (!semanaActiva) return
     setExportingDocx(true)
     try {
+      const { generarYDescargarS140, buildDatosDesdeSupabase } = await import('../lib/generarS140')
       const semanasNorm = buildDatosDesdeSupabase([semanaActiva], partes, asignaciones, personas, eventos, config)
       await generarYDescargarS140({
         congregacion: congregacion || config?.nombreCongregacion || 'Congregacion del Recreo',

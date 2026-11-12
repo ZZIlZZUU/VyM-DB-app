@@ -45,8 +45,7 @@ participantes-app/
 │   │   ├── Home.jsx                 — dashboard principal con KPIs, alertas, widget semanal y onboarding
 │   │   ├── VistaSemanal.jsx         — vista semanal histórica con selectores de año/mes y exportación S-140
 │   │   ├── VistaEditable.jsx        — tabla cruzada persona × mes (12 meses matrix) con modales
-│   │   ├── VistaSql.jsx             — vista relacional con filtros
-│   │   ├── Personas.jsx             — CRUD personas con Sheet lateral
+│   │   ├── Personas.jsx             — CRUD personas con Sheet lateral (Escritorio + Móvil)
 │   │   ├── Registros.jsx            — CRUD participaciones con Sheet lateral y bulk actions
 │   │   ├── Programa.jsx             — módulo S-140 completo con tarjetas Linear y selector inteligente
 │   │   ├── Usuarios.jsx             — gestión de acceso y lista blanca de usuarios autorizados
@@ -82,7 +81,7 @@ participantes-app/
 └── package.json
 ```
 
-> **Nota de case-sensitivity:** Los archivos de páginas usan PascalCase en disco (`VistaEditable.jsx`, `VistaSql.jsx`, `Login.jsx`). En el `App.jsx` los imports deben coincidir exactamente porque en Linux (Vercel) el sistema de archivos es case-sensitive.
+> **Nota de case-sensitivity:** Los archivos de páginas usan PascalCase en disco (`VistaEditable.jsx`, `Personas.jsx`, `Login.jsx`). En el `App.jsx` los imports deben coincidir exactamente porque en Linux (Vercel) el sistema de archivos es case-sensitive.
 
 ---
 

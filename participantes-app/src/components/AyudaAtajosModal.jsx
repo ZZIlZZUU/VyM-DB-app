@@ -1,4 +1,4 @@
-import { Command, Compass, Layers, Zap, X } from 'lucide-react'
+import { Compass, Zap } from 'lucide-react'
 import { Dialog } from './ui/Dialog'
 import { Button } from './ui/Button'
 
@@ -53,7 +53,6 @@ export function AyudaAtajosModal({ isOpen, onClose, onNavigate }) {
     { keys: ['G', 'R'], label: 'Historial de Asignaciones', view: 'registros' },
     { keys: ['G', 'T'], label: 'Estadísticas y Balance', view: 'estadisticas' },
     { keys: ['G', 'K'], label: 'Calendario de Eventos', view: 'calendario' },
-    { keys: ['G', 'S'], label: 'Explorador de Datos', view: 'sql' },
     { keys: ['G', 'C'], label: 'Configuración', view: 'configuracion' },
     { keys: ['G', 'X'], label: 'Exportar Respaldos', view: 'exportar' },
     { keys: ['G', 'H'], label: 'Historial de Cambios', view: 'historial' },

@@ -65,7 +65,6 @@ export function useKeyboardShortcuts({
           w: 'semanal',
           k: 'calendario',
           e: 'editable',
-          s: 'sql',
           p: 'personas',
           r: 'registros',
           o: 'programa',

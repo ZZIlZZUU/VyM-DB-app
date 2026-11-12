@@ -1,4 +1,4 @@
-import { Menu, Search, Sun, Moon, Sparkles, ChevronRight, User, Keyboard } from 'lucide-react'
+import { Menu, Search, Sun, Moon, ChevronRight, User, Keyboard } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Tooltip } from './ui/Tooltip'
 import { NAV_ITEMS } from './Sidebar'
@@ -13,7 +13,7 @@ export function Header({
   theme,
   onToggleTheme,
   userName,
-  user,
+  isCollapsed = false,
 }) {
   const currentNav = NAV_ITEMS.find(item => item.id === currentView)
 
@@ -64,20 +64,31 @@ export function Header({
 
       {/* Right: Quick Actions & Profile */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Quick Search Shortcut */}
-        <Tooltip content="Buscar o comandos" shortcut="Ctrl+K" side="bottom">
-          <button
-            type="button"
-            onClick={onOpenPalette}
-            className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/60 dark:border-zinc-700/60 transition-colors cursor-pointer"
-          >
-            <Search className="w-3.5 h-3.5 text-text3" />
-            <span className="text-text3">Buscar...</span>
-            <kbd className="px-1 py-0.2 text-[10px] font-mono rounded bg-surface border border-zinc-200 dark:border-zinc-700 text-text3 shadow-2xs">
-              ⌘K
-            </kbd>
-          </button>
-        </Tooltip>
+        {/* Quick Search Shortcut (desaparece suavemente y sin función al colapsar la navbar) */}
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden flex items-center ${
+            !isCollapsed
+              ? 'opacity-100 max-w-[200px] scale-100'
+              : 'opacity-0 max-w-0 scale-95 pointer-events-none'
+          }`}
+          aria-hidden={isCollapsed}
+        >
+          <Tooltip content="Buscar o comandos" shortcut="Ctrl+K" side="bottom" disabled={isCollapsed}>
+            <button
+              type="button"
+              onClick={!isCollapsed ? onOpenPalette : undefined}
+              tabIndex={isCollapsed ? -1 : 0}
+              disabled={isCollapsed}
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/60 dark:border-zinc-700/60 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Search className="w-3.5 h-3.5 text-text3 shrink-0" />
+              <span className="text-text3">Buscar...</span>
+              <kbd className="px-1 py-0.2 text-[10px] font-mono rounded bg-surface border border-zinc-200 dark:border-zinc-700 text-text3 shadow-2xs">
+                ⌘K
+              </kbd>
+            </button>
+          </Tooltip>
+        </div>
 
         {/* Keyboard Shortcuts Help */}
         <Tooltip content="Atajos de teclado" shortcut="?" side="bottom">
@@ -92,34 +103,38 @@ export function Header({
           </Button>
         </Tooltip>
 
-        {/* Theme Toggle Button */}
-        <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="bottom">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleTheme}
-            aria-label="Cambiar tema"
-            className="text-text2 hover:text-text1"
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-zinc-600" />
-            )}
-          </Button>
-        </Tooltip>
+        {/* Theme Toggle Button (Solo en móvil; en escritorio está integrado en la navbar) */}
+        <div className="flex md:hidden">
+          <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleTheme}
+              aria-label="Cambiar tema"
+              className="text-text2 hover:text-text1"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-zinc-600" />
+              )}
+            </Button>
+          </Tooltip>
+        </div>
 
-        {/* User Profile Avatar Trigger */}
-        <Tooltip content="Mi perfil" side="bottom">
-          <button
-            type="button"
-            onClick={onOpenPerfil}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 hover:border-emerald-500/40 text-xs font-semibold transition-all cursor-pointer"
-            aria-label="Mi Perfil"
-          >
-            {userName ? userName.slice(0, 2).toUpperCase() : <User className="w-4 h-4" />}
-          </button>
-        </Tooltip>
+        {/* User Profile Avatar Trigger (Solo en móvil; en escritorio está integrado en la navbar) */}
+        <div className="flex md:hidden">
+          <Tooltip content="Mi perfil" side="bottom">
+            <button
+              type="button"
+              onClick={onOpenPerfil}
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 hover:border-emerald-500/40 text-xs font-semibold transition-all cursor-pointer"
+              aria-label="Mi Perfil"
+            >
+              {userName ? userName.slice(0, 2).toUpperCase() : <User className="w-4 h-4" />}
+            </button>
+          </Tooltip>
+        </div>
       </div>
     </header>
   )

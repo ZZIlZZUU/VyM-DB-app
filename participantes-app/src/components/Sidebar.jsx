@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Home,
   Calendar,
   CalendarDays,
   LayoutGrid,
-  Database,
   Users,
   FileEdit,
   CalendarRange,
@@ -16,10 +15,16 @@ import {
   ChevronLeft,
   Search,
   Sparkles,
+  PanelLeftClose,
+  PanelLeftOpen,
+  User,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const NAV_ITEMS = [
   // ── REUNIÓN Y PROGRAMA ──
   {
@@ -81,14 +86,6 @@ export const NAV_ITEMS = [
     shortcut: '4',
     keywords: ['historial asignaciones', 'registros', 'participaciones', 'historial', 'intervenciones'],
   },
-  {
-    id: 'sql',
-    icon: Database,
-    label: 'Explorador de Datos',
-    section: 'Participantes',
-    shortcut: '2',
-    keywords: ['explorador de datos', 'sql', 'vista sql', 'tablas', 'base de datos', 'consultas'],
-  },
 
   // ── GESTIÓN Y SISTEMA ──
   {
@@ -141,6 +138,11 @@ export function Sidebar({
   isCollapsed,
   onToggleCollapse,
   rol,
+  user,
+  userName,
+  theme,
+  onToggleTheme,
+  onOpenPerfil,
   rtStatus,
   semanasPendientes = 0,
   onOpenPalette,
@@ -148,10 +150,33 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const [isHoverExpanded, setIsHoverExpanded] = useState(false)
+  const hoverTimeoutRef = useRef(null)
   const sections = ['Reunión y Programa', 'Participantes', 'Gestión y Sistema']
 
-  // La barra se muestra expandida si está fijada como expandida O si el usuario está haciendo hover sobre ella
-  const isExpanded = !isCollapsed || isHoverExpanded
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    }
+  }, [])
+
+  // En móvil o fijada como expandida o en hover-peek
+  const isExpanded = mobileOpen || !isCollapsed || isHoverExpanded
+
+  const handleMouseEnter = () => {
+    if (!isCollapsed) return
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHoverExpanded(true)
+    }, 70)
+  }
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    if (!isCollapsed) return
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHoverExpanded(false)
+    }, 100)
+  }
 
   const handleNavClick = (viewId) => {
     onNavigate(viewId)
@@ -159,66 +184,78 @@ export function Sidebar({
   }
 
   const renderNavContent = () => (
-    <div className="flex flex-col h-full bg-surface text-text1 select-none">
+    <div className="flex flex-col h-full bg-surface text-text1 select-none overflow-hidden">
       {/* Workspace / Brand Header */}
-      <div className="h-13 px-3.5 flex items-center justify-between border-b border-zinc-200/80 dark:border-zinc-800/80 shrink-0">
+      <div className="h-13 px-2 flex items-center justify-between border-b border-zinc-200/80 dark:border-zinc-800/80 shrink-0">
         <button
           type="button"
           onClick={isCollapsed ? () => { onToggleCollapse(); setIsHoverExpanded(false); } : undefined}
-          className={`flex items-center gap-2.5 min-w-0 overflow-hidden text-left cursor-pointer transition-transform duration-150 active:scale-95 ${
-            !isExpanded ? 'justify-center w-full' : ''
-          }`}
+          className="flex items-center px-1.5 h-9 rounded-lg min-w-0 text-left cursor-pointer transition-colors hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 w-full"
           title={isCollapsed ? 'Clic para expandir y fijar' : undefined}
         >
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0 shadow-xs hover:bg-emerald-500/25 transition-colors">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0 shadow-xs hover:bg-emerald-500/25 transition-colors">
+            <Sparkles className="w-4 h-4" />
           </div>
-          {isExpanded && (
-            <div className="flex flex-col min-w-0">
-              <span className="font-semibold text-xs text-text1 tracking-tight truncate leading-tight">
-                VyM-DB
-              </span>
-              <span className="text-[10px] text-text3 truncate leading-tight">
-                Participantes App
-              </span>
-            </div>
-          )}
+          <div
+            className={`flex flex-col min-w-0 ml-2 transition-all duration-200 ease-out ${
+              isExpanded
+                ? 'opacity-100 translate-x-0'
+                : 'opacity-0 -translate-x-2 pointer-events-none w-0 overflow-hidden'
+            }`}
+          >
+            <span className="font-semibold text-xs text-text1 tracking-tight truncate leading-tight whitespace-nowrap">
+              VyM-DB
+            </span>
+            <span className="text-[10px] text-text3 truncate leading-tight whitespace-nowrap">
+              Participantes App
+            </span>
+          </div>
         </button>
 
-        {/* Desktop Collapse Toggle (solo si está fijada como expandida) */}
-        {!isCollapsed && (
+        {/* Desktop Collapse Toggle (solo visible en header si está fijada como expandida) */}
+        {!isCollapsed && !mobileOpen && (
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="hidden md:flex w-6 h-6 items-center justify-center rounded-md text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="hidden md:flex w-7 h-7 items-center justify-center rounded-md text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0 ml-1"
             title="Colapsar barra lateral"
           >
-            <ChevronLeft className="w-3.5 h-3.5" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
         )}
       </div>
 
       {/* Quick Search / Command Bar Trigger */}
-      <div className="p-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => {
-            onOpenPalette()
-          }}
-          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/50 dark:border-zinc-700/50 transition-all cursor-pointer ${
-            !isExpanded ? 'justify-center px-0' : 'justify-between'
-          }`}
+      <div className="px-2 py-1.5 shrink-0">
+        <Tooltip
+          content="Buscar o comandos"
+          shortcut="⌘K"
+          side="right"
+          disabled={isExpanded}
+          wrapperClassName="w-full flex items-center"
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <Search className="w-3.5 h-3.5 text-text3 shrink-0" />
-            {isExpanded && <span className="truncate">Buscar...</span>}
-          </div>
-          {isExpanded && (
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-surface border border-zinc-200 dark:border-zinc-700 text-text3 shadow-2xs">
-              ⌘K
-            </kbd>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            className="w-full h-9 flex items-center px-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/50 dark:border-zinc-700/50 transition-all cursor-pointer"
+          >
+            <div className="w-8 h-8 flex items-center justify-center shrink-0">
+              <Search className="w-3.5 h-3.5 text-text3" />
+            </div>
+            <div
+              className={`flex items-center justify-between flex-1 min-w-0 ml-1.5 pr-1 transition-all duration-200 ease-out ${
+                isExpanded
+                  ? 'opacity-100 translate-x-0'
+                  : 'opacity-0 -translate-x-2 pointer-events-none w-0 overflow-hidden'
+              }`}
+            >
+              <span className="truncate whitespace-nowrap text-text2 text-xs">Buscar...</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-surface border border-zinc-200 dark:border-zinc-700 text-text3 shadow-2xs whitespace-nowrap">
+                ⌘K
+              </kbd>
+            </div>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Navigation Sections */}
@@ -231,11 +268,16 @@ export function Sidebar({
 
           return (
             <div key={section} className="space-y-0.5">
-              {isExpanded && (
-                <div className="px-2.5 py-1 text-[10px] font-medium text-text3 uppercase tracking-wider font-mono">
+              <div
+                className={`overflow-hidden transition-all duration-200 ease-out ${
+                  isExpanded ? 'max-h-6 opacity-100 py-1' : 'max-h-0 opacity-0 py-0'
+                }`}
+              >
+                <div className="px-2.5 text-[10px] font-medium text-text3 uppercase tracking-wider font-mono whitespace-nowrap">
                   {section}
                 </div>
-              )}
+              </div>
+
               {items.map(item => {
                 const Icon = item.icon
                 const isActive = currentView === item.id
@@ -243,12 +285,9 @@ export function Sidebar({
 
                 const navButton = (
                   <button
-                    key={item.id}
                     type="button"
                     onClick={() => handleNavClick(item.id)}
-                    className={`group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                      !isExpanded ? 'justify-center px-0 h-9' : 'justify-between h-8'
-                    } ${
+                    className={`group relative w-full h-9 flex items-center px-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       isActive
                         ? 'bg-zinc-200/90 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50 shadow-2xs font-semibold'
                         : 'text-text2 hover:text-text1 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50'
@@ -257,83 +296,216 @@ export function Sidebar({
                     {isActive && (
                       <span className="absolute left-0 top-1.5 bottom-1.5 w-0.75 rounded-r-full bg-emerald-600 dark:bg-emerald-400" />
                     )}
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 flex items-center justify-center shrink-0">
                       <Icon
-                        className={`w-4 h-4 shrink-0 transition-colors ${
+                        className={`w-4 h-4 transition-colors ${
                           isActive
                             ? 'text-emerald-600 dark:text-emerald-400'
                             : 'text-text3 group-hover:text-text2'
                         }`}
                       />
-                      {isExpanded && <span className="truncate">{item.label}</span>}
                     </div>
-
-                    {isExpanded && pendingCount > 0 && (
-                      <Badge variant="warning" size="xs" dot>
-                        {pendingCount}
-                      </Badge>
-                    )}
+                    <div
+                      className={`flex items-center justify-between flex-1 min-w-0 ml-1.5 pr-1 transition-all duration-200 ease-out ${
+                        isExpanded
+                          ? 'opacity-100 translate-x-0'
+                          : 'opacity-0 -translate-x-2 pointer-events-none w-0 overflow-hidden'
+                      }`}
+                    >
+                      <span className="truncate whitespace-nowrap text-xs font-medium">
+                        {item.label}
+                      </span>
+                      {pendingCount > 0 && (
+                        <Badge variant="warning" size="xs" dot>
+                          {pendingCount}
+                        </Badge>
+                      )}
+                    </div>
                   </button>
                 )
 
-                if (!isExpanded) {
-                  return (
-                    <Tooltip
-                      key={item.id}
-                      content={item.label}
-                      shortcut={item.shortcut}
-                      side="right"
-                    >
-                      {navButton}
-                    </Tooltip>
-                  )
-                }
-
-                return navButton
+                return (
+                  <Tooltip
+                    key={item.id}
+                    content={item.label}
+                    shortcut={item.shortcut}
+                    side="right"
+                    disabled={isExpanded}
+                    wrapperClassName="w-full flex items-center"
+                  >
+                    {navButton}
+                  </Tooltip>
+                )
               })}
             </div>
           )
         })}
       </div>
 
-      {/* Footer: Realtime Status & Subtle Info */}
-      <div className="p-2.5 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 shrink-0">
+      {/* User Profile Card / Trigger */}
+      <div className="p-2 border-t border-zinc-200/80 dark:border-zinc-800/80 shrink-0">
         <Tooltip
-          content={`Estado de sincronización en tiempo real: ${rtStatus}`}
-          disabled={isExpanded}
+          content={`Mi perfil (${userName || 'Usuario'})`}
           side="right"
+          disabled={isExpanded}
+          wrapperClassName="w-full flex items-center"
         >
-          <div
-            className={`flex items-center gap-2 px-2 py-1 text-[11px] text-text3 ${
-              !isExpanded ? 'justify-center' : 'justify-between'
-            }`}
+          <button
+            type="button"
+            onClick={onOpenPerfil}
+            className="w-full h-10 flex items-center px-1.5 rounded-lg text-left transition-colors cursor-pointer group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60"
           >
-            {isExpanded && (
-              <span className="font-mono text-[10px] text-text3">Sync Realtime</span>
-            )}
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                {rtStatus === 'conectando' || rtStatus === 'error' ? (
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    rtStatus === 'conectando' ? 'bg-amber-400' : 'bg-red-400'
-                  }`} />
-                ) : null}
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                  rtStatus === 'conectado'
-                    ? 'bg-emerald-500'
-                    : rtStatus === 'conectando'
-                    ? 'bg-amber-500'
-                    : 'bg-red-500'
-                }`} />
-              </span>
-              {isExpanded && (
-                <span className="text-[10px] text-text3 capitalize">
-                  {rtStatus === 'conectado' ? 'Online' : rtStatus}
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 group-hover:border-emerald-500/40 text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">
+              {userName ? userName.slice(0, 2).toUpperCase() : <User className="w-4 h-4" />}
+            </div>
+            <div
+              className={`flex items-center justify-between flex-1 min-w-0 ml-2.5 pr-1 transition-all duration-200 ease-out ${
+                isExpanded
+                  ? 'opacity-100 translate-x-0'
+                  : 'opacity-0 -translate-x-2 pointer-events-none w-0 overflow-hidden'
+              }`}
+            >
+              <div className="flex flex-col min-w-0">
+                <span className="font-semibold text-xs text-text1 truncate leading-tight whitespace-nowrap">
+                  {userName || user?.email?.split('@')[0] || 'Usuario'}
+                </span>
+                <span className="text-[10px] text-text3 truncate leading-tight whitespace-nowrap">
+                  {user?.email || (rol === 'admin' ? 'Administrador' : 'Publicador')}
+                </span>
+              </div>
+              {rol === 'admin' && (
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 uppercase">
+                  Admin
                 </span>
               )}
             </div>
-          </div>
+          </button>
         </Tooltip>
+      </div>
+
+      {/* Footer: Realtime Status, Theme & Collapse/Expand Toggle */}
+      <div className="p-2 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 shrink-0">
+        {isExpanded ? (
+          /* Expanded Footer: Horizontal layout */
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center px-1.5 h-8 min-w-0 text-[11px] text-text3">
+              <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                <span className="relative flex h-2 w-2">
+                  {rtStatus === 'conectando' || rtStatus === 'error' ? (
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      rtStatus === 'conectando' ? 'bg-amber-400' : 'bg-red-400'
+                    }`} />
+                  ) : null}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                    rtStatus === 'conectado'
+                      ? 'bg-emerald-500'
+                      : rtStatus === 'conectando'
+                      ? 'bg-amber-500'
+                      : 'bg-red-500'
+                  }`} />
+                </span>
+              </div>
+              <div className="flex items-center justify-between flex-1 min-w-0 ml-1.5 pr-1">
+                <span className="font-mono text-[10px] text-text3 truncate whitespace-nowrap">
+                  Sync Realtime
+                </span>
+                <span className="text-[10px] text-text3 capitalize whitespace-nowrap ml-1">
+                  {rtStatus === 'conectado' ? 'Online' : rtStatus}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="top">
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text2 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  aria-label="Cambiar tema"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-zinc-600" />
+                  )}
+                </button>
+              </Tooltip>
+
+              {!mobileOpen && (
+                <Tooltip content="Colapsar barra lateral" side="top">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleCollapse()
+                      setIsHoverExpanded(false)
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                    aria-label="Colapsar barra lateral"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Collapsed Footer: Clean Vertical Column */
+          <div className="flex flex-col items-center gap-1.5">
+            <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="right" wrapperClassName="w-full flex items-center justify-center">
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-text2 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                aria-label="Cambiar tema"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-zinc-600" />
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip
+              content={`Estado de sincronización en tiempo real: ${rtStatus}`}
+              side="right"
+              wrapperClassName="w-full flex items-center justify-center"
+            >
+              <div className="w-8 h-8 flex items-center justify-center shrink-0 cursor-default">
+                <span className="relative flex h-2 w-2">
+                  {rtStatus === 'conectando' || rtStatus === 'error' ? (
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      rtStatus === 'conectando' ? 'bg-amber-400' : 'bg-red-400'
+                    }`} />
+                  ) : null}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                    rtStatus === 'conectado'
+                      ? 'bg-emerald-500'
+                      : rtStatus === 'conectando'
+                      ? 'bg-amber-500'
+                      : 'bg-red-500'
+                  }`} />
+                </span>
+              </div>
+            </Tooltip>
+
+            {!mobileOpen && (
+              <Tooltip content="Fijar barra lateral" side="right" wrapperClassName="w-full flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleCollapse()
+                    setIsHoverExpanded(false)
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  aria-label="Fijar barra lateral"
+                >
+                  <PanelLeftOpen className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -341,19 +513,25 @@ export function Sidebar({
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside
-        onMouseEnter={() => isCollapsed && setIsHoverExpanded(true)}
-        onMouseLeave={() => isCollapsed && setIsHoverExpanded(false)}
-        className={`hidden md:block shrink-0 h-screen sticky top-0 border-r border-zinc-200 dark:border-zinc-800/80 transition-all duration-200 ease-in-out z-40 ${
-          isCollapsed
-            ? isHoverExpanded
-              ? 'w-60 shadow-2xl bg-surface'
-              : 'w-15'
-            : 'w-60'
+      <div
+        className={`hidden md:block shrink-0 h-screen relative transition-[width] duration-200 ease-out ${
+          isCollapsed ? 'w-15' : 'w-60'
         }`}
       >
-        {renderNavContent()}
-      </aside>
+        <aside
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className={`h-screen border-r border-zinc-200 dark:border-zinc-800/80 bg-surface transition-[width,box-shadow] duration-200 ease-out z-40 flex flex-col ${
+            isCollapsed
+              ? isHoverExpanded
+                ? 'w-60 shadow-2xl absolute top-0 left-0'
+                : 'w-15 absolute top-0 left-0'
+              : 'w-full relative'
+          }`}
+        >
+          {renderNavContent()}
+        </aside>
+      </div>
 
       {/* Mobile Drawer Sidebar */}
       {mobileOpen && (

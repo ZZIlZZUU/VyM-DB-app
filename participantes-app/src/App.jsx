@@ -21,7 +21,6 @@ import { ShieldAlert } from 'lucide-react'
 const Home              = lazy(() => import('./pages/Home'))
 const VistaSemanal      = lazy(() => import('./pages/VistaSemanal'))
 const VistaEditable     = lazy(() => import('./pages/VistaEditable'))
-const VistaSql          = lazy(() => import('./pages/VistaSql'))
 const Personas          = lazy(() => import('./pages/Personas'))
 const Registros         = lazy(() => import('./pages/Registros'))
 const Exportar          = lazy(() => import('./pages/Exportar'))
@@ -46,7 +45,6 @@ const VALID_VIEWS = [
   'semanal',
   'calendario',
   'editable',
-  'sql',
   'personas',
   'registros',
   'programa',
@@ -60,8 +58,11 @@ const VALID_VIEWS = [
 function resolveViewFromPath(pathname = window.location.pathname) {
   try {
     const p = pathname.replace(/^\//, '').split('/')[0]
+    if (p === 'sql') return 'personas'
     if (VALID_VIEWS.includes(p)) return p
-    if (!p) return localStorage.getItem('pref_vista_default') || 'home'
+    const pref = localStorage.getItem('pref_vista_default')
+    if (pref === 'sql') return 'personas'
+    if (!p) return pref || 'home'
     return 'home'
   } catch {
     return 'home'
@@ -204,8 +205,29 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchUserData()
-  }, [fetchUserData])
+    let ignore = false
+    async function initUser() {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
+      if (ignore) return
+      setUser(currentUser)
+      if (currentUser?.email) {
+        const { data: ua } = await supabase
+          .from('usuarios_autorizados')
+          .select('rol, nombre')
+          .eq('email', currentUser.email)
+          .single()
+        if (ignore) return
+        setRol(ua?.rol ?? 'editor')
+        setUserName(ua?.nombre ?? '')
+      }
+    }
+    initUser()
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   // Único suscriptor Realtime multiplexado para toda la app
   useRealtimeCacheSync({
@@ -247,8 +269,6 @@ export default function App() {
         return <CalendarioEventos standalone readOnly />
       case 'editable':
         return <VistaEditable onNavigate={handleNavigate} />
-      case 'sql':
-        return <VistaSql />
       case 'personas':
         return (
           <Personas
@@ -361,6 +381,7 @@ export default function App() {
           onToggleTheme={toggleTheme}
           userName={userName}
           user={user}
+          isCollapsed={isCollapsed}
         />
 
         {/* Scrollable Page Container */}

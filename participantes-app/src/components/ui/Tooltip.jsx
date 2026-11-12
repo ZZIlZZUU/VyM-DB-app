@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export function Tooltip({
   children,
@@ -7,16 +7,11 @@ export function Tooltip({
   side = 'right',
   disabled = false,
   className = '',
+  wrapperClassName = '',
 }) {
   const [isVisible, setIsVisible] = useState(false)
 
-  useEffect(() => {
-    if (disabled) {
-      setIsVisible(false)
-    }
-  }, [disabled])
-
-  if (disabled || !content) return children
+  if (!wrapperClassName && (disabled || !content)) return children
 
   const positionClasses = {
     top:    'bottom-full left-1/2 -translate-x-1/2 mb-1.5',
@@ -27,14 +22,14 @@ export function Tooltip({
 
   return (
     <div
-      className="relative inline-flex items-center"
+      className={`relative ${wrapperClassName || 'inline-flex items-center'}`}
       onMouseEnter={() => !disabled && setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
       onFocus={() => !disabled && setIsVisible(true)}
       onBlur={() => setIsVisible(false)}
     >
       {children}
-      {isVisible && !disabled && (
+      {isVisible && !disabled && content && (
         <div
           role="tooltip"
           className={`absolute z-50 pointer-events-none whitespace-nowrap px-2 py-1 text-[11px] font-medium rounded-md bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 shadow-md border border-zinc-700/40 dark:border-zinc-300/40 flex items-center gap-1.5 animate-fade-in ${positionClasses} ${className}`}

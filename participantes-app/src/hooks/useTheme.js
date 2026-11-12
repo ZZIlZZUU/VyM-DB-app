@@ -9,12 +9,24 @@ export function useTheme() {
 
   useEffect(() => {
     const root = document.documentElement
-    if (theme === 'dark') {
+    const isDark = theme === 'dark'
+
+    if (isDark) {
       root.classList.add('dark')
+      root.style.colorScheme = 'dark'
     } else {
       root.classList.remove('dark')
+      root.style.colorScheme = 'light'
     }
-    localStorage.setItem('theme', theme)
+
+    try {
+      localStorage.setItem('theme', theme)
+    } catch (_) {}
+
+    const meta = document.getElementById('app-theme-color') || document.querySelector('meta[name="theme-color"]')
+    if (meta) {
+      meta.setAttribute('content', isDark ? '#09090B' : '#F8FAFC')
+    }
   }, [theme])
 
   // Escuchar cambios en la preferencia del sistema (cuando no hay override explícito del usuario)

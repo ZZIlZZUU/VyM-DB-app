@@ -15,7 +15,8 @@ import {
   Copy,
   Check,
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { useHistorialCambiosQuery } from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import { formatFechaLegible } from '../lib/fechas'
 import { SkeletonList } from '../components/Skeleton'
 
@@ -59,54 +60,22 @@ function formatLogDate(str) {
 }
 
 export default function HistorialCambios() {
-  const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [operation, setOperation] = useState('ALL') // 'ALL', 'INSERT', 'UPDATE', 'DELETE'
   const [limit, setLimit] = useState(50)
   const [selectedLog, setSelectedLog] = useState(null)
   const [copied, setCopied] = useState(false)
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true)
-    try {
-      let query = supabase
-        .from('historial_cambios')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit)
+  const {
+    data: logs = [],
+    isLoading: loading,
+    refetch,
+  } = useHistorialCambiosQuery({ operation, limit })
 
-      if (operation !== 'ALL') {
-        query = query.eq('operacion', operation)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      setLogs(data || [])
-    } catch (err) {
-      console.error('Error fetching audit logs:', err)
-      setLogs([])
-    } finally {
-      setLoading(false)
-    }
-  }, [operation, limit])
-
-  useEffect(() => {
-    fetchLogs()
-
-    const channel = supabase
-      .channel('audit-sync-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'historial_cambios' },
-        () => fetchLogs()
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [fetchLogs])
+  const fetchLogs = useCallback(() => {
+    invalidateAppQueries([QUERY_KEYS.historialCambios(operation, limit)])
+    refetch()
+  }, [operation, limit, refetch])
 
   const filteredLogs = logs.filter(log => {
     const term = search.toLowerCase()

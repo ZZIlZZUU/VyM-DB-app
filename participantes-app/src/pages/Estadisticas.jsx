@@ -31,7 +31,8 @@ import {
   ArrowRight,
   Clock,
 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { usePersonasQuery, useParticipacionesQuery } from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -201,46 +202,32 @@ function CustomBar({ label, value, max, onClick }) {
 
 // ── Componente Principal ──────────────────────────────────────
 export default function Estadisticas({ onNavigate }) {
-  const [personas, setPersonas] = useState([])
-  const [participaciones, setParticipaciones] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
   const [filterLista, setFilterLista] = useState('')
   const [filterRango, setFilterRango] = useState('anio') // 'anio' | '3m' | '6m' | 'mes'
   const [filterMes, setFilterMes] = useState('')
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
-    try {
-      const [{ data: ps, error: psErr }, { data: rs, error: rsErr }] = await Promise.all([
-        supabase.from('personas').select('*').order('nombre'),
-        supabase.from('participaciones').select('*').order('fecha'),
-      ])
-      if (psErr) throw psErr
-      if (rsErr) throw rsErr
-      setPersonas(ps || [])
-      setParticipaciones(rs || [])
-    } catch (err) {
-      console.error('[fetchData]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const {
+    data: personas = [],
+    isLoading: loadingP,
+    error: errP,
+    refetch: refetchP,
+  } = usePersonasQuery()
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  const {
+    data: participaciones = [],
+    isLoading: loadingR,
+    error: errR,
+    refetch: refetchR,
+  } = useParticipacionesQuery()
 
-  useEffect(() => {
-    const canal = supabase
-      .channel('stats-sync-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participaciones' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personas' }, fetchData)
-      .subscribe()
-    return () => supabase.removeChannel(canal)
-  }, [fetchData])
+  const loading = loadingP || loadingR
+  const fetchError = errP?.message || errR?.message || null
+
+  const handleRefresh = useCallback(() => {
+    invalidateAppQueries([QUERY_KEYS.personas, QUERY_KEYS.participaciones])
+    refetchP()
+    refetchR()
+  }, [refetchP, refetchR])
 
   // Fechas de corte para rangos temporales relativos
   const { cutoff3m, cutoff6m, currentYearStr } = useMemo(() => {
@@ -418,7 +405,7 @@ export default function Estadisticas({ onNavigate }) {
       <div className="flex flex-col items-center justify-center py-20 px-4 bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl max-w-lg mx-auto text-center space-y-4">
         <h3 className="text-base font-semibold text-text1">Error de carga</h3>
         <p className="text-xs text-text3 font-mono">{fetchError}</p>
-        <Button variant="outline" size="sm" icon={RotateCcw} onClick={fetchData}>
+        <Button variant="outline" size="sm" icon={RotateCcw} onClick={handleRefresh}>
           Reintentar
         </Button>
       </div>

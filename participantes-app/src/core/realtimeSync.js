@@ -10,7 +10,8 @@ const TABLE_TO_QUERY_KEYS = {
   programa_asignaciones: [QUERY_KEYS.programaBundle, QUERY_KEYS.programaAsignaciones],
   configuracion: [QUERY_KEYS.configuracion],
   eventos_reunion: [QUERY_KEYS.eventosReunion],
-  usuarios_autorizados: [QUERY_KEYS.userProfile],
+  usuarios_autorizados: [QUERY_KEYS.userProfile, QUERY_KEYS.usuarios],
+  historial_cambios: [['historial_cambios']],
 }
 
 export function notifyTableChanged(table, payload = null) {

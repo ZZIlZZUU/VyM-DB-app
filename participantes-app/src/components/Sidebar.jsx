@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
+import { prefetchView } from '../core/prefetch'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const NAV_ITEMS = [
@@ -237,6 +238,8 @@ export function Sidebar({
           <button
             type="button"
             onClick={onOpenPalette}
+            onMouseEnter={() => prefetchView('palette')}
+            onFocus={() => prefetchView('palette')}
             className="w-full h-9 flex items-center px-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/50 dark:border-zinc-700/50 transition-all cursor-pointer"
           >
             <div className="w-8 h-8 flex items-center justify-center shrink-0">
@@ -287,6 +290,8 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => handleNavClick(item.id)}
+                    onMouseEnter={() => prefetchView(item.id)}
+                    onFocus={() => prefetchView(item.id)}
                     className={`group relative w-full h-9 flex items-center px-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       isActive
                         ? 'bg-zinc-200/90 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50 shadow-2xs font-semibold'
@@ -353,6 +358,8 @@ export function Sidebar({
           <button
             type="button"
             onClick={onOpenPerfil}
+            onMouseEnter={() => prefetchView('perfil')}
+            onFocus={() => prefetchView('perfil')}
             className="w-full h-10 flex items-center px-1.5 rounded-lg text-left transition-colors cursor-pointer group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60"
           >
             <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 group-hover:border-emerald-500/40 text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">

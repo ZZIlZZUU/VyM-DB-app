@@ -15,6 +15,8 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useUsuariosQuery } from '../core/queries/useAppQueries'
+import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import Toast from '../components/Toast'
@@ -30,9 +32,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 export default function Usuarios({ currentUser: propUser, currentRol: propRol }) {
   const [currentUser, setCurrentUser] = useState(propUser || null)
   const [currentRol, setCurrentRol] = useState(propRol || 'editor')
-  const [usuarios, setUsuarios] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState(null)
   const [email, setEmail] = useState('')
   const [nombreInv, setNombreInv] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -43,6 +42,20 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
 
   const { toast, showToast, success, error } = useToast()
   const { confirm, confirmProps } = useConfirm()
+
+  const {
+    data: usuarios = [],
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useUsuariosQuery()
+
+  const fetchError = queryError?.message || null
+
+  const fetchUsuarios = useCallback(() => {
+    invalidateAppQueries([QUERY_KEYS.usuarios])
+    refetch()
+  }, [refetch])
 
   useEffect(() => {
     if (propUser) setCurrentUser(propUser)
@@ -70,44 +83,6 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
     }
   }, [propUser])
 
-  const fetchUsuarios = useCallback(async () => {
-    setLoading(true)
-    setFetchError(null)
-    try {
-      const { data, error: fetchErr } = await supabase
-        .from('usuarios_autorizados')
-        .select('*')
-        .order('email')
-
-      if (fetchErr) throw fetchErr
-      setUsuarios(data || [])
-    } catch (err) {
-      console.error('[fetchUsuarios]', err)
-      setFetchError(err?.message || 'Error al conectar con la base de datos')
-      error('Error al cargar usuarios autorizados')
-    } finally {
-      setLoading(false)
-    }
-  }, [error])
-
-  useEffect(() => {
-    fetchUsuarios()
-  }, [fetchUsuarios])
-
-  useEffect(() => {
-    const canal = supabase
-      .channel('usuarios-sync-channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'usuarios_autorizados' },
-        () => fetchUsuarios()
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(canal)
-    }
-  }, [fetchUsuarios])
 
   const handleInvite = async e => {
     if (e) e.preventDefault()

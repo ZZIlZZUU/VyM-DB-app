@@ -11,12 +11,39 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#09090B" />
+    <meta name="theme-color" id="app-theme-color" content="#09090B" />
     <meta name="description" content="Gestión de participaciones para reuniones de congregación" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="VyM-DB" />
     <title>VyM-DB Participantes</title>
+    <!-- Anti-FOUC Theme Script & Baseline Background Styles -->
+    <style>
+      html { background-color: #F8FAFC; }
+      html.dark { background-color: #09090B; }
+      body { margin: 0; background-color: inherit; }
+    </style>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved === 'dark' || (!saved && prefersDark);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add('dark');
+            root.style.colorScheme = 'dark';
+          } else {
+            root.classList.remove('dark');
+            root.style.colorScheme = 'light';
+          }
+          var meta = document.getElementById('app-theme-color');
+          if (meta) {
+            meta.setAttribute('content', isDark ? '#09090B' : '#F8FAFC');
+          }
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

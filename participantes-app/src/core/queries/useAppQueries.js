@@ -197,3 +197,44 @@ export function useSemanasPendientesCount(eventos = []) {
     return pendientes
   }, [sem, partes, asignaciones, participaciones, config, eventos])
 }
+
+export async function fetchUsuariosList() {
+  const { data, error } = await supabase
+    .from('usuarios_autorizados')
+    .select('*')
+    .order('email')
+  if (error) throw error
+  return data || []
+}
+
+export function useUsuariosQuery(options = {}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.usuarios,
+    queryFn: fetchUsuariosList,
+    ...options,
+  })
+}
+
+export async function fetchHistorialCambios({ operation = 'ALL', limit = 50 } = {}) {
+  let query = supabase
+    .from('historial_cambios')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (operation !== 'ALL') {
+    query = query.eq('operacion', operation)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return data || []
+}
+
+export function useHistorialCambiosQuery({ operation = 'ALL', limit = 50 } = {}, options = {}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.historialCambios(operation, limit),
+    queryFn: () => fetchHistorialCambios({ operation, limit }),
+    ...options,
+  })
+}

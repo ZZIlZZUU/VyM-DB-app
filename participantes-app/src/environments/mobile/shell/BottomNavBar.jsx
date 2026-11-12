@@ -5,6 +5,7 @@ import {
   Users,
   MoreHorizontal,
 } from 'lucide-react'
+import { prefetchView } from '../../../core/prefetch'
 
 const PRIMARY_VIEWS = new Set(['home', 'programa', 'editable', 'personas'])
 
@@ -69,6 +70,8 @@ export function BottomNavBar({
               key={tab.id}
               type="button"
               onClick={tab.onClick}
+              onTouchStart={() => tab.id !== 'more' && prefetchView(tab.id)}
+              onMouseEnter={() => tab.id !== 'more' && prefetchView(tab.id)}
               className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] rounded-xl transition-colors cursor-pointer select-none ${
                 tab.active
                   ? 'text-accent font-semibold'

@@ -5,43 +5,56 @@ import { getImpactoEventoSemana } from '../../lib/fechas'
 import { parseConfigRows, CONFIG_DEFAULTS } from '../../hooks/useConfiguracion'
 import { QUERY_KEYS } from '../queryClient'
 
+const SUPABASE_PAGE_SIZE = 1000
+
+async function fetchAllRows(buildQuery) {
+  const all = []
+  let from = 0
+  while (true) {
+    const to = from + SUPABASE_PAGE_SIZE - 1
+    const { data, error } = await buildQuery().range(from, to)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    all.push(...data)
+    if (data.length < SUPABASE_PAGE_SIZE) break
+    from += SUPABASE_PAGE_SIZE
+  }
+  return all
+}
+
 export async function fetchPersonasList() {
-  const { data, error } = await supabase.from('personas').select('*').order('nombre')
-  if (error) throw error
-  return data || []
+  return fetchAllRows(() =>
+    supabase.from('personas').select('*').order('nombre').order('clave')
+  )
 }
 
 export async function fetchParticipacionesList() {
-  const { data, error } = await supabase
-    .from('participaciones')
-    .select('*')
-    .order('id', { ascending: false })
-  if (error) throw error
-  return data || []
+  return fetchAllRows(() =>
+    supabase.from('participaciones').select('*').order('id', { ascending: false })
+  )
 }
 
 export async function fetchSemanasList() {
-  const { data, error } = await supabase
-    .from('programa_semanas')
-    .select('*')
-    .order('fecha_inicio')
-  if (error) throw error
-  return data || []
+  return fetchAllRows(() =>
+    supabase.from('programa_semanas').select('*').order('fecha_inicio').order('id')
+  )
 }
 
 export async function fetchPartesList() {
-  const { data, error } = await supabase
-    .from('programa_partes')
-    .select('*')
-    .order('numero_parte')
-  if (error) throw error
-  return data || []
+  return fetchAllRows(() =>
+    supabase
+      .from('programa_partes')
+      .select('*')
+      .order('semana_id')
+      .order('numero_parte')
+      .order('id')
+  )
 }
 
 export async function fetchAsignacionesList() {
-  const { data, error } = await supabase.from('programa_asignaciones').select('*')
-  if (error) throw error
-  return data || []
+  return fetchAllRows(() =>
+    supabase.from('programa_asignaciones').select('*').order('id')
+  )
 }
 
 export async function fetchProgramaBundle() {
@@ -215,15 +228,30 @@ export function useUsuariosQuery(options = {}) {
   })
 }
 
-export async function fetchHistorialCambios({ operation = 'ALL', limit = 50 } = {}) {
+export async function fetchHistorialCambios({
+  operation = 'ALL',
+  limit = 50,
+  usuarioEmail = 'ALL',
+  tabla = 'ALL',
+} = {}) {
   let query = supabase
     .from('historial_cambios')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (operation !== 'ALL') {
+  if (operation && operation !== 'ALL') {
     query = query.eq('operacion', operation)
+  }
+
+  if (tabla && tabla !== 'ALL') {
+    query = query.eq('tabla', tabla)
+  }
+
+  if (usuarioEmail === '__SISTEMA__') {
+    query = query.is('usuario_email', null)
+  } else if (usuarioEmail && usuarioEmail !== 'ALL') {
+    query = query.ilike('usuario_email', usuarioEmail)
   }
 
   const { data, error } = await query
@@ -231,10 +259,13 @@ export async function fetchHistorialCambios({ operation = 'ALL', limit = 50 } = 
   return data || []
 }
 
-export function useHistorialCambiosQuery({ operation = 'ALL', limit = 50 } = {}, options = {}) {
+export function useHistorialCambiosQuery(
+  { operation = 'ALL', limit = 50, usuarioEmail = 'ALL', tabla = 'ALL' } = {},
+  options = {}
+) {
   return useQuery({
-    queryKey: QUERY_KEYS.historialCambios(operation, limit),
-    queryFn: () => fetchHistorialCambios({ operation, limit }),
+    queryKey: QUERY_KEYS.historialCambios(operation, limit, usuarioEmail, tabla),
+    queryFn: () => fetchHistorialCambios({ operation, limit, usuarioEmail, tabla }),
     ...options,
   })
 }

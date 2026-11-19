@@ -152,6 +152,51 @@ export function usePersonasController({
     return map
   }, [participaciones, currentYear])
 
+  const coolingPorClave = useMemo(() => {
+    const hoy = new Date()
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59)
+    const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+    const ultimaPorClave = new Map()
+
+    for (const part of participaciones) {
+      if (!part?.clave || !part?.fecha || part.fecha > hoyIso) continue
+      const parsed = new Date(`${part.fecha}T12:00:00`)
+      if (Number.isNaN(parsed.getTime())) continue
+      const prev = ultimaPorClave.get(part.clave)
+      if (!prev || parsed > prev) {
+        ultimaPorClave.set(part.clave, parsed)
+      }
+    }
+
+    const res = {}
+    for (const p of personas) {
+      const lastDate = ultimaPorClave.get(p.clave)
+      if (!lastDate) {
+        res[p.clave] = { estado: 'Listo', variant: 'success', detalle: 'Sin registros recientes' }
+        continue
+      }
+      const diffDays = Math.max(0, Math.floor((hoyMid - lastDate) / (1000 * 60 * 60 * 24)))
+      if (diffDays >= 30) {
+        const texto =
+          diffDays >= 60 ? `hace ${Math.floor(diffDays / 30)} m` : `hace ${Math.floor(diffDays / 7)} sem`
+        res[p.clave] = { estado: 'Listo', variant: 'success', detalle: texto }
+      } else if (diffDays >= 15) {
+        res[p.clave] = {
+          estado: 'Reciente',
+          variant: 'warning',
+          detalle: `hace ${Math.max(2, Math.floor(diffDays / 7))} sem`,
+        }
+      } else {
+        res[p.clave] = {
+          estado: 'Muy reciente',
+          variant: 'danger',
+          detalle: diffDays === 0 ? 'hoy' : `hace ${diffDays} d`,
+        }
+      }
+    }
+    return res
+  }, [personas, participaciones])
+
   const handleSort = useCallback(
     field => {
       if (sortField === field) {
@@ -453,6 +498,7 @@ export function usePersonasController({
     inactiveCount,
     currentYear,
     conteosAnio,
+    coolingPorClave,
     sheetOpen,
     editClave,
     form,

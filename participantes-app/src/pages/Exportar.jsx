@@ -565,7 +565,7 @@ export default function Exportar() {
       {/* ── HEADER ── */}
       <div>
         <div className="flex items-center gap-2.5">
-          <h1 className="text-xl font-semibold tracking-tight text-text1">
+          <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
             Exportar e Importar
           </h1>
           <Badge variant="neutral" size="sm">
@@ -582,11 +582,11 @@ export default function Exportar() {
         {/* COLUMNA 1: EXPORTACIÓN Y BACKUPS */}
         <div className="space-y-5">
           {/* Card 1: Participantes CSV */}
-          <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-semibold text-text1">
+                <FileSpreadsheet className="w-4 h-4 text-accent" />
+                <h3 className="font-display text-base font-medium text-text1">
                   Catálogo de Participantes
                 </h3>
               </div>
@@ -596,7 +596,7 @@ export default function Exportar() {
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-surface-alt/70 border border-border">
                 <div>
                   <strong className="text-text1 block">Padrón Completo</strong>
                   <span className="text-[11px] text-text3 font-mono">
@@ -638,11 +638,11 @@ export default function Exportar() {
           </div>
 
           {/* Card 2: Participaciones CSV */}
-          <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <h3 className="text-sm font-semibold text-text1">
+                <h3 className="font-display text-base font-medium text-text1">
                   Historial de Participaciones
                 </h3>
               </div>
@@ -663,7 +663,7 @@ export default function Exportar() {
 
             <div className="space-y-3 text-xs">
               {/* Filtro Rango de Meses */}
-              <div className="p-3 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 space-y-2">
+              <div className="p-3 rounded-xl bg-surface-alt/70 border border-border space-y-2">
                 <span className="font-medium text-text2 block text-xs">
                   Filtrar rango de meses (opcional):
                 </span>
@@ -695,7 +695,7 @@ export default function Exportar() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-surface-alt/70 border border-border">
                 <div>
                   <strong className="text-text1 block">Todas las asignaciones</strong>
                   <span className="text-[11px] text-text3 font-mono">
@@ -737,11 +737,11 @@ export default function Exportar() {
           </div>
 
           {/* Card 3: Backups SQL / JSON */}
-          <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <h3 className="text-sm font-semibold text-text1">
+                <h3 className="font-display text-base font-medium text-text1">
                   Copia de Seguridad Avanzada
                 </h3>
               </div>
@@ -751,7 +751,7 @@ export default function Exportar() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between gap-3">
+              <div className="p-3 rounded-xl bg-surface-alt/70 border border-border flex flex-col justify-between gap-3">
                 <div>
                   <strong className="text-text1 block">Sentencias SQL INSERT</strong>
                   <p className="text-[11px] text-text3 mt-0.5">
@@ -769,7 +769,7 @@ export default function Exportar() {
                 </Button>
               </div>
 
-              <div className="p-3 rounded-lg bg-zinc-50/80 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between gap-3">
+              <div className="p-3 rounded-xl bg-surface-alt/70 border border-border flex flex-col justify-between gap-3">
                 <div>
                   <strong className="text-text1 block">Respaldo JSON</strong>
                   <p className="text-[11px] text-text3 mt-0.5">
@@ -793,11 +793,11 @@ export default function Exportar() {
         {/* COLUMNA 2: IMPORTACIÓN Y ESQUEMA */}
         <div className="space-y-5">
           {/* Card 4: Importador Drag & Drop */}
-          <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-semibold text-text1">
+                <Upload className="w-4 h-4 text-accent" />
+                <h3 className="font-display text-base font-medium text-text1">
                   Importar Archivos CSV
                 </h3>
               </div>
@@ -812,8 +812,8 @@ export default function Exportar() {
                 {...dropPropsPart}
                 className={`p-4 rounded-xl border border-dashed transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   isDraggingPart
-                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20'
-                    : 'border-zinc-300 dark:border-zinc-700/80 bg-zinc-50/50 dark:bg-zinc-900/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/80'
+                    ? 'border-accent bg-accent-muted-bg ring-2 ring-accent/20'
+                    : 'border-border bg-surface-alt/50 hover:bg-surface-alt'
                 }`}
               >
                 <div>
@@ -854,8 +854,8 @@ export default function Exportar() {
                 {...dropPropsPartic}
                 className={`p-4 rounded-xl border border-dashed transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                   isDraggingPartic
-                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20'
-                    : 'border-zinc-300 dark:border-zinc-700/80 bg-zinc-50/50 dark:bg-zinc-900/40 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/80'
+                    ? 'border-accent bg-accent-muted-bg ring-2 ring-accent/20'
+                    : 'border-border bg-surface-alt/50 hover:bg-surface-alt'
                 }`}
               >
                 <div>
@@ -894,11 +894,11 @@ export default function Exportar() {
           </div>
 
           {/* Card 5: Esquema SQL de Referencia */}
-          <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+          <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-border/80">
               <div className="flex items-center gap-2">
                 <FileCode className="w-4 h-4 text-text3" />
-                <h3 className="text-sm font-semibold text-text1">
+                <h3 className="font-display text-base font-medium text-text1">
                   Esquema SQL de la Base de Datos
                 </h3>
               </div>
@@ -906,7 +906,7 @@ export default function Exportar() {
                 Postgres Schema
               </Badge>
             </div>
-            <pre className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800 font-mono text-[11px] text-zinc-600 dark:text-zinc-400 overflow-x-auto leading-relaxed">
+            <pre className="p-3.5 rounded-xl bg-surface-alt border border-border font-mono text-[11px] text-text2 overflow-x-auto leading-relaxed">
 {`CREATE TABLE personas (
   clave    VARCHAR(10)  PRIMARY KEY,
   lista    VARCHAR(10)  NOT NULL,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Calendar,
   CalendarDays,
@@ -7,14 +7,9 @@ import {
   FileDown,
   BookOpen,
   Music,
-  Check,
   RotateCcw,
   Clock,
-  Layers,
-  ArrowRight,
   Sparkles,
-  Info,
-  Loader2,
   AlertCircle,
 } from 'lucide-react'
 import {
@@ -27,11 +22,15 @@ import {
 import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
 import {
   formatFechaLegible,
-  formatRangoSemanaLegible,
   formatRangoSemanaPrograma,
+  getHoyLocalIso,
   getImpactoEventoSemana,
   MESES,
 } from '../lib/fechas'
+import {
+  buildSemanasConParticipaciones,
+  buildPartesVirtualesDeSemana,
+} from '../lib/semanasFallback'
 import { useToast } from '../hooks/useToast'
 import { useEventosReunion } from '../hooks/useEventosReunion'
 import { useConfiguracion } from '../hooks/useConfiguracion'
@@ -40,7 +39,6 @@ import Toast from '../components/Toast'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Select } from '../components/ui/Select'
-import { Tooltip } from '../components/ui/Tooltip'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkeletonBlock } from '../components/Skeleton'
 
@@ -56,16 +54,22 @@ const TIPO_LABEL = {
   P: 'Presidente',
   ORACION: 'Oración apertura',
   ORACION_C: 'Oración cierre',
+  OC: 'Oración cierre',
   CONCLU: 'Palabras de conclusión',
   TB: 'Tesoros de la Biblia',
   PE: 'Perlas escondidas',
   LB: 'Lectura de la Biblia',
+  T: 'Titular (SMT)',
+  A: 'Ayudante (SMT)',
+  X: 'Participación',
+  DSC: 'Discurso',
   SMT_EST: 'Estudiante',
   SMT_EXP: 'Explique sus creencias',
   SMT_DSC: 'Discurso',
   SMT_AYU: 'Ayudante',
   VC: 'Vida Cristiana',
   NC: 'Nec. de la congregación',
+  EBC: 'Estudio bíblico',
   EBC_CON: 'Conductor EBC',
   LEBC: 'Lector EBC',
   SMT_VACIO: '—',
@@ -75,16 +79,22 @@ const TIPO_COLOR = {
   P: 'bg-purple-50 text-purple-800 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
   ORACION: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
   ORACION_C: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
+  OC: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
   CONCLU: 'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/60',
   TB: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
   PE: 'bg-rose-50 text-rose-800 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40',
   LB: 'bg-cyan-50 text-cyan-800 border-cyan-200/80 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800/40',
+  T: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
+  A: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
+  X: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
+  DSC: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
   SMT_EST: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
   SMT_EXP: 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
   SMT_DSC: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
   SMT_AYU: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
   VC: 'bg-teal-50 text-teal-800 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
   NC: 'bg-red-50 text-red-800 border-red-200/80 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40',
+  EBC: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
   EBC_CON: 'bg-orange-50 text-orange-800 border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40',
   LEBC: 'bg-pink-50 text-pink-800 border-pink-200/80 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/40',
   SMT_VACIO: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-200/60 dark:border-zinc-700/60',
@@ -239,25 +249,27 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     ])
   }, [])
 
+  const semanasUnificadas = useMemo(
+    () => buildSemanasConParticipaciones(semanas, participaciones),
+    [semanas, participaciones]
+  )
+
   // ── Extraer Años Disponibles ───────────────────────────────────
   const aniosDisponibles = useMemo(() => {
     const yearsSet = new Set()
-    semanas.forEach(s => {
+    semanasUnificadas.forEach(s => {
       if (s.anio) yearsSet.add(String(s.anio))
       else if (s.fecha_inicio) yearsSet.add(String(s.fecha_inicio).slice(0, 4))
     })
-    participaciones.forEach(p => {
-      if (p.fecha) yearsSet.add(String(p.fecha).slice(0, 4))
-    })
     if (yearsSet.size === 0) yearsSet.add(String(new Date().getFullYear()))
     return Array.from(yearsSet).sort((a, b) => Number(b) - Number(a))
-  }, [semanas, participaciones])
+  }, [semanasUnificadas])
 
   // Inicializar Año
   useEffect(() => {
     if (aniosDisponibles.length > 0 && !selectedYear) {
       if (initialSemanaId) {
-        const found = semanas.find(s => s.id === initialSemanaId)
+        const found = semanasUnificadas.find(s => s.id === initialSemanaId)
         if (found) {
           const y = found.anio || (found.fecha_inicio ? String(found.fecha_inicio).slice(0, 4) : null)
           if (y) {
@@ -273,13 +285,13 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
         setSelectedYear(aniosDisponibles[0])
       }
     }
-  }, [aniosDisponibles, selectedYear, initialSemanaId, semanas, config?.anioEnCurso])
+  }, [aniosDisponibles, selectedYear, initialSemanaId, semanasUnificadas, config?.anioEnCurso])
 
   // ── Extraer Meses Disponibles para el Año Seleccionado ──────────
   const mesesDisponibles = useMemo(() => {
     if (!selectedYear) return []
     const monthsSet = new Set()
-    semanas.forEach(s => {
+    semanasUnificadas.forEach(s => {
       const sYear = s.anio ? String(s.anio) : (s.fecha_inicio ? String(s.fecha_inicio).slice(0, 4) : '')
       if (sYear === String(selectedYear)) {
         if (s.mes && MESES.includes(s.mes)) {
@@ -292,13 +304,13 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     })
     // Ordenar los meses en orden cronológico
     return MESES.filter(m => monthsSet.has(m))
-  }, [semanas, selectedYear])
+  }, [semanasUnificadas, selectedYear])
 
   // Inicializar Mes
   useEffect(() => {
     if (mesesDisponibles.length > 0) {
       if (initialSemanaId && !selectedMonth) {
-        const found = semanas.find(s => s.id === initialSemanaId)
+        const found = semanasUnificadas.find(s => s.id === initialSemanaId)
         if (found) {
           let m = found.mes
           if (!m && found.fecha_inicio) {
@@ -321,12 +333,12 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     } else {
       setSelectedMonth('')
     }
-  }, [mesesDisponibles, selectedMonth, initialSemanaId, semanas])
+  }, [mesesDisponibles, selectedMonth, initialSemanaId, semanasUnificadas])
 
   // ── Filtrar Semanas por Año y Mes ──────────────────────────────
   const semanasFiltradas = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
-    return semanas.filter(s => {
+    return semanasUnificadas.filter(s => {
       const sYear = s.anio ? String(s.anio) : (s.fecha_inicio ? String(s.fecha_inicio).slice(0, 4) : '')
       let sMes = s.mes
       if (!sMes && s.fecha_inicio) {
@@ -334,7 +346,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
       }
       return sYear === String(selectedYear) && sMes === selectedMonth
     })
-  }, [semanas, selectedYear, selectedMonth])
+  }, [semanasUnificadas, selectedYear, selectedMonth])
 
   // Inicializar y seleccionar semana activa
   useEffect(() => {
@@ -344,8 +356,8 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
         return
       }
       if (!selectedSemanaId || !semanasFiltradas.some(s => s.id === selectedSemanaId)) {
-        // Encontrar si alguna semana coincide con hoy
-        const hoyIso = new Date().toISOString().slice(0, 10)
+        // Encontrar si alguna semana coincide con hoy (hora local)
+        const hoyIso = getHoyLocalIso()
         const matchHoy = semanasFiltradas.find(s => {
           const ini = String(s.fecha_inicio || '').slice(0, 10)
           const fin = String(s.fecha_fin || '').slice(0, 10)
@@ -360,29 +372,64 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
 
   // Semana activa actual
   const semanaActiva = useMemo(() => {
-    return semanas.find(s => s.id === selectedSemanaId) || null
-  }, [semanas, selectedSemanaId])
+    return semanasUnificadas.find(s => s.id === selectedSemanaId) || null
+  }, [semanasUnificadas, selectedSemanaId])
+
+  const virtualSemanaData = useMemo(
+    () => (semanaActiva?.isVirtual ? buildPartesVirtualesDeSemana(semanaActiva) : null),
+    [semanaActiva]
+  )
 
   // Partes de la semana activa
   const partesSemanaActiva = useMemo(() => {
     if (!semanaActiva) return []
+    if (virtualSemanaData) return virtualSemanaData.partes
     return partes.filter(p => p.semana_id === semanaActiva.id)
-  }, [partes, semanaActiva])
+  }, [partes, semanaActiva, virtualSemanaData])
 
-  // Índice de semana dentro de las filtradas
-  const activeIndex = semanasFiltradas.findIndex(s => s.id === selectedSemanaId)
+  const asignacionesActivas = useMemo(
+    () => (virtualSemanaData ? virtualSemanaData.asignaciones : asignaciones),
+    [virtualSemanaData, asignaciones]
+  )
+
+  // Índice de semana dentro de la lista completa ordenada
+  const semanasOrdenadas = useMemo(() => {
+    // Ordenar todas las semanas unificadas por fecha de inicio
+    return [...semanasUnificadas].sort((a, b) => {
+      const aDate = new Date((a.fecha_inicio || a.fecha_fin) + 'T00:00:00');
+      const bDate = new Date((b.fecha_inicio || b.fecha_fin) + 'T00:00:00');
+      return aDate - bDate;
+    });
+  }, [semanasUnificadas]);
+
+  const activeIndex = semanasOrdenadas.findIndex(s => s.id === selectedSemanaId)
+
+  function irASemana(target) {
+    if (!target) return
+    const year = target.anio
+      ? String(target.anio)
+      : target.fecha_inicio
+        ? String(target.fecha_inicio).slice(0, 4)
+        : ''
+    const month =
+      target.mes && MESES.includes(target.mes)
+        ? target.mes
+        : target.fecha_inicio
+          ? MESES[new Date(target.fecha_inicio + 'T12:00:00').getMonth()]
+          : ''
+    triggerTransition()
+    setSelectedYear(year)
+    setSelectedMonth(month)
+    setSelectedSemanaId(target.id)
+  }
 
   function handlePrevWeek() {
-    if (activeIndex > 0) {
-      triggerTransition()
-      setSelectedSemanaId(semanasFiltradas[activeIndex - 1].id)
-    }
+    if (activeIndex > 0) irASemana(semanasOrdenadas[activeIndex - 1])
   }
 
   function handleNextWeek() {
-    if (activeIndex < semanasFiltradas.length - 1) {
-      triggerTransition()
-      setSelectedSemanaId(semanasFiltradas[activeIndex + 1].id)
+    if (activeIndex >= 0 && activeIndex < semanasOrdenadas.length - 1) {
+      irASemana(semanasOrdenadas[activeIndex + 1])
     }
   }
 
@@ -427,7 +474,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     let confirmadas = 0
 
     partesContables.forEach(p => {
-      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+      const asigP = asignacionesActivas.find(a => a.parte_id === p.id && a.rol === 'principal')
       if (asigP?.clave) {
         asignadas++
         if (asigP.confirmado) {
@@ -436,6 +483,9 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
       }
     })
 
+    if (semanaActiva.isVirtual) {
+      return { texto: 'Registros (sin EPUB)', variant: 'info', total, asignadas, confirmadas }
+    }
     if (asignadas === total) {
       return { texto: 'Completa', variant: 'success', total, asignadas, confirmadas }
     } else if (asignadas > 0) {
@@ -443,7 +493,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     } else {
       return { texto: 'Sin asignar', variant: 'neutral', total, asignadas, confirmadas }
     }
-  }, [semanaActiva, partesSemanaActiva, asignaciones, impactoSemana])
+  }, [semanaActiva, partesSemanaActiva, asignacionesActivas, impactoSemana])
 
   // ── Exportar S-140 de esta semana ─────────────────────────────
   async function handleExportarS140Semana() {
@@ -494,15 +544,32 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
     )
   }
 
+  const getInitials = (nombre = '') =>
+    String(nombre)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0]?.toUpperCase() || '')
+      .join('') || '?'
+
+  const SECCION_DOT = {
+    APERTURA: 'bg-zinc-400 dark:bg-zinc-500',
+    TB: 'bg-teal-500',
+    SMT: 'bg-amber-500',
+    VC: 'bg-rose-500',
+    CIERRE: 'bg-zinc-400 dark:bg-zinc-500',
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <Toast toast={toast} />
 
       {/* ── ENCABEZADO DE LA VISTA ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/80 dark:border-zinc-800/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Vista Semanal
             </h1>
             <Badge variant="neutral" size="sm">
@@ -528,7 +595,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
       </div>
 
       {/* ── BARRA SUPERIOR DE CONTROLES TEMPORALES ── */}
-      <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl bg-surface border border-border shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Selectores de Año y Mes */}
         <div className="flex items-center gap-3">
           {/* Selector de Año */}
@@ -588,8 +655,8 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
           </Button>
 
           {/* Label Central del Rango y Estado */}
-          <div className="flex items-center gap-2.5 px-3 py-1 bg-zinc-100/80 dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800 rounded-lg min-w-0">
-            <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2.5 px-3 py-1 bg-surface-alt border border-border rounded-lg min-w-0">
+            <Calendar className="w-4 h-4 text-accent shrink-0" />
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-xs font-semibold text-text1 truncate">
                 {semanaActiva
@@ -606,7 +673,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
             variant="secondary"
             size="sm"
             iconRight={ChevronRight}
-            disabled={activeIndex === -1 || activeIndex >= semanasFiltradas.length - 1}
+            disabled={activeIndex >= semanasOrdenadas.length - 1}
             onClick={handleNextWeek}
             aria-label="Semana siguiente"
           >
@@ -619,7 +686,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
       {isTransitioning ? (
         <SkeletonSemana />
       ) : !semanaActiva || partesSemanaActiva.length === 0 ? (
-        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-12 px-6 shadow-2xs animate-view-fade">
+        <div className="bg-surface border border-border rounded-2xl py-12 px-6 shadow-2xs animate-view-fade">
           <EmptyState
             icon={CalendarDays}
             title="No hay datos para la semana seleccionada"
@@ -637,16 +704,16 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
           />
         </div>
       ) : (
-        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xs animate-view-fade">
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs animate-view-fade">
           {/* Cabecera de la Semana Activa */}
-          <div className="p-4 sm:p-5 bg-zinc-50/70 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 sm:p-5 bg-surface-alt/60 border-b border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-text1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-display text-lg font-medium text-text1 tracking-tight">
                   Semana del {formatRangoSemanaPrograma(semanaActiva.fecha_inicio, semanaActiva.fecha_fin)}
                 </span>
                 <span className="font-mono text-xs text-text3">
-                  (Semana {activeIndex + 1} de {semanasFiltradas.length} en {selectedMonth})
+                  (Semana {activeIndex + 1} de {semanasOrdenadas.length} en {selectedMonth})
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-text3 font-mono">
@@ -675,7 +742,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
                   .map((c, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded-md border border-zinc-200/80 dark:border-zinc-700/60"
+                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-surface text-text2 px-2 py-0.5 rounded-md border border-border"
                     >
                       <Music className="w-3 h-3 text-text3" />
                       <span>
@@ -731,19 +798,22 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
 
                 return (
                   <div key={sec} className="space-y-2.5">
-                    <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-                      <span>{SECCION_LABEL[sec]}</span>
+                    <div className="text-[11px] font-mono font-semibold text-text2 uppercase tracking-wider pb-1.5 border-b border-border/80 flex items-center justify-between">
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${SECCION_DOT[sec] || 'bg-zinc-400'}`} />
+                        <span>{SECCION_LABEL[sec]}</span>
+                      </span>
                       <span className="text-[10px] font-normal text-text3">
                         {partesSeccion.length} {partesSeccion.length === 1 ? 'parte' : 'partes'}
                       </span>
                     </div>
 
-                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl overflow-hidden bg-zinc-50/30 dark:bg-zinc-900/20">
+                    <div className="divide-y divide-border/60 border border-border rounded-xl overflow-hidden bg-surface-alt/35">
                       {partesSeccion.map(parte => {
-                        const asigP = asignaciones.find(
+                        const asigP = asignacionesActivas.find(
                           a => a.parte_id === parte.id && a.rol === 'principal'
                         )
-                        const asigA = asignaciones.find(
+                        const asigA = asignacionesActivas.find(
                           a => a.parte_id === parte.id && a.rol === 'ayudante'
                         )
 
@@ -759,7 +829,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
                         return (
                           <div
                             key={parte.id}
-                            className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/50 transition-colors text-xs"
+                            className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-alt/70 transition-colors text-xs"
                           >
                             {/* Izquierda: Número, Título y Badge de Tipo */}
                             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -774,10 +844,10 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
                               </span>
 
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-text1 truncate" title={parte.titulo}>
+                                <div className="font-medium text-text1 line-clamp-2 leading-snug break-words" title={parte.titulo}>
                                   {parte.titulo || TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
                                 </div>
-                                <div className="text-[11px] text-text3 font-mono">
+                                <div className="text-[11px] text-text3 font-mono mt-0.5">
                                   {TIPO_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion}
                                   {parte.duracion_min ? ` · ${parte.duracion_min} min` : ''}
                                 </div>
@@ -785,36 +855,46 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
                             </div>
 
                             {/* Derecha: Participantes Asignados y Badge de Estado */}
-                            <div className="flex items-center gap-4 justify-between sm:justify-end shrink-0 pl-9 sm:pl-0">
-                              <div className="flex flex-col items-start sm:items-end min-w-0">
-                                <span
-                                  className={`text-xs ${
-                                    personaP ? 'font-medium text-text1' : 'text-text3 italic'
-                                  }`}
-                                >
-                                  {personaP ? personaP.nombre : '— Sin asignar'}
-                                </span>
-                                {personaA && (
-                                  <span className="text-[11px] text-text3 flex items-center gap-1">
-                                    <span className="text-text3/70">↳</span>
-                                    <span>{personaA.nombre}</span>
+                            <div className="flex items-center gap-3 justify-between sm:justify-end shrink-0 pl-9 sm:pl-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {personaP && (
+                                  <span className="w-6 h-6 rounded-full bg-accent-muted-bg border border-accent-muted-border text-[10px] font-semibold text-accent-muted-text flex items-center justify-center shrink-0">
+                                    {getInitials(personaP.nombre)}
                                   </span>
                                 )}
+                                <div className="flex flex-col items-start sm:items-end min-w-0">
+                                  <span
+                                    className={`text-xs ${
+                                      personaP ? 'font-medium text-text1' : 'text-text3 italic'
+                                    }`}
+                                  >
+                                    {personaP
+                                      ? personaA
+                                        ? `${personaP.nombre} y ${personaA.nombre}`
+                                        : personaP.nombre
+                                      : '— Sin asignar'}
+                                  </span>
+                                  {personaP && parte.requiere_ayudante && !personaA && (
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                                      Falta ayudante
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Badge de Confirmación */}
                               {!isSoloVisual ? (
                                 isConfirmado ? (
                                   <Badge variant="success" size="xs" dot>
-                                    Confirmado
+                                    ✓ Confirmado
                                   </Badge>
                                 ) : asigP?.clave ? (
                                   <Badge variant="warning" size="xs" dot>
-                                    Pendiente
+                                    ◷ Por confirmar
                                   </Badge>
                                 ) : (
                                   <Badge variant="neutral" size="xs">
-                                    Sin asignar
+                                    — Sin asignar
                                   </Badge>
                                 )
                               ) : (
@@ -834,7 +914,7 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
           )}
 
           {/* ── FOOTER DE LA VISTA ── */}
-          <div className="p-4 sm:p-5 bg-zinc-50/70 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="p-4 sm:p-5 bg-surface-alt/60 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-xs text-text2">
               <span className="font-mono font-medium text-text1">
                 {impactoSemana?.cancelaEntreSemana
@@ -857,7 +937,8 @@ export default function VistaSemanal({ onNavigate, initialSemanaId = null }) {
               size="sm"
               icon={FileDown}
               loading={exportingDocx}
-              disabled={!impactoSemana?.cancelaEntreSemana && estadoSemana.confirmadas === 0}
+              disabled={Boolean(semanaActiva?.isVirtual) || (!impactoSemana?.cancelaEntreSemana && estadoSemana.confirmadas === 0)}
+              title={semanaActiva?.isVirtual ? 'Requiere importar el archivo EPUB del mes para exportar S-140' : undefined}
               onClick={handleExportarS140Semana}
             >
               Exportar S-140 de esta semana (.docx)

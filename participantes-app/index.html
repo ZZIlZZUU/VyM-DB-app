@@ -8,10 +8,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..600&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" id="app-theme-color" content="#09090B" />
+    <meta name="theme-color" id="app-theme-color" content="#12100E" />
     <meta name="description" content="Gestión de participaciones para reuniones de congregación" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -19,17 +19,52 @@
     <title>VyM-DB Participantes</title>
     <!-- Anti-FOUC Theme Script & Baseline Background Styles -->
     <style>
-      html { background-color: #F8FAFC; }
-      html.dark { background-color: #09090B; }
+      html { background-color: #F5F0E6; }
+      html[data-theme="light-contraste"] { background-color: #FFFFFF; }
+      html[data-theme="light-mono"] { background-color: #F4F4F5; }
+      html.dark { background-color: #12100E; }
+      html.dark[data-theme="dark-oled"] { background-color: #000000; }
+      html.dark[data-theme="dark-mono"] { background-color: #111113; }
       body { margin: 0; background-color: inherit; }
     </style>
     <script>
       (function() {
         try {
-          var saved = localStorage.getItem('theme');
+          var THEME_COLORS = {
+            'light-calido': '#F5F0E6',
+            'light-contraste': '#FFFFFF',
+            'light-mono': '#F4F4F5',
+            'dark-calido': '#12100E',
+            'dark-oled': '#000000',
+            'dark-mono': '#111113'
+          };
+          var FAMILY_MAP = {
+            calido: { light: 'light-calido', dark: 'dark-calido' },
+            contraste: { light: 'light-contraste', dark: 'dark-oled' },
+            mono: { light: 'light-mono', dark: 'dark-mono' }
+          };
+          var savedId = localStorage.getItem('theme_id');
+          var modePref = localStorage.getItem('theme_mode_pref');
+          var legacy = localStorage.getItem('theme');
           var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var isDark = saved === 'dark' || (!saved && prefersDark);
+
+          var themeId = 'light-calido';
+          if (modePref === 'system') {
+            var fam = savedId && THEME_COLORS[savedId]
+              ? (savedId.indexOf('contraste') !== -1 || savedId.indexOf('oled') !== -1 ? 'contraste' : savedId.indexOf('mono') !== -1 ? 'mono' : 'calido')
+              : 'calido';
+            themeId = FAMILY_MAP[fam][prefersDark ? 'dark' : 'light'];
+          } else if (savedId && THEME_COLORS[savedId]) {
+            themeId = savedId;
+          } else if (legacy === 'dark' || legacy === 'light') {
+            themeId = legacy === 'dark' ? 'dark-calido' : 'light-calido';
+          } else {
+            themeId = prefersDark ? 'dark-calido' : 'light-calido';
+          }
+
+          var isDark = themeId.indexOf('dark-') === 0;
           var root = document.documentElement;
+          root.setAttribute('data-theme', themeId);
           if (isDark) {
             root.classList.add('dark');
             root.style.colorScheme = 'dark';
@@ -37,9 +72,18 @@
             root.classList.remove('dark');
             root.style.colorScheme = 'light';
           }
+          if (localStorage.getItem('pref_density') === 'compact') {
+            root.classList.add('density-compact');
+          }
+          if (localStorage.getItem('pref_font_size') === 'large') {
+            root.classList.add('text-scale-large');
+          }
+          if (localStorage.getItem('pref_reduce_motion') === 'true') {
+            root.classList.add('reduce-motion');
+          }
           var meta = document.getElementById('app-theme-color');
           if (meta) {
-            meta.setAttribute('content', isDark ? '#09090B' : '#F8FAFC');
+            meta.setAttribute('content', THEME_COLORS[themeId] || (isDark ? '#12100E' : '#F5F0E6'));
           }
         } catch (_) {}
       })();

@@ -5,13 +5,13 @@ const VARIANTS = {
   default:
     'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-2xs border border-transparent',
   secondary:
-    'bg-zinc-100 text-zinc-900 hover:bg-zinc-200/80 dark:bg-zinc-800/90 dark:text-zinc-100 dark:hover:bg-zinc-700/80 border border-zinc-200/60 dark:border-zinc-700/60',
+    'bg-surface-alt text-text1 hover:bg-border/60 border border-border',
   outline:
-    'bg-transparent text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/60 border border-zinc-300 dark:border-zinc-700/80',
+    'bg-surface text-text1 hover:bg-surface-alt border border-border2',
   ghost:
-    'bg-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100',
+    'bg-transparent text-text2 hover:bg-surface-alt hover:text-text1',
   accent:
-    'bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-900/80 dark:hover:bg-emerald-800 dark:text-emerald-100 dark:border dark:border-emerald-700/60 shadow-2xs',
+    'bg-accent text-accent-fg hover:bg-accent-hover shadow-2xs border border-transparent',
   danger:
     'bg-red-600 text-white hover:bg-red-700 dark:bg-red-900/80 dark:hover:bg-red-800 dark:text-red-100 dark:border dark:border-red-700/60 shadow-2xs',
   dangerGhost:

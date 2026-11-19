@@ -26,6 +26,7 @@ export function PersonasMobile({
   setSearchVal,
   currentYear,
   conteosAnio,
+  coolingPorClave,
   startEdit,
   toggleActivo,
 }) {
@@ -71,19 +72,23 @@ export function PersonasMobile({
 
       <div className="space-y-2">
         {filtered.map(p => {
-          const countAnio = conteosAnio.get(p.clave) || 0
+          const countAnio =
+            typeof conteosAnio?.get === 'function'
+              ? conteosAnio.get(p.clave) || 0
+              : conteosAnio?.[p.clave] || 0
+          const cool = coolingPorClave?.[p.clave]
           return (
             <div
               key={p.clave}
               onClick={() => startEdit(p, 'perfil')}
-              className={`bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl p-3 shadow-2xs transition-colors active:bg-zinc-50 dark:active:bg-zinc-900/60 cursor-pointer ${
+              className={`bg-surface border border-border rounded-2xl p-3.5 shadow-2xs transition-colors active:bg-surface-alt/80 cursor-pointer ${
                 !p.activo ? 'opacity-60' : ''
               }`}
             >
               <div className="flex items-center justify-between gap-2.5">
                 {/* Avatar + Nombre + Metadatos */}
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-text2 flex items-center justify-center text-xs font-semibold shrink-0 border border-zinc-300/60 dark:border-zinc-700/60">
+                  <div className="w-9 h-9 rounded-full bg-surface-alt text-text2 flex items-center justify-center text-xs font-semibold shrink-0 border border-border">
                     {getInitials(p.nombre)}
                   </div>
                   <div className="min-w-0">
@@ -101,12 +106,17 @@ export function PersonasMobile({
                       />
                     </div>
                     <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800/90 text-text2 border border-zinc-200/60 dark:border-zinc-700/60">
+                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.2 rounded bg-surface-alt text-text2 border border-border">
                         {p.clave}
                       </span>
                       <Badge variant={p.lista === 'Mat' ? 'info' : 'warning'} size="xs">
                         {p.estatus}
                       </Badge>
+                      {cool && (
+                        <Badge variant={cool.variant} size="xs">
+                          {cool.estado}
+                        </Badge>
+                      )}
                       <span className="text-[10px] font-mono text-text3">
                         · {countAnio} en {currentYear}
                       </span>

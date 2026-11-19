@@ -77,6 +77,8 @@ const MatrixRow = memo(function MatrixRow({
   total,
   maxRegistros,
   heatMap,
+  currentMonthIdx,
+  ultimaParticipacion,
   isRowHovered,
   hoveredCol,
   focusedCol,
@@ -93,8 +95,8 @@ const MatrixRow = memo(function MatrixRow({
     >
       {/* Columna Participante (Sticky Left) */}
       <td
-        className={`sticky left-0 z-20 px-3.5 py-2 border-r border-zinc-200 dark:border-zinc-800 shadow-[4px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-colors duration-150 ease-out ${
-          isRowHovered ? 'bg-zinc-100/90 dark:bg-zinc-800/90' : 'bg-surface'
+        className={`sticky left-0 z-20 px-3.5 py-2 border-r border-border shadow-[4px_0_12px_-2px_rgba(0,0,0,0.06)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-colors duration-150 ease-out ${
+          isRowHovered ? 'bg-surface-alt' : 'bg-surface'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
@@ -122,13 +124,27 @@ const MatrixRow = memo(function MatrixRow({
         const isColHovered = hoveredCol === mi
         const isKeyboardFocused = focusedCol === mi
         const isCellTarget = (isColHovered && isRowHovered) || isKeyboardFocused
+        const isFutureEmpty = mi > currentMonthIdx && recs.length === 0
         const visualClass = getCellVisualClass({
           recsCount: recs.length,
           isCellTarget,
           isColHovered,
           isRowHovered,
-          heatMap,
+          heatMap: false,
         })
+        const squircleStyle =
+          recs.length >= 3
+            ? 'bg-accent text-white border-accent shadow-2xs'
+            : recs.length === 2
+              ? 'bg-emerald-500/30 dark:bg-emerald-500/40 text-emerald-900 dark:text-emerald-100 border-emerald-500/45'
+              : 'bg-accent-muted-bg text-accent-muted-text border-accent-muted-border'
+
+        const tooltipText =
+          recs.length > 0
+            ? recs
+                .map(r => `${assignmentDayOfMonth(r.fecha)} ${r.tipo}: ${TIPO_LABEL[r.tipo] || ''}`)
+                .join(' · ')
+            : `${mes}: sin participaciones`
 
         return (
           <td
@@ -136,26 +152,24 @@ const MatrixRow = memo(function MatrixRow({
             data-matrix-cell={`${rowIdx}-${mi}`}
             onMouseEnter={() => onHoverCell(persona.clave, mi)}
             onClick={() => onClickCell(persona, rowIdx, mi)}
-            className={`relative px-1 py-1.5 text-center cursor-pointer transition-colors duration-150 ease-out border-r border-zinc-100/80 dark:border-zinc-800/50 min-h-[48px] h-12 ${visualClass}`}
+            title={tooltipText}
+            className={`relative px-1 py-1.5 text-center cursor-pointer transition-colors duration-150 ease-out border-r border-border/50 min-h-[48px] h-12 ${visualClass}`}
           >
             {recs.length === 0 ? (
-              <span className="inline-block w-1 h-1 rounded-full bg-zinc-300/60 dark:bg-zinc-700/60 select-none" />
+              isFutureEmpty ? (
+                <span className="inline-block w-6 h-6 rounded-lg border border-dashed border-border/80 align-middle" />
+              ) : (
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-zinc-300/80 dark:bg-zinc-700/70 select-none" />
+              )
             ) : (
-              <div className="flex flex-col items-center justify-center gap-1">
-                {recs.map(r => (
-                  <div
-                    key={r.id}
-                    className="inline-flex items-center gap-1 leading-none transition-transform duration-150 hover:scale-105"
-                  >
-                    <span className="font-mono text-[10px] text-text3 select-none">
-                      {assignmentDayOfMonth(r.fecha)}
-                    </span>
-                    <TypeBadge
-                      tipo={r.tipo}
-                      title={`${r.tipo}: ${TIPO_LABEL[r.tipo] || ''} (${r.fecha || mes})`}
-                    />
-                  </div>
-                ))}
+              <div className="flex items-center justify-center">
+                <span
+                  className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border text-xs font-mono font-semibold transition-transform duration-150 hover:scale-105 select-none ${squircleStyle} ${
+                    heatMap && recs.length > 0 ? 'ring-1 ring-emerald-500/30' : ''
+                  }`}
+                >
+                  {recs.length >= 3 ? `${recs.length}` : recs.length}
+                </span>
               </div>
             )}
           </td>
@@ -164,10 +178,8 @@ const MatrixRow = memo(function MatrixRow({
 
       {/* Columna Total */}
       <td
-        className={`px-2 py-2 text-center border-l border-zinc-200/80 dark:border-zinc-800/80 transition-colors duration-150 ease-out ${
-          isRowHovered
-            ? 'bg-zinc-100/80 dark:bg-zinc-800/60'
-            : 'bg-zinc-50/40 dark:bg-zinc-900/20'
+        className={`px-2 py-2 text-center border-l border-border transition-colors duration-150 ease-out ${
+          isRowHovered ? 'bg-surface-alt' : 'bg-surface-alt/40'
         }`}
       >
         <span
@@ -179,6 +191,19 @@ const MatrixRow = memo(function MatrixRow({
         >
           {total || '—'}
         </span>
+      </td>
+
+      {/* Columna Última Vez */}
+      <td className="px-3 py-2 text-right whitespace-nowrap border-l border-border/60">
+        {ultimaParticipacion?.alertaRezago ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/12 text-amber-800 dark:text-amber-300 border border-amber-500/25">
+            🕒 {ultimaParticipacion.textoUltimaVez}
+          </span>
+        ) : (
+          <span className="text-[11px] font-mono text-text3">
+            {ultimaParticipacion?.textoUltimaVez || '—'}
+          </span>
+        )}
       </td>
     </tr>
   )
@@ -193,6 +218,7 @@ export default function MatrizDesktop({
   handleResetFilters,
   getCeldaRegistros,
   getTotalPersona,
+  ultimaParticipacionPorClave,
   openCellModal,
 }) {
   const [hoveredCol, setHoveredCol] = useState(null)
@@ -275,7 +301,7 @@ export default function MatrizDesktop({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       aria-label="Cuadrícula anual de participaciones (usa las flechas del teclado para navegar y Enter para abrir)"
-      className="relative isolate rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-surface overflow-hidden shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+      className="relative isolate rounded-2xl border border-border bg-surface overflow-hidden shadow-2xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     >
       <div className="overflow-x-auto max-h-[calc(100vh-210px)]">
         <table
@@ -287,10 +313,10 @@ export default function MatrizDesktop({
             }
           }}
         >
-          <thead className="sticky top-0 z-30 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-xs border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
+          <thead className="sticky top-0 z-30 bg-surface-alt/95 backdrop-blur-xs border-b border-border text-text2 select-none">
             <tr>
               <th
-                className={`sticky left-0 top-0 z-40 w-64 min-w-[220px] px-3.5 py-2.5 font-mono text-[10px] uppercase tracking-wider bg-surface border-r border-zinc-200 dark:border-zinc-800 shadow-[4px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-colors duration-150 ease-out ${
+                className={`sticky left-0 top-0 z-40 w-60 min-w-[210px] px-3.5 py-2.5 font-mono text-[10px] uppercase tracking-wider bg-surface border-r border-border shadow-[4px_0_12px_-2px_rgba(0,0,0,0.06)] dark:shadow-[4px_0_14px_-2px_rgba(0,0,0,0.45)] transition-colors duration-150 ease-out ${
                   hoveredRow ? 'text-text1 font-bold' : ''
                 }`}
               >
@@ -303,37 +329,41 @@ export default function MatrizDesktop({
                 return (
                   <th
                     key={m}
-                    className={`px-1.5 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider transition-colors duration-150 ease-out border-r border-zinc-200/60 dark:border-zinc-800/60 ${
+                    className={`px-1 py-2 text-center font-mono text-[10px] uppercase tracking-wider transition-colors duration-150 ease-out border-r border-border/50 ${
                       isHovered
-                        ? heatMap
-                          ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-bold border-b-2 border-b-emerald-600 dark:border-b-emerald-400 shadow-[inset_0_-2px_0_0_rgba(16,185,129,0.8)]'
-                          : 'bg-zinc-200/60 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 font-bold border-b-2 border-b-zinc-400 dark:border-b-zinc-200 shadow-[inset_0_-2px_0_0_rgba(255,255,255,0.4)]'
+                        ? 'bg-accent-muted-bg text-accent-muted-text font-bold border-b-2 border-b-accent'
                         : isCurrent
-                          ? 'text-emerald-700 dark:text-emerald-300 font-bold border-b-2 border-b-emerald-500/60'
-                          : 'text-zinc-500 dark:text-zinc-400'
+                          ? 'text-accent-muted-text font-bold'
+                          : 'text-text3'
                     }`}
                   >
-                    <div className="flex items-center justify-center gap-1">
-                      <span>{m}</span>
-                      {isCurrent && (
-                        <span
-                          className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-500/20"
-                          title="Mes en curso"
-                        />
-                      )}
+                    <div className="flex items-center justify-center">
+                      <span
+                        className={
+                          isCurrent
+                            ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-muted-bg text-accent-muted-text border border-accent-muted-border'
+                            : ''
+                        }
+                        title={isCurrent ? 'Mes en curso' : undefined}
+                      >
+                        {m}
+                      </span>
                     </div>
                   </th>
                 )
               })}
-              <th className="w-16 min-w-14 px-2 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider bg-zinc-50/95 dark:bg-zinc-900/95 border-l border-zinc-200/80 dark:border-zinc-800/80">
+              <th className="w-16 min-w-14 px-2 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider bg-surface-alt border-l border-border">
                 Total
+              </th>
+              <th className="w-32 min-w-28 px-3 py-2.5 text-right font-mono text-[10px] uppercase tracking-wider bg-surface-alt border-l border-border/60">
+                Última vez
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+          <tbody className="divide-y divide-border/50">
             {activePersonas.length === 0 ? (
               <tr>
-                <td colSpan={14} className="py-12 px-4">
+                <td colSpan={15} className="py-12 px-4">
                   <EmptyState
                     icon={LayoutGrid}
                     title="Sin participantes para mostrar"
@@ -364,6 +394,8 @@ export default function MatrizDesktop({
                     total={getTotalPersona(p.clave)}
                     maxRegistros={maxRegistros}
                     heatMap={heatMap}
+                    currentMonthIdx={currentMonthIdx}
+                    ultimaParticipacion={ultimaParticipacionPorClave?.get(p.clave)}
                     isRowHovered={isRowHovered}
                     hoveredCol={activeColHighlight}
                     focusedCol={focusedCol}
@@ -376,6 +408,38 @@ export default function MatrizDesktop({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Leyenda editorial inferior */}
+      <div className="px-4 py-2.5 border-t border-border bg-surface-alt/50 flex flex-wrap items-center justify-between gap-3 text-[11px] text-text3 select-none">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-md bg-accent-muted-bg border border-accent-muted-border text-[9px] font-mono font-semibold text-accent-muted-text inline-flex items-center justify-center">
+              1
+            </span>
+            <span>1 participación</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-md bg-emerald-500/30 border border-emerald-500/45 text-[9px] font-mono font-semibold text-emerald-900 dark:text-emerald-100 inline-flex items-center justify-center">
+              2
+            </span>
+            <span>2 participaciones</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-md bg-accent border border-accent text-[9px] font-mono font-semibold text-white inline-flex items-center justify-center">
+              3+
+            </span>
+            <span>3 o más</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-md border border-dashed border-border inline-block" />
+            <span>Mes próximo</span>
+          </span>
+        </div>
+
+        <span className="inline-flex items-center gap-1 text-amber-800 dark:text-amber-300 font-medium">
+          🕒 2+ meses sin participación = prioridad de rotación
+        </span>
       </div>
     </div>
   )

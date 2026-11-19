@@ -404,10 +404,10 @@ export default function Configuracion({ onNavigate, initialTab }) {
       <Toast toast={toast} />
 
       {/* ── HEADER ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-800/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Ajustes de la Congregación
             </h1>
             <Badge variant="purple" size="sm" icon={Shield}>
@@ -444,14 +444,14 @@ export default function Configuracion({ onNavigate, initialTab }) {
       </div>
 
       {/* ── NAVEGACIÓN POR PESTAÑAS ── */}
-      <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-1">
+      <div className="flex items-center gap-2 border-b border-border pb-1">
         <button
           type="button"
           onClick={() => setActiveTab('general')}
           className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg transition-all cursor-pointer ${
             activeTab === 'general'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
-              : 'text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              ? 'bg-accent-muted-bg text-accent-muted-text font-semibold'
+              : 'text-text3 hover:text-text1 hover:bg-surface-alt'
           }`}
         >
           <Building2 className="w-4 h-4" />
@@ -463,8 +463,8 @@ export default function Configuracion({ onNavigate, initialTab }) {
           onClick={() => setActiveTab('horarios')}
           className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg transition-all cursor-pointer ${
             activeTab === 'horarios'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
-              : 'text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              ? 'bg-accent-muted-bg text-accent-muted-text font-semibold'
+              : 'text-text3 hover:text-text1 hover:bg-surface-alt'
           }`}
         >
           <Clock className="w-4 h-4" />
@@ -479,8 +479,8 @@ export default function Configuracion({ onNavigate, initialTab }) {
           onClick={() => setActiveTab('eventos')}
           className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg transition-all cursor-pointer ${
             activeTab === 'eventos'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
-              : 'text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              ? 'bg-accent-muted-bg text-accent-muted-text font-semibold'
+              : 'text-text3 hover:text-text1 hover:bg-surface-alt'
           }`}
         >
           <CalendarDays className="w-4 h-4" />
@@ -501,13 +501,13 @@ export default function Configuracion({ onNavigate, initialTab }) {
           <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Identidad */}
-            <div className="p-5 rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-              <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-border/80">
+                <div className="w-8 h-8 rounded-lg bg-accent-muted-bg text-accent flex items-center justify-center shrink-0">
                   <Building2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-text1">Identidad de la Congregación</h3>
+                  <h3 className="font-display text-base font-medium text-text1">Identidad de la Congregación</h3>
                   <p className="text-[11px] text-text3">Datos oficiales impresos en el S-140 y reportes</p>
                 </div>
               </div>
@@ -587,13 +587,13 @@ export default function Configuracion({ onNavigate, initialTab }) {
             {/* Días y Salón */}
             <div className="space-y-5">
               {/* Días base */}
-              <div className="p-5 rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-                <div className="flex items-center gap-2.5 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-border/80">
                   <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                     <Calendar className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-text1">Días de Reunión Base</h3>
+                    <h3 className="font-display text-base font-medium text-text1">Días de Reunión Base</h3>
                     <p className="text-[11px] text-text3">Agenda semanal ordinaria de la congregación</p>
                   </div>
                 </div>
@@ -682,8 +682,8 @@ export default function Configuracion({ onNavigate, initialTab }) {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
-                  <label className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80 cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+                <div className="pt-2 border-t border-border/80">
+                  <label className="flex items-start gap-3 p-3 rounded-xl bg-surface-alt/60 border border-border cursor-pointer hover:border-accent-muted-border transition-colors">
                     <input
                       type="checkbox"
                       checked={form.salaAuxiliarHabilitada}

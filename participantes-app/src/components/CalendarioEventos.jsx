@@ -524,10 +524,10 @@ export function CalendarioEventos({
 
       {/* Encabezado cuando se abre desde la Sidebar como vista principal */}
       {standalone && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/80 dark:border-zinc-800/80 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-semibold tracking-tight text-text1">
+              <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
                 Calendario de la Congregación
               </h1>
               {!canEdit && (
@@ -544,11 +544,11 @@ export function CalendarioEventos({
       )}
 
       {/* Barra de Controles y Cabecera del Calendario */}
-      <div className="rounded-2xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs overflow-hidden">
-        <div className="px-4 py-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200/70 dark:border-zinc-800/80">
+      <div className="rounded-2xl bg-surface border border-border shadow-2xs overflow-hidden">
+        <div className="px-4 py-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80">
           {/* Izquierda: Mes / Año + Controles de navegación estilo Notion Calendar */}
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold text-text1 tracking-tight min-w-[145px]">
+            <h3 className="font-display text-lg font-medium text-text1 tracking-tight min-w-[145px]">
               {MESES[mesIndex]} <span className="text-text3 font-normal">{anio}</span>
             </h3>
 
@@ -556,7 +556,7 @@ export function CalendarioEventos({
               <button
                 type="button"
                 onClick={prevMonth}
-                className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-text2 hover:text-text1 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-surface-alt text-text2 hover:text-text1 transition-colors cursor-pointer"
                 title="Mes anterior"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -564,14 +564,14 @@ export function CalendarioEventos({
               <button
                 type="button"
                 onClick={ goToday }
-                className="px-2.5 py-1 text-xs font-medium rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-text2 hover:text-text1 transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-xs font-medium rounded-lg hover:bg-surface-alt text-text2 hover:text-text1 transition-colors cursor-pointer"
               >
                 Hoy
               </button>
               <button
                 type="button"
                 onClick={nextMonth}
-                className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-text2 hover:text-text1 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-surface-alt text-text2 hover:text-text1 transition-colors cursor-pointer"
                 title="Mes siguiente"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -600,13 +600,13 @@ export function CalendarioEventos({
             </div>
 
             {/* Toggle Vista Calendario / Lista */}
-            <div className="inline-flex rounded-lg border border-zinc-200/80 dark:border-zinc-800 p-0.5 bg-zinc-100/60 dark:bg-zinc-900/60">
+            <div className="inline-flex rounded-lg border border-border p-0.5 bg-surface-alt">
               <button
                 type="button"
                 onClick={() => setVistaModo('calendario')}
                 className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   vistaModo === 'calendario'
-                    ? 'bg-white dark:bg-zinc-800 text-text1 shadow-2xs'
+                    ? 'bg-surface text-text1 shadow-2xs'
                     : 'text-text3 hover:text-text1'
                 }`}
                 title="Vista de cuadrícula mensual"
@@ -619,7 +619,7 @@ export function CalendarioEventos({
                 onClick={() => setVistaModo('lista')}
                 className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                   vistaModo === 'lista'
-                    ? 'bg-white dark:bg-zinc-800 text-text1 shadow-2xs'
+                    ? 'bg-surface text-text1 shadow-2xs'
                     : 'text-text3 hover:text-text1'
                 }`}
                 title="Vista de lista de eventos"
@@ -646,12 +646,12 @@ export function CalendarioEventos({
         {vistaModo === 'calendario' && (
           <div>
             {/* Cabecera días de semana */}
-            <div className="grid grid-cols-7 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/40 dark:bg-zinc-900/30 text-[11px] font-medium text-text3">
+            <div className="grid grid-cols-7 border-b border-border/80 bg-surface-alt/60 text-[11px] font-medium text-text3">
               {DIAS_SEMANA.map((dia, idx) => (
                 <div
                   key={dia}
-                  className={`py-2 px-2.5 text-right border-r border-zinc-200/50 dark:border-zinc-800/60 last:border-r-0 ${
-                    idx >= 5 ? 'text-zinc-400 dark:text-zinc-500' : ''
+                  className={`py-2 px-2.5 text-right border-r border-border/60 last:border-r-0 ${
+                    idx >= 5 ? 'text-text3/70' : ''
                   }`}
                 >
                   {dia}
@@ -687,14 +687,14 @@ export function CalendarioEventos({
                         handleOpenCrear({ fecha_efectiva: dia.iso, semana_id: sem?.id || '' })
                       }
                     }}
-                    className={`min-h-[96px] sm:min-h-[112px] p-1.5 sm:p-2 flex flex-col justify-between border-b border-r border-zinc-200/70 dark:border-zinc-800/80 [&:nth-child(7n)]:border-r-0 transition-colors group ${
+                    className={`min-h-[96px] sm:min-h-[112px] p-1.5 sm:p-2 flex flex-col justify-between border-b border-r border-border/70 [&:nth-child(7n)]:border-r-0 transition-colors group ${
                       canEdit || evtsDia.length > 0 ? 'cursor-pointer' : 'cursor-default'
                     } ${
                       !dia.esMesActual
-                        ? 'bg-zinc-50/60 dark:bg-zinc-950/40'
+                        ? 'bg-surface-alt/50'
                         : esFinDeSemanaCol
-                        ? 'bg-zinc-50/30 dark:bg-zinc-900/20 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/35'
-                        : 'bg-surface hover:bg-zinc-50/80 dark:hover:bg-zinc-900/45'
+                        ? 'bg-surface-alt/30 hover:bg-surface-alt/70'
+                        : 'bg-surface hover:bg-surface-alt/60'
                     }`}
                   >
                     {/* Cabecera de celda: Indicador sutil de reunión a la izquierda, número a la derecha (o viceversa) */}
@@ -837,7 +837,7 @@ export function CalendarioEventos({
                     <div
                       key={evt.id}
                       onClick={() => handleOpenEditar(evt)}
-                      className="p-4 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/40 hover:bg-zinc-100/70 dark:hover:bg-zinc-900/70 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between space-y-3 transition-colors cursor-pointer"
+                      className="p-4 rounded-2xl bg-surface-alt/60 hover:bg-surface-alt border border-border flex flex-col justify-between space-y-3 transition-colors cursor-pointer"
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
@@ -862,7 +862,7 @@ export function CalendarioEventos({
                           )}
                         </div>
 
-                        <h4 className="text-sm font-semibold text-text1">{evt.titulo_evento}</h4>
+                        <h4 className="font-display text-base font-medium text-text1">{evt.titulo_evento}</h4>
 
                         {esVisita && evt.nombre_visitante && (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300">

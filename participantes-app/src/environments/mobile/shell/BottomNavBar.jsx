@@ -3,21 +3,17 @@ import {
   FileSpreadsheet,
   TableProperties,
   Users,
-  MoreHorizontal,
+  Plus,
 } from 'lucide-react'
 import { prefetchView } from '../../../core/prefetch'
-
-const PRIMARY_VIEWS = new Set(['home', 'programa', 'editable', 'personas'])
 
 export function BottomNavBar({
   currentView,
   onNavigate,
+  onOpenNuevaAsignacion,
   semanasPendientes = 0,
   mobileOpen = false,
-  onOpenMobileNav,
 }) {
-  const isMoreActive = mobileOpen || (currentView && !PRIMARY_VIEWS.has(currentView))
-
   const tabs = [
     {
       id: 'home',
@@ -35,6 +31,14 @@ export function BottomNavBar({
       onClick: () => onNavigate('programa'),
     },
     {
+      id: 'create',
+      label: 'Nueva',
+      icon: Plus,
+      isFab: true,
+      active: currentView === 'registros',
+      onClick: () => (onOpenNuevaAsignacion ? onOpenNuevaAsignacion() : onNavigate('registros')),
+    },
+    {
       id: 'editable',
       label: 'Matriz',
       icon: TableProperties,
@@ -48,30 +52,39 @@ export function BottomNavBar({
       active: currentView === 'personas' && !mobileOpen,
       onClick: () => onNavigate('personas'),
     },
-    {
-      id: 'more',
-      label: 'Más',
-      icon: MoreHorizontal,
-      active: isMoreActive,
-      onClick: () => onOpenMobileNav?.(),
-    },
   ]
 
   return (
     <nav
       aria-label="Navegación principal móvil"
-      className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-surface/95 backdrop-blur-md border-t border-zinc-200/80 dark:border-zinc-800/80 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-surface/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
     >
-      <div className="grid grid-cols-5 h-15 px-1">
+      <div className="grid grid-cols-5 h-15 px-1 items-center">
         {tabs.map(tab => {
           const Icon = tab.icon
+          if (tab.isFab) {
+            return (
+              <div key={tab.id} className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={tab.onClick}
+                  onTouchStart={() => prefetchView('registros')}
+                  aria-label="Nueva asignación"
+                  className="-mt-4 w-12 h-12 rounded-full bg-accent hover:bg-accent-hover text-accent-fg shadow-lg shadow-black/20 border-4 border-surface flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
+                >
+                  <Icon className="w-5 h-5 stroke-[2.5]" />
+                </button>
+              </div>
+            )
+          }
+
           return (
             <button
               key={tab.id}
               type="button"
               onClick={tab.onClick}
-              onTouchStart={() => tab.id !== 'more' && prefetchView(tab.id)}
-              onMouseEnter={() => tab.id !== 'more' && prefetchView(tab.id)}
+              onTouchStart={() => prefetchView(tab.id)}
+              onMouseEnter={() => prefetchView(tab.id)}
               className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] rounded-xl transition-colors cursor-pointer select-none ${
                 tab.active
                   ? 'text-accent font-semibold'

@@ -52,12 +52,8 @@ export function useRegistrosController({ initialOpenCreate = false, onSheetClose
   const [saving, setSaving] = useState(false)
 
   const [search, setSearchState] = useState('')
-  const [filterMes, setFilterMesState] = useState(
-    () => localStorage.getItem('registros_filterMes') ?? ''
-  )
-  const [filterLista, setFilterListaState] = useState(
-    () => localStorage.getItem('registros_filterLista') ?? ''
-  )
+  const [filterMes, setFilterMesState] = useState('')
+  const [filterLista, setFilterListaState] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSizeState] = useState(
     () => Number(localStorage.getItem('registros_pageSize')) || 50
@@ -65,6 +61,29 @@ export function useRegistrosController({ initialOpenCreate = false, onSheetClose
   const [modoSeleccion, setModoSeleccion] = useState(false)
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [bulkTipo, setBulkTipo] = useState('')
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem('registros_filterMes')
+      localStorage.removeItem('registros_filterLista')
+    } catch {
+      // ignore storage access errors
+    }
+  }, [])
+
+  useEffect(() => {
+    function handlePrefsSync(e) {
+      if (e?.detail?.registros_pageSize) {
+        setPageSizeState(Number(e.detail.registros_pageSize) || 50)
+        setPage(1)
+      } else if (e?.detail?.reset_all) {
+        setPageSizeState(50)
+        setPage(1)
+      }
+    }
+    window.addEventListener('preferences-updated', handlePrefsSync)
+    return () => window.removeEventListener('preferences-updated', handlePrefsSync)
+  }, [])
 
   useEffect(() => {
     if (!initialOpenCreate) return
@@ -84,22 +103,12 @@ export function useRegistrosController({ initialOpenCreate = false, onSheetClose
 
   const setFilterMes = useCallback(val => {
     setFilterMesState(val)
-    try {
-      localStorage.setItem('registros_filterMes', val)
-    } catch {
-      // ignore
-    }
     setPage(1)
     setSeleccionados(new Set())
   }, [])
 
   const setFilterLista = useCallback(val => {
     setFilterListaState(val)
-    try {
-      localStorage.setItem('registros_filterLista', val)
-    } catch {
-      // ignore
-    }
     setPage(1)
     setSeleccionados(new Set())
   }, [])
@@ -329,7 +338,10 @@ export function useRegistrosController({ initialOpenCreate = false, onSheetClose
       ) {
         return false
       }
-      if (filterMes && r.mes !== filterMes) return false
+      if (filterMes) {
+        const mesRegistro = r.mes || getMes(r.fecha)
+        if (mesRegistro !== filterMes) return false
+      }
       if (filterLista && r.lista !== filterLista) return false
       return true
     })

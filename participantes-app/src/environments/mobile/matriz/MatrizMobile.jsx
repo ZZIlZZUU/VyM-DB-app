@@ -16,12 +16,13 @@ const MobilePersonaCard = memo(function MobilePersonaCard({
   heatMap,
   getCeldaRegistros,
   getTotalPersona,
+  ultimaInfo,
   openCellModal,
 }) {
   const totalPersona = getTotalPersona(persona.clave)
 
   return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl p-3 shadow-2xs space-y-2.5">
+    <div className="bg-surface border border-border rounded-2xl p-3.5 shadow-2xs space-y-2.5">
       {/* Encabezado de la tarjeta */}
       <button
         type="button"
@@ -29,20 +30,25 @@ const MobilePersonaCard = memo(function MobilePersonaCard({
         className="w-full flex items-center justify-between gap-2.5 text-left cursor-pointer"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-text2 flex items-center justify-center text-[11px] font-semibold shrink-0 border border-zinc-300/60 dark:border-zinc-700/60">
+          <div className="w-8 h-8 rounded-full bg-surface-alt text-text2 flex items-center justify-center text-[11px] font-semibold shrink-0 border border-border">
             {initials(persona.nombre)}
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold text-text1 truncate leading-tight">
               {persona.nombre}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] font-mono text-text3 bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.2 rounded border border-zinc-200/60 dark:border-zinc-700/60">
+            <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+              <span className="text-[10px] font-mono text-text3 bg-surface-alt px-1.5 py-0.2 rounded border border-border">
                 {persona.clave}
               </span>
               <span className="text-[11px] text-text2 truncate">
                 {persona.estatus}
               </span>
+              {ultimaInfo?.alertaRezago && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-amber-500/12 text-amber-800 dark:text-amber-300 border border-amber-500/25">
+                  🕒 {ultimaInfo.textoUltimaVez}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -129,11 +135,12 @@ export function MatrizMobile({
   handleResetFilters,
   getCeldaRegistros,
   getTotalPersona,
+  ultimaParticipacionPorClave,
   openCellModal,
 }) {
   if (activePersonas.length === 0) {
     return (
-      <div className="bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl py-12 px-4">
+      <div className="bg-surface border border-border rounded-2xl py-12 px-4">
         <EmptyState
           icon={Calendar}
           title="Sin participantes coincidentes"
@@ -169,6 +176,7 @@ export function MatrizMobile({
             heatMap={heatMap}
             getCeldaRegistros={getCeldaRegistros}
             getTotalPersona={getTotalPersona}
+            ultimaInfo={ultimaParticipacionPorClave?.get(p.clave)}
             openCellModal={openCellModal}
           />
         ))}

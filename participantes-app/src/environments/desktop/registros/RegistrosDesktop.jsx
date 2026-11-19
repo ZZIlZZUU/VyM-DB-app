@@ -34,6 +34,7 @@ export default function RegistrosDesktop({
   pageSize,
   setPageSize,
   totalRecords,
+  totalUnfiltered = totalRecords,
   totalPages,
   startIndex,
   endIndex,
@@ -41,10 +42,10 @@ export default function RegistrosDesktop({
   const hasFilters = Boolean(search || filterMes || filterLista)
 
   return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse min-w-max">
-          <thead className="sticky top-0 z-10 bg-zinc-50/95 dark:bg-zinc-900/95 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
+          <thead className="sticky top-0 z-10 bg-surface-alt/95 border-b border-border text-text2 select-none">
             <tr>
               {modoSeleccion && (
                 <th className="py-3 px-3 w-10 text-center">
@@ -91,7 +92,7 @@ export default function RegistrosDesktop({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+          <tbody className="divide-y divide-border/60">
             {loading && filtered.length === 0 ? (
               <tr>
                 <td colSpan={modoSeleccion ? 8 : 7} className="py-8 px-4">
@@ -151,8 +152,8 @@ export default function RegistrosDesktop({
                         startEdit(r)
                       }
                     }}
-                    className={`group hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''
+                    className={`group hover:bg-surface-alt/70 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-accent-muted-bg/60' : ''
                     }`}
                   >
                     {modoSeleccion && (
@@ -272,7 +273,7 @@ export default function RegistrosDesktop({
 
       {/* Paginación */}
       {filtered.length > 0 && (
-        <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs select-none">
+        <div className="px-4 py-3 border-t border-border bg-surface-alt/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs select-none">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -313,6 +314,9 @@ export default function RegistrosDesktop({
             </div>
             <span className="font-mono text-text3">
               {startIndex + 1}–{endIndex} de {totalRecords}
+              {totalUnfiltered != null && totalUnfiltered !== totalRecords
+                ? ` (filtrado de ${totalUnfiltered})`
+                : ''}
             </span>
           </div>
         </div>

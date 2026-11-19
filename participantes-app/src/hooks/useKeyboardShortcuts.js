@@ -1,11 +1,35 @@
 import { useEffect, useRef } from 'react'
+import {
+  KEYBIND_DEFINITIONS,
+  loadKeybinds,
+  matchesBindingEvent,
+  normalizeKeyToken,
+  parseSequenceBinding,
+} from '../lib/keybinds'
 
-const isTyping = () => {
-  const tag = document.activeElement?.tagName?.toLowerCase()
-  return ['input', 'textarea', 'select'].includes(tag)
-    || document.activeElement?.isContentEditable
+function isTyping() {
+  const active = document.activeElement
+  if (!active) return false
+  const tag = active.tagName?.toLowerCase()
+  return (
+    tag === 'input' ||
+    tag === 'textarea' ||
+    tag === 'select' ||
+    active.isContentEditable
+  )
 }
 
+function bindingUsesModifier(binding) {
+  return (
+    typeof binding === 'string' &&
+    (binding.includes('Mod+') || binding.includes('Alt+'))
+  )
+}
+
+/**
+ * Atajos globales de teclado de la aplicación leídos dinámicamente desde
+ * `localStorage` (`app_keybinds`) y sincronizados al editarse desde Perfil.
+ */
 export function useKeyboardShortcuts({
   onOpenPalette,
   onNavigate,
@@ -13,71 +37,106 @@ export function useKeyboardShortcuts({
   onToggleTheme,
   onExportS140,
   onOpenShortcutsHelp,
+  onOpenNuevaAsignacion,
 }) {
-  const gPending = useRef(false)
-  const gTimer   = useRef(null)
+  const waitingLeaderRef = useRef(null)
+  const gTimer = useRef(null)
+  const bindingsRef = useRef(loadKeybinds())
 
   useEffect(() => {
+    const syncBindings = () => {
+      bindingsRef.current = loadKeybinds()
+    }
+    window.addEventListener('preferences-updated', syncBindings)
+    window.addEventListener('storage', syncBindings)
+    return () => {
+      window.removeEventListener('preferences-updated', syncBindings)
+      window.removeEventListener('storage', syncBindings)
+    }
+  }, [])
+
+  useEffect(() => {
+    function clearLeader() {
+      waitingLeaderRef.current = null
+      if (gTimer.current) {
+        clearTimeout(gTimer.current)
+        gTimer.current = null
+      }
+    }
+
     function handler(e) {
-      // Ctrl+K / Cmd+K → paleta
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault()
-        onOpenPalette()
-        return
-      }
+      if (e.defaultPrevented) return
+      if (document.body?.dataset?.recordingKeybind === 'true') return
 
-      // Ctrl+Shift+E / Cmd+Shift+E → exportar S-140 semana actual
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
-        e.preventDefault()
-        onExportS140?.()
-        return
-      }
+      const modKeyOnly =
+        e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta'
+      if (modKeyOnly) return
 
-      // Ctrl+Shift+T / Cmd+Shift+T → alternar tema
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
-        e.preventDefault()
-        onToggleTheme?.()
-        return
-      }
+      const currentBindings = bindingsRef.current || loadKeybinds()
+      const typing = isTyping()
 
-      if (isTyping()) return
-
-      // ? → Guía de atajos de teclado
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault()
-        onOpenShortcutsHelp?.()
-        return
-      }
-
-      // Secuencia G + letra
-      if (e.key === 'g' || e.key === 'G') {
-        gPending.current = true
-        clearTimeout(gTimer.current)
-        gTimer.current = setTimeout(() => { gPending.current = false }, 800)
-        return
-      }
-
-      if (gPending.current) {
-        gPending.current = false
-        clearTimeout(gTimer.current)
-        const map = {
-          i: 'home',
-          w: 'semanal',
-          k: 'calendario',
-          e: 'editable',
-          p: 'personas',
-          r: 'registros',
-          o: 'programa',
-          u: 'usuarios',
-          c: 'configuracion',
-          x: 'exportar',
-          t: 'estadisticas',
-          h: 'historial',
+      // 1. Si estamos esperando la segunda tecla de una secuencia (G + tecla)
+      if (waitingLeaderRef.current) {
+        const activeLeader = waitingLeaderRef.current
+        clearLeader()
+        if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const pressedToken = normalizeKeyToken(e.key)
+          for (const def of KEYBIND_DEFINITIONS) {
+            if (def.group !== 'nav') continue
+            const seq = parseSequenceBinding(currentBindings[def.id])
+            if (seq && seq.leader === activeLeader && seq.key === pressedToken) {
+              e.preventDefault()
+              onNavigate?.(def.navId)
+              return
+            }
+          }
         }
-        const dest = map[e.key.toLowerCase()]
-        if (dest) {
+      }
+
+      const globalHandlers = {
+        openPalette: () => onOpenPalette?.(),
+        newAssignment: () => onOpenNuevaAsignacion?.(),
+        openPerfil: () => onOpenPerfil?.('perfil'),
+        exportS140: () => onExportS140?.(),
+        toggleTheme: () => onToggleTheme?.(),
+        openHelp: () => onOpenShortcutsHelp?.(),
+      }
+
+      // 2. Comprobar atajos globales y atajos directos de navegación (sin secuencia)
+      for (const def of KEYBIND_DEFINITIONS) {
+        const binding = currentBindings[def.id]
+        if (!binding || parseSequenceBinding(binding)) continue
+
+        const allowTyping = Boolean(def.allowWhenTyping) || bindingUsesModifier(binding)
+        if (typing && !allowTyping) continue
+
+        if (matchesBindingEvent(e, binding)) {
           e.preventDefault()
-          onNavigate(dest)
+          if (def.group === 'nav') {
+            onNavigate?.(def.navId)
+          } else {
+            globalHandlers[def.id]?.()
+          }
+          return
+        }
+      }
+
+      // 3. Activar prefijo `G` si hay al menos una ruta que use secuencia `G <tecla>`
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const token = normalizeKeyToken(e.key)
+        const hasSequenceWithLeader = KEYBIND_DEFINITIONS.some((def) => {
+          if (def.group !== 'nav') return false
+          const seq = parseSequenceBinding(currentBindings[def.id])
+          return seq?.leader === token
+        })
+
+        if (hasSequenceWithLeader) {
+          clearLeader()
+          waitingLeaderRef.current = token
+          gTimer.current = setTimeout(() => {
+            waitingLeaderRef.current = null
+            gTimer.current = null
+          }, 900)
         }
       }
     }
@@ -85,7 +144,15 @@ export function useKeyboardShortcuts({
     window.addEventListener('keydown', handler)
     return () => {
       window.removeEventListener('keydown', handler)
-      clearTimeout(gTimer.current)
+      clearLeader()
     }
-  }, [onOpenPalette, onNavigate, onOpenPerfil, onToggleTheme, onExportS140, onOpenShortcutsHelp])
+  }, [
+    onOpenPalette,
+    onNavigate,
+    onOpenPerfil,
+    onToggleTheme,
+    onExportS140,
+    onOpenShortcutsHelp,
+    onOpenNuevaAsignacion,
+  ])
 }

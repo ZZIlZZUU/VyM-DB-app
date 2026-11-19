@@ -142,6 +142,77 @@ export function useMatrizController() {
     })
   }, [personas, searchAnc, ancEstatusFil, filtroActividad, totalesPorClave])
 
+  const todosPersonas = useMemo(() => {
+    const q = (searchMat || searchAnc || '').trim().toLowerCase()
+    return personas.filter(p => {
+      if (q && !p.nombre?.toLowerCase().includes(q) && !p.clave?.toLowerCase().includes(q)) return false
+      if (sexoFil && p.sexo !== sexoFil) return false
+      if (ancEstatusFil && p.estatus !== ancEstatusFil) return false
+      if (filtroActividad === 'sin_participacion' && (totalesPorClave.get(p.clave) || 0) > 0) return false
+      return true
+    })
+  }, [personas, searchMat, searchAnc, sexoFil, ancEstatusFil, filtroActividad, totalesPorClave])
+
+  const ultimaParticipacionPorClave = useMemo(() => {
+    const hoy = new Date()
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59)
+    const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+    const porClave = new Map()
+
+    for (const r of registros) {
+      if (!r?.clave) continue
+      let fechaObj = null
+      if (r.fecha && typeof r.fecha === 'string') {
+        if (r.fecha > hoyIso) continue
+        const parsed = new Date(`${r.fecha}T12:00:00`)
+        if (!Number.isNaN(parsed.getTime())) fechaObj = parsed
+      } else if (r.mes) {
+        const mIdx = MESES.indexOf(r.mes)
+        if (mIdx >= 0 && mIdx <= hoy.getMonth()) {
+          fechaObj = new Date(hoy.getFullYear(), mIdx, 15, 12, 0, 0)
+        }
+      }
+      if (!fechaObj) continue
+      const prev = porClave.get(r.clave)
+      if (!prev || fechaObj > prev) {
+        porClave.set(r.clave, fechaObj)
+      }
+    }
+
+    const result = new Map()
+    for (const p of personas) {
+      const lastDate = porClave.get(p.clave)
+      if (!lastDate) {
+        result.set(p.clave, {
+          mesesSinParticipar: null,
+          textoUltimaVez: 'Sin registro',
+          alertaRezago: true,
+        })
+        continue
+      }
+      const diffDays = Math.max(0, Math.floor((hoyMid - lastDate) / (1000 * 60 * 60 * 24)))
+      if (diffDays < 7) {
+        result.set(p.clave, { mesesSinParticipar: 0, textoUltimaVez: 'Esta semana', alertaRezago: false })
+      } else if (diffDays < 30) {
+        const sem = Math.max(1, Math.floor(diffDays / 7))
+        result.set(p.clave, { mesesSinParticipar: 0, textoUltimaVez: `Hace ${sem} sem`, alertaRezago: false })
+      } else {
+        const meses = Math.max(1, Math.floor(diffDays / 30))
+        result.set(p.clave, {
+          mesesSinParticipar: meses,
+          textoUltimaVez: meses === 1 ? 'Hace 1 mes' : `Hace ${meses} meses`,
+          alertaRezago: meses >= 2,
+        })
+      }
+    }
+    return result
+  }, [personas, registros])
+
+  const countSinPartTodos = useMemo(
+    () => personas.filter(p => (totalesPorClave.get(p.clave) || 0) === 0).length,
+    [personas, totalesPorClave]
+  )
+
   const countSinPartMat = useMemo(
     () => personas.filter(p => p.lista === 'Mat' && (totalesPorClave.get(p.clave) || 0) === 0).length,
     [personas, totalesPorClave]
@@ -153,8 +224,9 @@ export function useMatrizController() {
   )
 
   const hasActiveFilters = Boolean(
-    (tab === 'mat' ? searchMat : searchAnc) ||
-      (tab === 'mat' ? sexoFil : ancEstatusFil) ||
+    (tab === 'anc' ? searchAnc : searchMat) ||
+      sexoFil ||
+      ancEstatusFil ||
       filtroActividad !== 'todos' ||
       tiposDesactivados.size > 0
   )
@@ -251,11 +323,14 @@ export function useMatrizController() {
     tiposDesactivados,
     toggleTipo,
     currentMonthIdx,
+    todosPersonas,
     matPersonas,
     ancPersonas,
-    activePersonas: tab === 'mat' ? matPersonas : ancPersonas,
+    activePersonas: tab === 'todos' ? todosPersonas : tab === 'mat' ? matPersonas : ancPersonas,
+    countSinPartTodos,
     countSinPartMat,
     countSinPartAnc,
+    ultimaParticipacionPorClave,
     hasActiveFilters,
     handleResetFilters,
     maxRegistros,

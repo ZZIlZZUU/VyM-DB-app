@@ -32,8 +32,10 @@ import {
 } from '../lib/conflictosRotacion'
 import {
   formatRangoSemanaPrograma,
+  getHoyLocalIso,
   getImpactoEventoSemana,
 } from '../lib/fechas'
+import { buildAsignacionesDesdeParticipaciones } from '../lib/semanasFallback'
 import {
   useSemanasQuery,
   usePartesQuery,
@@ -42,6 +44,7 @@ import {
   useParticipacionesQuery,
 } from '../core/queries/useAppQueries'
 import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
+import { loadHomeAlertPrefs } from '../lib/themes'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useEventosReunion } from '../hooks/useEventosReunion'
@@ -101,7 +104,11 @@ export default function Programa() {
   )
 
   const historial = useMemo(
-    () => [...rawHistorial].sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || ''))),
+    () =>
+      [...rawHistorial].sort((a, b) => {
+        const cmp = String(a.fecha || '').localeCompare(String(b.fecha || ''))
+        return cmp !== 0 ? cmp : (a.id || 0) - (b.id || 0)
+      }),
     [rawHistorial]
   )
 
@@ -154,6 +161,59 @@ export default function Programa() {
   const [uploading, setUploading] = useState(false)
   const [vistaTab, setVistaTab] = useState('semanas')
   const [expandedWeeks, setExpandedWeeks] = useState({})
+  const [selectedEpubFilename, setSelectedEpubFilename] = useState(null)
+
+  const guiasCargadas = useMemo(() => {
+    const map = new Map()
+    for (const s of semanas) {
+      const fn = s.epub_filename || '__sin_archivo__'
+      if (!map.has(fn)) {
+        const mIssue = fn.match(/20\d{2}(0[1-9]|1[0-2])/)
+        const label =
+          fn === '__sin_archivo__'
+            ? 'Guía sin etiqueta'
+            : mIssue
+            ? formatearIssueLegible(mIssue[0])
+            : fn.replace(/\.epub$/i, '')
+        map.set(fn, {
+          filename: fn,
+          label,
+          minFecha: String(s.fecha_inicio || '').slice(0, 10),
+          maxFecha: String(s.fecha_fin || '').slice(0, 10),
+          count: 0,
+        })
+      }
+      const g = map.get(fn)
+      g.count++
+      const ini = String(s.fecha_inicio || '').slice(0, 10)
+      const fin = String(s.fecha_fin || '').slice(0, 10)
+      if (ini && (!g.minFecha || ini < g.minFecha)) g.minFecha = ini
+      if (fin && (!g.maxFecha || fin > g.maxFecha)) g.maxFecha = fin
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      String(a.minFecha).localeCompare(String(b.minFecha))
+    )
+  }, [semanas])
+
+  const activeEpubFilename = useMemo(() => {
+    if (selectedEpubFilename === '__ALL__') return '__ALL__'
+    if (selectedEpubFilename && guiasCargadas.some(g => g.filename === selectedEpubFilename)) {
+      return selectedEpubFilename
+    }
+    const hoyIso = getHoyLocalIso()
+    const conteniendoHoy = guiasCargadas.find(
+      g => g.minFecha && g.maxFecha && hoyIso >= g.minFecha && hoyIso <= g.maxFecha
+    )
+    if (conteniendoHoy) return conteniendoHoy.filename
+    return guiasCargadas[guiasCargadas.length - 1]?.filename || null
+  }, [selectedEpubFilename, guiasCargadas])
+
+  const semanasPrograma = useMemo(() => {
+    if (!activeEpubFilename || activeEpubFilename === '__ALL__') return semanas
+    return semanas.filter(
+      s => (s.epub_filename || '__sin_archivo__') === activeEpubFilename
+    )
+  }, [semanas, activeEpubFilename])
   const [modoLectura, setModoLectura] = useState(() => {
     try {
       return localStorage.getItem('programa_modoLectura') === 'true'
@@ -174,6 +234,7 @@ export default function Programa() {
   // Flujo EPUB Automático (Brief #31)
   const [epubsDisponibles, setEpubsDisponibles] = useState([])
   const [nuevoEpubDisponible, setNuevoEpubDisponible] = useState(null)
+  const [epubAlertsEnabled, setEpubAlertsEnabled] = useState(() => loadHomeAlertPrefs().epubDisponible)
   const [isSyncingEpubs, setIsSyncingEpubs] = useState(false)
   const [menuGuiasOpen, setMenuGuiasOpen] = useState(false)
   const menuGuiasRef = useRef(null)
@@ -267,6 +328,23 @@ export default function Programa() {
     }
   }, [modoLectura])
 
+  useEffect(() => {
+    function handlePrefsSync(e) {
+      if (typeof e?.detail?.programa_modoLectura === 'boolean') {
+        setModoLectura(e.detail.programa_modoLectura)
+      }
+      if (e?.detail?.pref_home_alerts) {
+        setEpubAlertsEnabled(e.detail.pref_home_alerts.epubDisponible !== false)
+      }
+      if (e?.detail?.reset_all) {
+        setModoLectura(false)
+        setEpubAlertsEnabled(true)
+      }
+    }
+    window.addEventListener('preferences-updated', handlePrefsSync)
+    return () => window.removeEventListener('preferences-updated', handlePrefsSync)
+  }, [])
+
   // Detección de programa completado al 100% en la sesión activa
   const resumenProgresoPrograma = useMemo(() => {
     if (loading) return null
@@ -274,7 +352,7 @@ export default function Programa() {
     let totalPartesEnPrograma = 0
     let semanasCompletadas = 0
 
-    semanas.forEach(s => {
+    semanasPrograma.forEach(s => {
       const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
         s,
         partes,
@@ -291,15 +369,15 @@ export default function Programa() {
     })
 
     const isNowProgramComplete =
-      semanas.length > 0 && semanasCompletadas === semanas.length
+      semanasPrograma.length > 0 && semanasCompletadas === semanasPrograma.length
 
     return {
       isNowProgramComplete,
-      totalSemanas: semanas.length,
+      totalSemanas: semanasPrograma.length,
       totalAsignaciones: totalConfirmadasEnPrograma,
       totalPartes: totalPartesEnPrograma,
     }
-  }, [loading, semanas, partes, asignaciones, historial, eventos, config])
+  }, [loading, semanasPrograma, partes, asignaciones, historial, eventos, config])
 
   useEffect(() => {
     if (!resumenProgresoPrograma) return
@@ -429,42 +507,91 @@ export default function Programa() {
   }, [cargarEpubsDisponibles, sincronizarGuiaEpub])
 
   async function procesarArchivoEPUB(fileOrBlob, filename) {
-    if (semanas && semanas.length > 0) {
+    let semanasParsed
+    try {
+      semanasParsed = await parsearEPUB(fileOrBlob)
+    } catch (err) {
+      console.error(err)
+      toastError('Error al procesar el EPUB: ' + err.message)
+      setUploading(false)
+      return
+    }
+
+    if (!semanasParsed || semanasParsed.length === 0) {
+      toastError(
+        'No se encontraron semanas en el archivo EPUB. Comprueba que sea una Guía de Actividades válida.'
+      )
+      setUploading(false)
+      return
+    }
+
+    const hoy = new Date()
+    const minWindowIso = getHoyLocalIso(new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1))
+    const maxWindowIso = getHoyLocalIso(new Date(hoy.getFullYear(), hoy.getMonth() + 3, 0))
+    const fechasNuevas = new Set(
+      semanasParsed.map(s => String(s.fecha_inicio || '').slice(0, 10)).filter(Boolean)
+    )
+
+    const semanasSolapadas = (semanas || []).filter(s =>
+      fechasNuevas.has(String(s.fecha_inicio || '').slice(0, 10))
+    )
+    const epubEnVentana = new Set(
+      (semanas || [])
+        .filter(s => {
+          const fi = String(s.fecha_inicio || '').slice(0, 10)
+          return fi && fi >= minWindowIso && fi <= maxWindowIso
+        })
+        .map(s => s.epub_filename || '__sin_archivo__')
+    )
+    const semanasFueraVentana = (semanas || []).filter(s => {
+      const fi = String(s.fecha_inicio || '').slice(0, 10)
+      const fn = s.epub_filename || '__sin_archivo__'
+      if (fechasNuevas.has(fi)) return false
+      return fi && (fi < minWindowIso || fi > maxWindowIso) && !epubEnVentana.has(fn)
+    })
+
+    if (semanasSolapadas.length > 0) {
       const ok = await confirm({
-        title: '¿Reemplazar el programa actual?',
-        message: `Actualmente hay ${semanas.length} semanas registradas en el programa. Al importar una nueva Guía de Actividades se borrarán las semanas y asignaciones actuales de la vista de programa. (El historial de participaciones previas confirmadas se conservará).`,
-        danger: true,
+        title: '¿Actualizar estas semanas del programa?',
+        message: `Ya hay ${semanasSolapadas.length} semana(s) registradas para estas fechas. Al importar la guía se actualizarán sus títulos y se re-vincularán automáticamente con las participaciones del historial, conservando el resto de meses dentro de la ventana de 5 meses.`,
+        danger: false,
       })
       if (!ok) {
+        setUploading(false)
         return
       }
     }
 
     setUploading(true)
-    showToast('Eliminando semanas anteriores y cargando las nuevas...')
+    showToast(
+      semanasSolapadas.length > 0
+        ? 'Actualizando bimestre y conservando ventana de 5 meses...'
+        : 'Importando guía de actividades y vinculando historial...'
+    )
 
     try {
-      await supabase
-        .from('programa_asignaciones')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000')
+      const idsEliminar = [
+        ...new Set([
+          ...semanasSolapadas.map(s => s.id),
+          ...semanasFueraVentana.map(s => s.id),
+        ]),
+      ]
 
-      await supabase
-        .from('programa_partes')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000')
-
-      await supabase
-        .from('programa_semanas')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000')
-
-      const semanasParsed = await parsearEPUB(fileOrBlob)
-      if (!semanasParsed || semanasParsed.length === 0) {
-        throw new Error('No se encontraron semanas en el archivo EPUB. Comprueba que sea una Guía de Actividades válida.')
+      if (idsEliminar.length > 0) {
+        const { data: partesDb } = await supabase
+          .from('programa_partes')
+          .select('id')
+          .in('semana_id', idsEliminar)
+        const partesIdsEliminar = (partesDb || []).map(p => p.id)
+        if (partesIdsEliminar.length > 0) {
+          await supabase.from('programa_asignaciones').delete().in('parte_id', partesIdsEliminar)
+        }
+        await supabase.from('programa_partes').delete().in('semana_id', idsEliminar)
+        await supabase.from('programa_semanas').delete().in('id', idsEliminar)
       }
 
       let insertadas = 0
+      let revinculadasTotal = 0
       const errores = []
 
       for (const s of semanasParsed) {
@@ -508,11 +635,35 @@ export default function Programa() {
           hora_fin: p.hora_fin || null,
         }))
 
-        const { error: partesError } = await supabase.from('programa_partes').insert(partesPayload)
+        const { data: partesInsertadas, error: partesError } = await supabase
+          .from('programa_partes')
+          .insert(partesPayload)
+          .select()
         if (partesError) {
           console.error('Error insertando partes del EPUB:', partesError)
           errores.push(`Partes de ${s.fecha_inicio}: ${partesError.message}`)
           continue
+        }
+
+        const iniSem = String(s.fecha_inicio || '').slice(0, 10)
+        const finSem = String(s.fecha_fin || '').slice(0, 10)
+        const regsSemana = (historial || []).filter(r => {
+          const f = String(r.fecha || '').slice(0, 10)
+          return f >= iniSem && f <= finSem
+        })
+        const asigsARevincular = buildAsignacionesDesdeParticipaciones(
+          partesInsertadas || [],
+          regsSemana
+        )
+        if (asigsARevincular.length > 0) {
+          const { error: asigErr } = await supabase
+            .from('programa_asignaciones')
+            .insert(asigsARevincular)
+          if (!asigErr) {
+            revinculadasTotal += asigsARevincular.length
+          } else {
+            console.warn('Error revinculando asignaciones de historial:', asigErr)
+          }
         }
 
         insertadas++
@@ -521,8 +672,10 @@ export default function Programa() {
       if (errores.length > 0) {
         toastError(`Se importaron ${insertadas} de ${semanasParsed.length} semanas. Hubo ${errores.length} errores:\n${errores.join(', ')}`)
       } else {
-        success(`${insertadas} semanas importadas exitosamente`)
+        const revMsg = revinculadasTotal > 0 ? ` (${revinculadasTotal} asignaciones re-vinculadas)` : ''
+        success(`${insertadas} semanas importadas exitosamente${revMsg}`)
       }
+      setSelectedEpubFilename(filename)
       setNuevoEpubDisponible(null)
       refreshPrograma()
     } catch (err) {
@@ -657,7 +810,7 @@ export default function Programa() {
           mes: semana.mes,
           tipo: tipoParticipacion,
           peso: PESO_TIPO[tipoParticipacion] ?? 1,
-          observaciones: null,
+          observaciones: parte.titulo || null,
         })
         .select()
         .single()
@@ -683,7 +836,7 @@ export default function Programa() {
               mes: semana.mes,
               tipo: 'A',
               peso: 1,
-              observaciones: 'Ayudante SMT',
+              observaciones: parte.titulo ? `Ayudante SMT — ${parte.titulo}` : 'Ayudante SMT',
             })
             .select()
             .single()
@@ -744,7 +897,7 @@ export default function Programa() {
         mes: semana.mes,
         tipo: tipoParticipacion,
         peso: PESO_TIPO[tipoParticipacion] ?? 1,
-        observaciones: null,
+        observaciones: parte.titulo || null,
       })
       .select()
       .single()
@@ -770,7 +923,7 @@ export default function Programa() {
             mes: semana.mes,
             tipo: 'A',
             peso: 1,
-            observaciones: 'Ayudante SMT',
+            observaciones: parte.titulo ? `Ayudante SMT — ${parte.titulo}` : 'Ayudante SMT',
           })
           .select()
           .single()
@@ -899,7 +1052,7 @@ export default function Programa() {
           mes: semana.mes,
           tipo: tipoParticipacion,
           peso: PESO_TIPO[tipoParticipacion] ?? 1,
-          observaciones: null,
+          observaciones: parte.titulo || null,
         })
         .select()
         .single()
@@ -925,7 +1078,7 @@ export default function Programa() {
               mes: semana.mes,
               tipo: 'A',
               peso: 1,
-              observaciones: 'Ayudante SMT',
+              observaciones: parte.titulo ? `Ayudante SMT — ${parte.titulo}` : 'Ayudante SMT',
             })
             .select()
             .single()
@@ -1012,7 +1165,7 @@ export default function Programa() {
           mes: semana.mes,
           tipo: tipoParticipacion,
           peso: PESO_TIPO[tipoParticipacion] ?? 1,
-          observaciones: null,
+          observaciones: parte.titulo || null,
         })
         asignacionesMap.push({ asigId: asigP.id, partInsertIdx: pIdx })
 
@@ -1028,7 +1181,7 @@ export default function Programa() {
               mes: semana.mes,
               tipo: 'A',
               peso: 1,
-              observaciones: 'Ayudante SMT',
+              observaciones: parte.titulo ? `Ayudante SMT — ${parte.titulo}` : 'Ayudante SMT',
             })
             asignacionesMap.push({ asigId: asigA.id, partInsertIdx: aIdx })
           }
@@ -1395,7 +1548,8 @@ export default function Programa() {
 
   // Generar documento S-140 bajo demanda (Dynamic Import)
   async function handleGenerarDocx(modo = 'auto') {
-    if (!semanas || semanas.length === 0) {
+    const semanasExport = semanasPrograma.length > 0 ? semanasPrograma : semanas
+    if (!semanasExport || semanasExport.length === 0) {
       toastError('No hay semanas en el programa para generar el documento S-140.')
       return
     }
@@ -1406,7 +1560,7 @@ export default function Programa() {
           : 'Generando documento S-140...'
       )
       const { generarYDescargarS140, buildDatosDesdeSupabase } = await import('../lib/generarS140')
-      const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
+      const semanasData = buildDatosDesdeSupabase(semanasExport, partes, asignaciones, personas, eventos, config)
       await generarYDescargarS140({
         congregacion,
         semanas: semanasData,
@@ -1423,8 +1577,9 @@ export default function Programa() {
   async function handleAbrirVistaS140() {
     setMenuS140TopOpen(false)
     setMenuS140FabOpen(false)
+    const semanasExport = semanasPrograma.length > 0 ? semanasPrograma : semanas
     const { buildDatosDesdeSupabase } = await import('../lib/generarS140')
-    const semanasData = buildDatosDesdeSupabase(semanas, partes, asignaciones, personas, eventos, config)
+    const semanasData = buildDatosDesdeSupabase(semanasExport, partes, asignaciones, personas, eventos, config)
     navigate('/s140-preview', {
       state: {
         semanas: semanasData,
@@ -1488,7 +1643,7 @@ export default function Programa() {
   return (
     <div className="space-y-5">
       {/* BANNER PERSISTENTE NUEVO EPUB DISPONIBLE */}
-      {nuevoEpubDisponible && (
+      {nuevoEpubDisponible && epubAlertsEnabled && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 p-3.5 sm:p-4 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/90 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-400/20 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0">
@@ -1531,11 +1686,13 @@ export default function Programa() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Programa S-140
             </h1>
             <Badge variant="neutral" size="sm">
-              {semanas.length} semanas
+              {semanasPrograma.length === semanas.length
+                ? `${semanas.length} semanas`
+                : `${semanasPrograma.length} de ${semanas.length} semanas`}
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
@@ -1545,14 +1702,14 @@ export default function Programa() {
 
         {/* Toolbar de Acciones */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs">
             <button
               type="button"
               onClick={() => setVistaTab('semanas')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 vistaTab === 'semanas'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-surface text-text1 shadow-2xs border border-border'
+                  : 'text-text3 hover:text-text1'
               }`}
             >
               Por semana
@@ -1562,22 +1719,22 @@ export default function Programa() {
               onClick={() => setVistaTab('resumen')}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 vistaTab === 'resumen'
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-surface text-text1 shadow-2xs border border-border'
+                  : 'text-text3 hover:text-text1'
               }`}
             >
               Resumen
             </button>
           </div>
 
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs">
             <button
               type="button"
               onClick={() => setModoLectura(false)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 !modoLectura
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-surface text-text1 shadow-2xs border border-border'
+                  : 'text-text3 hover:text-text1'
               }`}
             >
               <Pencil className="w-3 h-3" />
@@ -1588,8 +1745,8 @@ export default function Programa() {
               onClick={() => setModoLectura(true)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 modoLectura
-                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-surface text-text1 shadow-2xs border border-border'
+                  : 'text-text3 hover:text-text1'
               }`}
             >
               <Eye className="w-3 h-3" />
@@ -1822,13 +1979,110 @@ export default function Programa() {
             </div>
           )}
 
+          {/* SELECTOR DE BIMESTRE / GUÍA CUANDO HAY MÚLTIPLES GUÍAS CARGADAS (VENTANA 5 MESES) */}
+          {guiasCargadas.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap px-1">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-text3 shrink-0">
+                Guías activas:
+              </span>
+              {guiasCargadas.map(g => {
+                const isSelected = activeEpubFilename === g.filename
+                return (
+                  <button
+                    key={g.filename}
+                    type="button"
+                    onClick={() => setSelectedEpubFilename(g.filename)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                        : 'bg-surface border-border text-text2 hover:text-text1 hover:border-border2'
+                    }`}
+                  >
+                    {g.label} ({g.count})
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => setSelectedEpubFilename('__ALL__')}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                  activeEpubFilename === '__ALL__'
+                    ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                    : 'bg-surface border-border text-text2 hover:text-text1 hover:border-border2'
+                }`}
+              >
+                Todas ({semanas.length})
+              </button>
+            </div>
+          )}
+
+          {/* CINTA DE NAVEGACIÓN HORIZONTAL DE SEMANAS */}
+          {semanasPrograma.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {semanasPrograma.map(s => {
+                const partesSem = partes.filter(p => p.semana_id === s.id)
+                const asigSem = asignaciones.filter(a => partesSem.some(p => p.id === a.parte_id))
+                const imp = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
+                const contables = partesSem.filter(
+                  p => p.tipo_asignacion !== 'CONCLU' && p.tipo_asignacion !== 'ORACION' && p.tipo_asignacion !== 'SMT_VACIO'
+                )
+                const confirmadasCount = contables.filter(p =>
+                  asigSem.some(a => a.parte_id === p.id && a.rol === 'principal' && a.confirmado)
+                ).length
+                const asignadasCount = contables.filter(p =>
+                  asigSem.some(a => a.parte_id === p.id && a.rol === 'principal' && a.clave)
+                ).length
+
+                const dotColor = imp?.cancelaEntreSemana
+                  ? 'bg-purple-500'
+                  : contables.length > 0 && confirmadasCount === contables.length
+                    ? 'bg-emerald-500'
+                    : asignadasCount > 0
+                      ? 'bg-amber-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
+
+                const isExp = !!expandedWeeks[s.id]
+
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      if (!expandedWeeks[s.id]) handleToggleExpand(s.id)
+                      setTimeout(() => {
+                        document
+                          .getElementById(`programa-semana-${s.id}`)
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }, 40)
+                    }}
+                    className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all cursor-pointer ${
+                      isExp
+                        ? 'bg-accent-muted-bg border-accent-muted-border text-accent-muted-text shadow-2xs'
+                        : 'bg-surface border-border text-text2 hover:border-accent-muted-border hover:text-text1'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                    <span className="whitespace-nowrap">
+                      {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
+                    </span>
+                    {!imp?.cancelaEntreSemana && contables.length > 0 && (
+                      <span className="text-[10px] font-mono text-text3">
+                        {confirmadasCount}/{contables.length}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           <div
             className={`space-y-4 transition-opacity duration-200 ${
               uploading ? 'opacity-30 filter grayscale-[50%]' : ''
             }`}
           >
             {semanas.length === 0 ? (
-              <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-2xl py-12 px-6 shadow-2xs">
+              <div className="bg-surface border border-border rounded-2xl py-12 px-6 shadow-2xs">
                 <EmptyState
                   icon={Calendar}
                   title="Sin semanas del programa"
@@ -1860,33 +2114,34 @@ export default function Programa() {
                 />
               </div>
             ) : (
-              semanas.map(s => {
+              semanasPrograma.map(s => {
                 const partesSemana = partes.filter(p => p.semana_id === s.id)
                 const asigSemana = asignaciones.filter(a =>
                   partesSemana.some(p => p.id === a.parte_id)
                 )
                 return (
-                  <TarjetaSemanaDesktop
-                    key={s.id}
-                    semana={s}
-                    partes={partesSemana}
-                    asignaciones={asigSemana}
-                    personas={personas}
-                    historial={buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)}
-                    onAsignar={handleAsignar}
-                    onConfirmar={handleConfirmar}
-                    onConfirmarTodo={handleConfirmarTodo}
-                    onEliminarSemana={handleEliminarSemana}
-                    onLimpiarAsignaciones={handleLimpiarAsignacionesSemana}
-                    expandida={!!expandedWeeks[s.id]}
-                    onToggleExpand={() => handleToggleExpand(s.id)}
-                    modoLectura={modoLectura}
-                    onRevisarSemana={setSemanaParaRevisar}
-                    onSugerirSemana={handleCompletarConSugerencias}
-                    evento={getEventoParaSemana(s, eventos)}
-                    impacto={getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)}
-                    config={config}
-                  />
+                  <div key={s.id} id={`programa-semana-${s.id}`}>
+                    <TarjetaSemanaDesktop
+                      semana={s}
+                      partes={partesSemana}
+                      asignaciones={asigSemana}
+                      personas={personas}
+                      historial={buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)}
+                      onAsignar={handleAsignar}
+                      onConfirmar={handleConfirmar}
+                      onConfirmarTodo={handleConfirmarTodo}
+                      onEliminarSemana={handleEliminarSemana}
+                      onLimpiarAsignaciones={handleLimpiarAsignacionesSemana}
+                      expandida={!!expandedWeeks[s.id]}
+                      onToggleExpand={() => handleToggleExpand(s.id)}
+                      modoLectura={modoLectura}
+                      onRevisarSemana={setSemanaParaRevisar}
+                      onSugerirSemana={handleCompletarConSugerencias}
+                      evento={getEventoParaSemana(s, eventos)}
+                      impacto={getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)}
+                      config={config}
+                    />
+                  </div>
                 )
               })
             )}
@@ -1896,10 +2151,10 @@ export default function Programa() {
 
       {/* VISTA RESUMEN MENSUAL */}
       {vistaTab === 'resumen' && (
-        <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
+        <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse min-w-max">
-              <thead className="sticky top-0 z-10 bg-zinc-50/95 dark:bg-zinc-900/95 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 select-none">
+              <thead className="sticky top-0 z-10 bg-surface-alt/95 border-b border-border text-text2 select-none">
                 <tr>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider">
                     Semana
@@ -1934,7 +2189,7 @@ export default function Programa() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                {semanas.map(s => {
+                {semanasPrograma.map(s => {
                   const impacto = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
                   const partesSemana = partes.filter(p => p.semana_id === s.id)
                   const asigConf = asignaciones.filter(

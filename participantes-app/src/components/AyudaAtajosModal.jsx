@@ -1,6 +1,13 @@
+import { useEffect, useState } from 'react'
 import { Compass, Zap } from 'lucide-react'
 import { Dialog } from './ui/Dialog'
 import { Button } from './ui/Button'
+import {
+  formatBindingLabel,
+  getBindingKeysArray,
+  loadKeybinds,
+  parseSequenceBinding,
+} from '../lib/keybinds'
 
 function KbdBadge({ children }) {
   return (
@@ -10,7 +17,7 @@ function KbdBadge({ children }) {
   )
 }
 
-function ShortcutRow({ keys, label, onClick }) {
+function ShortcutRow({ keys, separator = '+', label, onClick }) {
   return (
     <div
       onClick={onClick}
@@ -27,7 +34,9 @@ function ShortcutRow({ keys, label, onClick }) {
         {keys.map((k, idx) => (
           <span key={idx} className="flex items-center gap-1">
             <KbdBadge>{k}</KbdBadge>
-            {idx < keys.length - 1 && <span className="text-[10px] text-text3">+</span>}
+            {idx < keys.length - 1 && (
+              <span className="text-[10px] text-text3">{separator}</span>
+            )}
           </span>
         ))}
       </div>
@@ -36,33 +45,54 @@ function ShortcutRow({ keys, label, onClick }) {
 }
 
 export function AyudaAtajosModal({ isOpen, onClose, onNavigate }) {
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
-  const modKey = isMac ? '⌘' : 'Ctrl'
+  const [keybinds, setKeybinds] = useState(() => loadKeybinds())
+
+  useEffect(() => {
+    const sync = () => setKeybinds(loadKeybinds())
+    window.addEventListener('preferences-updated', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('preferences-updated', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
 
   function handleGo(view) {
     onClose?.()
     onNavigate?.(view)
   }
 
-  const navShortcuts = [
-    { keys: ['G', 'I'], label: 'Inicio (Panel general)', view: 'home' },
-    { keys: ['G', 'W'], label: 'Vista Semanal', view: 'semanal' },
-    { keys: ['G', 'O'], label: 'Programa Semanal', view: 'programa' },
-    { keys: ['G', 'E'], label: 'Matriz Anual', view: 'editable' },
-    { keys: ['G', 'P'], label: 'Participantes', view: 'personas' },
-    { keys: ['G', 'R'], label: 'Historial de Asignaciones', view: 'registros' },
-    { keys: ['G', 'T'], label: 'Estadísticas y Balance', view: 'estadisticas' },
-    { keys: ['G', 'K'], label: 'Calendario de Eventos', view: 'calendario' },
-    { keys: ['G', 'C'], label: 'Configuración', view: 'configuracion' },
-    { keys: ['G', 'X'], label: 'Exportar Respaldos', view: 'exportar' },
-    { keys: ['G', 'H'], label: 'Historial de Cambios', view: 'historial' },
+  const navMeta = [
+    { keyId: 'nav_home', label: 'Inicio (Panel general)', view: 'home' },
+    { keyId: 'nav_semanal', label: 'Vista Semanal', view: 'semanal' },
+    { keyId: 'nav_programa', label: 'Programa Semanal', view: 'programa' },
+    { keyId: 'nav_editable', label: 'Matriz Anual', view: 'editable' },
+    { keyId: 'nav_personas', label: 'Participantes', view: 'personas' },
+    { keyId: 'nav_registros', label: 'Historial de Asignaciones', view: 'registros' },
+    { keyId: 'nav_estadisticas', label: 'Estadísticas y Balance', view: 'estadisticas' },
+    { keyId: 'nav_calendario', label: 'Calendario de Eventos', view: 'calendario' },
+    { keyId: 'nav_configuracion', label: 'Configuración', view: 'configuracion' },
+    { keyId: 'nav_exportar', label: 'Exportar Respaldos', view: 'exportar' },
+    { keyId: 'nav_historial', label: 'Historial de Cambios', view: 'historial' },
   ]
 
+  const navShortcuts = navMeta.map((item) => {
+    const binding = keybinds[item.keyId]
+    const isSeq = Boolean(parseSequenceBinding(binding))
+    return {
+      ...item,
+      keys: getBindingKeysArray(binding),
+      separator: isSeq ? '→' : '+',
+    }
+  })
+
   const globalShortcuts = [
-    { keys: [modKey, 'K'], label: 'Buscador y paleta de comandos' },
-    { keys: [modKey, 'Shift', 'T'], label: 'Alternar tema claro / oscuro' },
-    { keys: [modKey, 'Shift', 'E'], label: 'Descargar S-140 de semana actual' },
-    { keys: ['?'], label: 'Abrir esta guía de atajos' },
+    { keys: getBindingKeysArray(keybinds.openPalette), label: 'Buscador y paleta de comandos' },
+    { keys: getBindingKeysArray(keybinds.newAssignment), label: 'Registrar nueva participación' },
+    { keys: getBindingKeysArray(keybinds.openPerfil), label: 'Abrir Mi Perfil y Preferencias' },
+    { keys: getBindingKeysArray(keybinds.toggleTheme), label: 'Alternar tema claro / oscuro' },
+    { keys: getBindingKeysArray(keybinds.exportS140), label: 'Descargar S-140 de semana actual' },
+    { keys: getBindingKeysArray(keybinds.openHelp), label: 'Abrir esta guía de atajos' },
     { keys: ['Esc'], label: 'Cerrar modal, cajón o cancelar búsqueda' },
   ]
 
@@ -71,12 +101,12 @@ export function AyudaAtajosModal({ isOpen, onClose, onNavigate }) {
       isOpen={isOpen}
       onClose={onClose}
       title="Atajos de Teclado"
-      description="Navegación ultrarrápida y comandos globales en VyM-DB."
+      description="Navegación ultrarrápida y comandos globales configurados en VyM-DB."
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
           <span className="text-[11px] text-text3 font-mono">
-            Pulsa <KbdBadge>?</KbdBadge> en cualquier pantalla para ver esta ayuda.
+            Pulsa <KbdBadge>{formatBindingLabel(keybinds.openHelp) || '?'}</KbdBadge> para ver esta ayuda (personalizable en Perfil).
           </span>
           <Button variant="outline" size="sm" onClick={onClose}>
             Entendido
@@ -103,7 +133,7 @@ export function AyudaAtajosModal({ isOpen, onClose, onNavigate }) {
           <div className="flex items-center justify-between mb-2 px-1">
             <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-text3">
               <Compass className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Navegación Secuencial (Pulsar G luego tecla)</span>
+              <span>Navegación Rápida</span>
             </div>
             <span className="text-[10px] text-text3">Clic para ir</span>
           </div>
@@ -112,6 +142,7 @@ export function AyudaAtajosModal({ isOpen, onClose, onNavigate }) {
               <ShortcutRow
                 key={s.label}
                 keys={s.keys}
+                separator={s.separator}
                 label={s.label}
                 onClick={() => handleGo(s.view)}
               />

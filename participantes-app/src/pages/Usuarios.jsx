@@ -307,7 +307,7 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Usuarios y Accesos
             </h1>
             <Badge variant="neutral" size="sm">
@@ -320,7 +320,7 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
         </div>
 
         {currentUser && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 text-xs shadow-2xs">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface border border-border text-xs shadow-2xs">
             <span className="text-text3 text-[11px]">Tu sesión:</span>
             <span className="font-medium text-text1 truncate max-w-[180px]">
               {currentUser.email}
@@ -338,10 +338,10 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
       {/* ── GRID PRINCIPAL: INVITAR VS LISTA ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
         {/* COLUMNA 1: INVITAR NUEVO USUARIO */}
-        <div className="p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
-            <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <h3 className="text-sm font-semibold text-text1">
+        <div className="p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-border/80">
+            <UserPlus className="w-4 h-4 text-accent" />
+            <h3 className="font-display text-base font-medium text-text1">
               Invitar Nuevo Usuario
             </h3>
           </div>
@@ -390,11 +390,11 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
         </div>
 
         {/* COLUMNA 2 Y 3: LISTA DE USUARIOS */}
-        <div className="lg:col-span-2 p-5 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+        <div className="lg:col-span-2 p-5 rounded-2xl bg-surface border border-border shadow-2xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border/80">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-text3" />
-              <h3 className="text-sm font-semibold text-text1">
+              <h3 className="font-display text-base font-medium text-text1">
                 Cuentas Autorizadas
               </h3>
             </div>
@@ -433,8 +433,8 @@ export default function Usuarios({ currentUser: propUser, currentRol: propRol })
                     key={u.email}
                     className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                       !u.activo
-                        ? 'opacity-60 bg-zinc-50/40 dark:bg-zinc-900/30 border-zinc-200/60 dark:border-zinc-800/60'
-                        : 'bg-surface hover:bg-zinc-50/70 dark:hover:bg-zinc-900/50 border-zinc-200/80 dark:border-zinc-800/80'
+                        ? 'opacity-60 bg-surface-alt/50 border-border/70'
+                        : 'bg-surface hover:bg-surface-alt/60 border-border'
                     }`}
                   >
                     {/* Avatar & User Info */}

@@ -46,11 +46,14 @@ export default function VistaEditable({ onNavigate }) {
     tiposDesactivados,
     toggleTipo,
     currentMonthIdx,
+    todosPersonas,
     matPersonas,
     ancPersonas,
     activePersonas,
+    countSinPartTodos,
     countSinPartMat,
     countSinPartAnc,
+    ultimaParticipacionPorClave,
     hasActiveFilters,
     handleResetFilters,
     maxRegistros,
@@ -82,65 +85,85 @@ export default function VistaEditable({ onNavigate }) {
       {/* ── HEADER Y TABS DE LA PÁGINA ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
-              Matriz Anual
+          <span className="text-[11px] font-mono uppercase tracking-wider text-text3">
+            Quién participó y cuándo
+          </span>
+          <div className="flex items-center gap-2.5 mt-0.5">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
+              Matriz anual
             </h1>
             <Badge variant="neutral" size="sm">
               {personas.length} activos
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
-            Cuadrícula interactiva anual de participaciones por mes con mapa de rotación.
+            Cuadrícula interactiva anual de participaciones por mes y seguimiento de rotación.
           </p>
         </div>
 
         {/* Pestañas de Lista */}
-        <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+        <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs">
+          <button
+            type="button"
+            onClick={() => setTab('todos')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              tab === 'todos'
+                ? 'bg-surface text-text1 shadow-2xs border border-border'
+                : 'text-text3 hover:text-text1'
+            }`}
+          >
+            Todos ({todosPersonas.length})
+          </button>
           <button
             type="button"
             onClick={() => setTab('mat')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
               tab === 'mat'
-                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                ? 'bg-surface text-text1 shadow-2xs border border-border'
+                : 'text-text3 hover:text-text1'
             }`}
           >
-            Matriculados ({matPersonas.length})
+            Mat ({matPersonas.length})
           </button>
           <button
             type="button"
             onClick={() => setTab('anc')}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
               tab === 'anc'
-                ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                ? 'bg-surface text-text1 shadow-2xs border border-border'
+                : 'text-text3 hover:text-text1'
             }`}
           >
-            Ancianos y SM ({ancPersonas.length})
+            Anc / SM ({ancPersonas.length})
           </button>
         </div>
       </div>
 
       {/* ── BARRA DE HERRAMIENTAS Y FILTROS ── */}
-      <div className="space-y-2.5 p-3 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
+      <div className="space-y-2.5 p-3 rounded-2xl bg-surface border border-border shadow-2xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Buscador */}
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Input
-              value={tab === 'mat' ? searchMat : searchAnc}
+              value={tab === 'anc' ? searchAnc : searchMat}
               onChange={e =>
-                tab === 'mat' ? setSearchMat(e.target.value) : setSearchAnc(e.target.value)
+                tab === 'anc' ? setSearchAnc(e.target.value) : setSearchMat(e.target.value)
               }
-              placeholder={`Buscar en ${tab === 'mat' ? 'Matriculados' : 'Ancianos'}...`}
+              placeholder={
+                tab === 'todos'
+                  ? 'Buscar en todos los participantes...'
+                  : tab === 'mat'
+                    ? 'Buscar en Matriculados...'
+                    : 'Buscar en Ancianos / SM...'
+              }
               icon={Search}
               size="sm"
-              className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-400 dark:focus:border-zinc-600"
+              className="border-border bg-surface-alt/50 text-text1 placeholder:text-text3 focus:border-accent-muted-border"
             />
-            {(tab === 'mat' ? searchMat : searchAnc) && (
+            {(tab === 'anc' ? searchAnc : searchMat) && (
               <button
                 type="button"
-                onClick={() => (tab === 'mat' ? setSearchMat('') : setSearchAnc(''))}
+                onClick={() => (tab === 'anc' ? setSearchAnc('') : setSearchMat(''))}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 p-0.5 rounded cursor-pointer"
                 title="Limpiar búsqueda"
               >
@@ -151,10 +174,15 @@ export default function VistaEditable({ onNavigate }) {
 
           {/* Barra de tipos de asignaciones interactiva */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mr-1 hidden sm:inline select-none">
+            <span className="text-[10px] font-mono text-text3 uppercase tracking-wider mr-1 hidden sm:inline select-none">
               Tipos:
             </span>
-            {(tab === 'mat' ? TIPOS_BARRA_MAT : TIPOS_BARRA_ANC).map(t => {
+            {(tab === 'anc'
+              ? TIPOS_BARRA_ANC
+              : tab === 'mat'
+                ? TIPOS_BARRA_MAT
+                : Array.from(new Set([...TIPOS_BARRA_MAT, ...TIPOS_BARRA_ANC]))
+            ).map(t => {
               const isDeactivated = tiposDesactivados.has(t)
               const label = TIPO_LABEL[t] || t
               const style = BADGE_STYLES[t] || 'bg-zinc-100 dark:bg-zinc-800 text-text2'
@@ -192,16 +220,13 @@ export default function VistaEditable({ onNavigate }) {
               type="button"
               onClick={() => {
                 setFiltroActividad('todos')
-                if (tab === 'mat') {
-                  setSexoFil('')
-                } else {
-                  setAncEstatusFil('')
-                }
+                setSexoFil('')
+                setAncEstatusFil('')
               }}
               className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
-                filtroActividad === 'todos' && (tab === 'mat' ? !sexoFil : !ancEstatusFil)
+                filtroActividad === 'todos' && !sexoFil && !ancEstatusFil
                   ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 border-zinc-700 dark:border-zinc-300 shadow-2xs'
-                  : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  : 'bg-surface-alt text-text3 border-border hover:text-text1'
               }`}
             >
               Todos
@@ -216,16 +241,16 @@ export default function VistaEditable({ onNavigate }) {
               className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
                 filtroActividad === 'sin_participacion'
                   ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 font-semibold shadow-2xs'
-                  : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                  : 'bg-surface-alt text-text3 border-border hover:text-text1'
               }`}
             >
               <span>Sin participaciones</span>
-              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-200/80 dark:bg-zinc-700/80">
-                {tab === 'mat' ? countSinPartMat : countSinPartAnc}
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-full bg-surface border border-border">
+                {tab === 'todos' ? countSinPartTodos : tab === 'mat' ? countSinPartMat : countSinPartAnc}
               </span>
             </button>
 
-            {tab === 'mat' ? (
+            {(tab === 'mat' || tab === 'todos') && (
               <>
                 <button
                   type="button"
@@ -233,7 +258,7 @@ export default function VistaEditable({ onNavigate }) {
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                     sexoFil === 'M'
                       ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-semibold shadow-2xs'
-                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                      : 'bg-surface-alt text-text3 border-border hover:text-text1'
                   }`}
                 >
                   Varones
@@ -244,13 +269,14 @@ export default function VistaEditable({ onNavigate }) {
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                     sexoFil === 'F'
                       ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold shadow-2xs'
-                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                      : 'bg-surface-alt text-text3 border-border hover:text-text1'
                   }`}
                 >
                   Mujeres
                 </button>
               </>
-            ) : (
+            )}
+            {(tab === 'anc' || tab === 'todos') && (
               <>
                 <button
                   type="button"
@@ -258,7 +284,7 @@ export default function VistaEditable({ onNavigate }) {
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                     ancEstatusFil === 'Anciano'
                       ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold shadow-2xs'
-                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                      : 'bg-surface-alt text-text3 border-border hover:text-text1'
                   }`}
                 >
                   Ancianos
@@ -273,7 +299,7 @@ export default function VistaEditable({ onNavigate }) {
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                     ancEstatusFil === 'Siervo Ministerial'
                       ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 font-semibold shadow-2xs'
-                      : 'bg-zinc-100/70 dark:bg-zinc-800/60 text-text3 border-zinc-200/80 dark:border-zinc-700/60 hover:text-text1'
+                      : 'bg-surface-alt text-text3 border-border hover:text-text1'
                   }`}
                 >
                   Siervos Ministeriales
@@ -352,6 +378,7 @@ export default function VistaEditable({ onNavigate }) {
             handleResetFilters={handleResetFilters}
             getCeldaRegistros={getCeldaRegistros}
             getTotalPersona={getTotalPersona}
+            ultimaParticipacionPorClave={ultimaParticipacionPorClave}
             openCellModal={openCellModal}
           />
         ) : (
@@ -363,6 +390,7 @@ export default function VistaEditable({ onNavigate }) {
             handleResetFilters={handleResetFilters}
             getCeldaRegistros={getCeldaRegistros}
             getTotalPersona={getTotalPersona}
+            ultimaParticipacionPorClave={ultimaParticipacionPorClave}
             openCellModal={openCellModal}
           />
         )}

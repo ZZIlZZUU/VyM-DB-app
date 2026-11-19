@@ -81,15 +81,16 @@ export default function PersonasDesktop({
   handleSort,
   currentYear,
   conteosAnio,
+  coolingPorClave,
   startEdit,
   toggleActivo,
 }) {
   return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs">
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/60 text-zinc-500 dark:text-zinc-400 font-medium select-none">
+            <tr className="border-b border-border bg-surface-alt/70 text-text2 font-medium select-none">
               <SortHeader
                 field="clave"
                 label="Clave"
@@ -131,6 +132,9 @@ export default function PersonasDesktop({
                 align="center"
                 className="hidden lg:table-cell w-28 text-center"
               />
+              <th className="py-3 px-4 font-mono uppercase text-[10px] tracking-wider text-center hidden xl:table-cell w-36">
+                Rotación
+              </th>
               <SortHeader
                 field="activo"
                 label="Estado"
@@ -145,16 +149,16 @@ export default function PersonasDesktop({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800/60">
+          <tbody className="divide-y divide-border/60">
             {loading && filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 px-4">
+                <td colSpan={8} className="py-8 px-4">
                   <SkeletonList rows={8} cols={5} />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 px-4">
+                <td colSpan={8} className="py-8 px-4">
                   <EmptyState
                     icon={searchVal ? Search : Users}
                     title="Sin participantes coincidentes"
@@ -182,18 +186,19 @@ export default function PersonasDesktop({
                 const isFemenino = p.sexo === 'F'
                 const isMat = p.lista === 'Mat'
                 const partAnioCount = conteosAnio[p.clave] || 0
+                const cool = coolingPorClave?.[p.clave]
 
                 return (
                   <tr
                     key={p.clave}
                     onClick={() => startEdit(p)}
-                    className={`group hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors duration-150 ${
+                    className={`group hover:bg-surface-alt/70 cursor-pointer transition-colors duration-150 ${
                       !p.activo ? 'opacity-55' : ''
                     }`}
                   >
                     {/* Clave */}
                     <td className="py-3 px-4 font-mono font-medium text-text2">
-                      <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[11px]">
+                      <span className="px-1.5 py-0.5 rounded bg-surface-alt border border-border text-[11px]">
                         {p.clave}
                       </span>
                     </td>
@@ -248,6 +253,21 @@ export default function PersonasDesktop({
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-400 dark:text-zinc-600">
                           0 part.
                         </span>
+                      )}
+                    </td>
+
+                    {/* Enfriamiento de rotación */}
+                    <td className="py-3 px-4 text-center hidden xl:table-cell">
+                      {cool ? (
+                        <Badge
+                          variant={cool.variant}
+                          size="xs"
+                          title={cool.detalle}
+                        >
+                          {cool.estado}
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] text-text3">—</span>
                       )}
                     </td>
 
@@ -313,7 +333,7 @@ export default function PersonasDesktop({
 
       {/* Footer con conteo total de filas filtradas */}
       {!loading && filtered.length > 0 && (
-        <div className="px-4 py-2.5 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-center justify-between text-[11px] text-text3 font-mono select-none">
+        <div className="px-4 py-2.5 border-t border-border bg-surface-alt/50 flex items-center justify-between text-[11px] text-text3 font-mono select-none">
           <span>
             Mostrando {filtered.length} de {totalCount} participantes
           </span>

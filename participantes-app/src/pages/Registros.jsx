@@ -92,12 +92,17 @@ export default function Registros(props = {}) {
       {/* HEADER Y ACCIONES PRINCIPALES */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Historial de Asignaciones
             </h1>
-            <Badge variant="neutral" size="sm">
-              {participaciones.length} participaciones
+            <Badge
+              variant={filtered.length !== participaciones.length ? 'warning' : 'neutral'}
+              size="sm"
+            >
+              {filtered.length === participaciones.length
+                ? `${participaciones.length} participaciones`
+                : `${filtered.length} de ${participaciones.length} participaciones`}
             </Badge>
           </div>
           <p className="text-xs text-text2 mt-0.5">
@@ -131,7 +136,7 @@ export default function Registros(props = {}) {
       </div>
 
       {/* BARRA DE HERRAMIENTAS Y FILTROS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 rounded-2xl bg-surface border border-border shadow-2xs">
         {/* Buscador */}
         <div className="relative flex-1 min-w-[220px]">
           <Input
@@ -140,7 +145,7 @@ export default function Registros(props = {}) {
             placeholder="Buscar por participante o clave..."
             icon={Search}
             size="sm"
-            className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1"
+            className="border-border bg-surface-alt/50 text-text1"
           />
           {search && (
             <button
@@ -155,7 +160,7 @@ export default function Registros(props = {}) {
 
         {/* Filtros segmentados */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs shrink-0">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs shrink-0">
             {[
               { id: '', label: 'Todas las listas' },
               { id: 'Mat', label: 'Matriculados' },
@@ -167,8 +172,8 @@ export default function Registros(props = {}) {
                 onClick={() => setFilterLista(tab.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   filterLista === tab.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-surface text-text1 shadow-2xs border border-border'
+                    : 'text-text3 hover:text-text1'
                 }`}
               >
                 {tab.label}
@@ -191,17 +196,20 @@ export default function Registros(props = {}) {
             </Select>
           </div>
 
-          {(filterMes || filterLista) && (
+          {(search || filterMes || filterLista) && (
             <Button
               variant="ghost"
-              size="iconSm"
+              size="sm"
+              icon={X}
               onClick={() => {
+                setSearch('')
                 setFilterMes('')
                 setFilterLista('')
               }}
               title="Limpiar filtros"
+              className="shrink-0 text-text2"
             >
-              <X className="w-3.5 h-3.5" />
+              Limpiar filtros
             </Button>
           )}
         </div>
@@ -276,6 +284,7 @@ export default function Registros(props = {}) {
             pageSize={pageSize}
             setPageSize={setPageSize}
             totalRecords={totalRecords}
+            totalUnfiltered={participaciones.length}
             totalPages={totalPages}
             startIndex={startIndex}
             endIndex={endIndex}
@@ -300,6 +309,7 @@ export default function Registros(props = {}) {
             page={page}
             setPage={setPage}
             totalRecords={totalRecords}
+            totalUnfiltered={participaciones.length}
             totalPages={totalPages}
             startIndex={startIndex}
             endIndex={endIndex}

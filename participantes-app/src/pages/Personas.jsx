@@ -51,6 +51,7 @@ export default function Personas(props) {
     inactiveCount,
     currentYear,
     conteosAnio,
+    coolingPorClave,
     sheetOpen,
     editClave,
     form,
@@ -103,7 +104,7 @@ export default function Personas(props) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Participantes
             </h1>
             <Badge variant="neutral" size="sm">
@@ -117,12 +118,12 @@ export default function Personas(props) {
 
         {/* Métricas rápidas & Botón Crear */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 text-xs">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
             <span className="flex items-center gap-1.5 text-text2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500" />
               <strong className="text-text1">{activeCount}</strong> activos
             </span>
-            <span className="text-zinc-300 dark:text-zinc-700">|</span>
+            <span className="text-border">|</span>
             <span className="flex items-center gap-1.5 text-text2">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
               <strong className="text-text1">{inactiveCount}</strong> inactivos
@@ -141,7 +142,7 @@ export default function Personas(props) {
       </div>
 
       {/* BARRA DE HERRAMIENTAS Y FILTROS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 rounded-xl bg-surface/80 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2.5 rounded-2xl bg-surface border border-border shadow-2xs">
         {/* Buscador en vivo */}
         <div className="relative flex-1 min-w-[220px]">
           <Input
@@ -150,7 +151,7 @@ export default function Personas(props) {
             placeholder="Buscar por nombre o clave (ej. M-010)..."
             icon={Search}
             size="sm"
-            className="border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:border-zinc-400 dark:focus:border-zinc-600"
+            className="border-border bg-surface-alt/50 text-text1 placeholder:text-text3 focus:border-accent-muted-border"
           />
           {searchVal && (
             <button
@@ -165,7 +166,7 @@ export default function Personas(props) {
 
         {/* Filtros segmentados */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs shrink-0">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs shrink-0">
             {[
               { id: '', label: 'Todas las listas' },
               { id: 'Mat', label: 'Matriculados' },
@@ -177,8 +178,8 @@ export default function Personas(props) {
                 onClick={() => setFilterLista(tab.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   filterLista === tab.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-surface text-text1 shadow-2xs border border-border'
+                    : 'text-text3 hover:text-text1'
                 }`}
               >
                 {tab.label}
@@ -186,7 +187,7 @@ export default function Personas(props) {
             ))}
           </div>
 
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs shrink-0">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs shrink-0">
             {[
               { id: 'true', label: 'Activos' },
               { id: 'false', label: 'Inactivos' },
@@ -198,8 +199,8 @@ export default function Personas(props) {
                 onClick={() => setFilterActivo(tab.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   filterActivo === tab.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-surface text-text1 shadow-2xs border border-border'
+                    : 'text-text3 hover:text-text1'
                 }`}
               >
                 {tab.label}
@@ -223,6 +224,7 @@ export default function Personas(props) {
             handleSort={handleSort}
             currentYear={currentYear}
             conteosAnio={conteosAnio}
+            coolingPorClave={coolingPorClave}
             startEdit={startEdit}
             toggleActivo={toggleActivo}
           />
@@ -235,6 +237,7 @@ export default function Personas(props) {
             setSearchVal={setSearchVal}
             currentYear={currentYear}
             conteosAnio={conteosAnio}
+            coolingPorClave={coolingPorClave}
             startEdit={startEdit}
             toggleActivo={toggleActivo}
           />

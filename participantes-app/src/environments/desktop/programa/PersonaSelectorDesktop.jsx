@@ -16,6 +16,76 @@ import { Input } from '../../../components/ui/Input'
 
 const TOOLTIP_W = 260
 
+const TIPO_CORTO = {
+  P: 'Presidente',
+  TB: 'Tesoros',
+  PE: 'Perlas',
+  LB: 'Lectura',
+  T: 'Estudiante',
+  A: 'Ayudante',
+  DSC: 'Discurso',
+  VC: 'Vida Cristiana',
+  NC: 'Necesidades',
+  EBC: 'Conductor EBC',
+  LEBC: 'Lector EBC',
+  OC: 'Oración',
+}
+
+function getInitials(nombre) {
+  if (!nombre) return '??'
+  const parts = nombre.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return nombre.slice(0, 2).toUpperCase()
+}
+
+function getResumenRotacion(p, historial, fechaSemana) {
+  const previos = (historial || [])
+    .filter(h => h.clave === p.clave && !h._virtual && h.fecha)
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))
+
+  const ultima = previos[0]
+  let subtitulo = 'Sin participaciones previas'
+  let semanas = 99
+
+  if (ultima) {
+    const refStr = fechaSemana ? String(fechaSemana).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    const dRef = new Date(refStr + 'T12:00:00')
+    const dUlt = new Date(String(ultima.fecha).slice(0, 10) + 'T12:00:00')
+    const diffDias = Math.round((dRef - dUlt) / 86400000)
+    semanas = Math.max(0, Math.round(diffDias / 7))
+    const tiempoTxt =
+      semanas === 0 ? 'esta semana' : semanas === 1 ? 'hace 1 sem' : `hace ${semanas} sem`
+    const tipoTxt = TIPO_CORTO[ultima.tipo] || TIPO_LABEL[ultima.tipo] || ultima.tipo || 'Parte'
+    subtitulo = `${tiempoTxt} · última: ${tipoTxt}`
+  }
+
+  if (p.conflicto?.severity === 'warning' || (typeof p._score === 'number' && p._score < 50) || semanas <= 1) {
+    return {
+      subtitulo,
+      badge: 'Muy reciente',
+      badgeCls: 'text-amber-700 dark:text-amber-300',
+      barCls: 'w-1/4 bg-amber-600 dark:bg-amber-500',
+      estado: 'muy_reciente',
+    }
+  }
+  if (p.conflicto?.severity === 'info' || (typeof p._score === 'number' && p._score < 80) || semanas <= 4) {
+    return {
+      subtitulo,
+      badge: 'Reciente',
+      badgeCls: 'text-text2',
+      barCls: 'w-7/12 bg-amber-500/75',
+      estado: 'reciente',
+    }
+  }
+  return {
+    subtitulo,
+    badge: 'Listo',
+    badgeCls: 'text-accent',
+    barCls: 'w-full bg-accent',
+    estado: 'listo',
+  }
+}
+
 /**
  * Selector inteligente de participante con Lazy Scoring y adaptación híbrida Escritorio/Móvil:
  * - Solo ejecuta sugerirCandidatos() para toda la congregación cuando está abierto (open === true).
@@ -450,39 +520,54 @@ export default function PersonaSelectorDesktop({
                     Sin participantes disponibles
                   </div>
                 ) : (
-                  filtrados.map(p => {
-                    const ind = getIndicador(p)
-                    const IndIcon = ind.icon
+                  filtrados.map((p, idx) => {
                     const isSelected = p.clave === value
+                    const resumen = getResumenRotacion(p, historial, fechaSemana)
+                    const esSugerida = idx === 0 && !p.conflicto && resumen.estado === 'listo'
 
                     return (
                       <button
                         key={p.clave}
                         type="button"
                         onClick={() => handleSelect(p.clave)}
-                        className={`w-full min-h-[48px] text-left flex flex-col justify-center px-4 py-2.5 transition-colors cursor-pointer ${
+                        className={`w-full min-h-[54px] text-left flex flex-col justify-center px-4 py-2.5 transition-colors cursor-pointer ${
                           isSelected
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100'
-                            : 'active:bg-zinc-100 dark:active:bg-zinc-800/70 text-text1'
+                            ? 'bg-accent-muted-bg text-text1'
+                            : 'active:bg-surface-alt text-text1'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 w-full">
-                          <IndIcon className={`w-4 h-4 shrink-0 ${ind.cls}`} />
-                          <span className="font-mono text-text3 text-xs shrink-0 w-12">
-                            {p.clave}
-                          </span>
-                          <span className="text-sm font-medium truncate flex-1">
-                            {p.nombre}
-                          </span>
-                          <span className="text-[11px] text-text3 shrink-0">
-                            {p.estatus}
-                          </span>
+                          <div className="w-8 h-8 rounded-full bg-surface-alt text-text2 border border-border flex items-center justify-center text-[11px] font-semibold shrink-0">
+                            {getInitials(p.nombre)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-medium truncate">{p.nombre}</span>
+                              {esSugerida && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-accent-muted-bg text-accent border border-accent-muted-border shrink-0">
+                                  Sugerida
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-text3 truncate">
+                              {p.clave} · {resumen.subtitulo}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className={`text-[11px] font-medium ${resumen.badgeCls}`}>
+                              {resumen.estado === 'listo' ? '✓ ' : '◷ '}
+                              {resumen.badge}
+                            </span>
+                            <div className="w-12 h-1 rounded-full bg-surface-alt overflow-hidden">
+                              <div className={`h-full rounded-full ${resumen.barCls}`} />
+                            </div>
+                          </div>
                         </div>
                         {p.conflicto && (
                           <div
-                            className={`mt-1 ml-6 text-[11px] flex items-center gap-1 ${
+                            className={`mt-1.5 ml-10 text-[11px] flex items-center gap-1 ${
                               p.conflicto.severity === 'warning'
-                                ? 'text-amber-600 dark:text-amber-400'
+                                ? 'text-amber-700 dark:text-amber-400'
                                 : 'text-blue-600 dark:text-blue-400'
                             }`}
                           >
@@ -508,25 +593,31 @@ export default function PersonaSelectorDesktop({
       {open && !isMobile && (
         <div
           data-persona-dropdown
-          className="fixed z-[200] bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden animate-view-fade"
+          className="fixed z-[200] bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-view-fade min-w-[320px]"
           style={dropdownStyle}
         >
-          {/* Búsqueda */}
-          <div className="p-2 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50">
+          {/* Contexto & Búsqueda */}
+          <div className="p-2.5 border-b border-border bg-surface-alt/50 space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-text3 px-0.5">
+              <span className="font-semibold text-text1">
+                Elegir persona · {TIPO_LABEL[tipo] || tipo}
+              </span>
+              <span className="font-mono text-[10px]">/ buscar</span>
+            </div>
             <Input
               ref={inputRef}
               value={query}
               onChange={handleQueryChange}
               onKeyDown={handleKeyDown}
-              placeholder="Buscar nombre o clave..."
+              placeholder="Buscar por nombre o clave..."
               icon={Search}
               size="sm"
-              className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1"
+              className="border-border bg-surface text-text1"
             />
           </div>
 
           {/* Opciones */}
-          <div ref={listRef} className="relative max-h-48 overflow-y-auto py-1">
+          <div ref={listRef} className="relative max-h-64 overflow-y-auto py-1 divide-y divide-border/40">
             <button
               type="button"
               data-index="-1"
@@ -538,23 +629,23 @@ export default function PersonaSelectorDesktop({
               }}
               className={`w-full text-left px-3 py-1.5 text-xs transition-colors cursor-pointer ${
                 highlightedIndex === -1
-                  ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1 font-medium'
-                  : 'text-text3 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+                  ? 'bg-surface-alt text-text1 font-medium'
+                  : 'text-text3 hover:bg-surface-alt/60'
               }`}
             >
               — Sin asignar —
             </button>
 
             {filtrados.length === 0 ? (
-              <div className="px-3 py-3 text-center text-xs text-text3 italic">
+              <div className="px-3 py-4 text-center text-xs text-text3 italic">
                 Sin participantes disponibles
               </div>
             ) : (
               filtrados.map((p, idx) => {
-                const ind = getIndicador(p)
-                const IndIcon = ind.icon
                 const isSelected = p.clave === value
                 const isHighlighted = highlightedIndex === idx
+                const resumen = getResumenRotacion(p, historial, fechaSemana)
+                const esSugerida = idx === 0 && !p.conflicto && resumen.estado === 'listo'
 
                 return (
                   <button
@@ -565,35 +656,49 @@ export default function PersonaSelectorDesktop({
                     onMouseMove={() => setHighlightedIndex(idx)}
                     onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
                     onMouseLeave={handleItemMouseLeave}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs transition-colors cursor-pointer ${
+                    className={`w-full text-left flex items-center gap-2.5 px-3 py-2 text-xs transition-colors cursor-pointer ${
                       isSelected
-                        ? isHighlighted
-                          ? 'bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-100 font-medium ring-1 ring-inset ring-emerald-500/30'
-                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium'
+                        ? 'bg-accent-muted-bg text-text1 font-medium ring-1 ring-inset ring-accent-muted-border'
                         : isHighlighted
-                          ? 'bg-zinc-100 dark:bg-zinc-800/80 text-text1'
-                          : 'hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 text-text1'
+                          ? 'bg-surface-alt/80 text-text1'
+                          : 'hover:bg-surface-alt/50 text-text1'
                     }`}
                   >
-                    <IndIcon className={`w-3.5 h-3.5 shrink-0 ${ind.cls}`} />
-                    <span className="font-mono text-text3 text-[11px] shrink-0 w-12">{p.clave}</span>
-                    <span className="truncate flex-1">{p.nombre}</span>
-                    {p.conflicto && (
-                      <span
-                        className="shrink-0 flex items-center justify-center ml-auto"
-                        title={p.conflicto.mensaje}
-                      >
-                        {p.conflicto.severity === 'warning' ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                        ) : (
-                          <Info className="w-3.5 h-3.5 text-blue-500" />
+                    <div className="w-7 h-7 rounded-full bg-surface-alt border border-border text-[10px] font-semibold text-text2 flex items-center justify-center shrink-0">
+                      {getInitials(p.nombre)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium text-text1">{p.nombre}</span>
+                        {esSugerida && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-medium bg-accent-muted-bg text-accent border border-accent-muted-border shrink-0">
+                            Sugerida
+                          </span>
                         )}
+                      </div>
+                      <div className="text-[10px] text-text3 truncate">
+                        {resumen.subtitulo}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`text-[10px] font-medium ${resumen.badgeCls}`}>
+                        {resumen.estado === 'listo' ? '✓ ' : '◷ '}
+                        {resumen.badge}
                       </span>
-                    )}
+                      <div className="w-10 h-1 rounded-full bg-surface-alt overflow-hidden">
+                        <div className={`h-full rounded-full ${resumen.barCls}`} />
+                      </div>
+                    </div>
                   </button>
                 )
               })
             )}
+          </div>
+
+          {/* Pie de ayuda de teclado */}
+          <div className="px-3 py-1.5 border-t border-border bg-surface-alt/40 flex items-center justify-between text-[10px] text-text3">
+            <span>↑↓ navegar · Enter asignar · Esc cerrar</span>
+            <span className="hidden sm:inline">Ordenado por idoneidad</span>
           </div>
         </div>
       )}

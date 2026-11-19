@@ -147,11 +147,11 @@ function LineTimelineTooltip({ active, payload, label }) {
 // ── Tarjeta Contenedora de Estadísticas ───────────────────────
 function StatCard({ title, icon: Icon, badge, children }) {
   return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl p-5 flex flex-col shadow-2xs">
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+    <div className="bg-surface border border-border rounded-2xl p-5 flex flex-col shadow-2xs">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/80">
         <div className="flex items-center gap-2">
           {Icon && <Icon className="w-4 h-4 text-text3" />}
-          <h3 className="text-sm font-semibold text-text1 tracking-tight">{title}</h3>
+          <h3 className="font-display text-base font-medium text-text1 tracking-tight">{title}</h3>
         </div>
         {badge && (
           <Badge variant="neutral" size="xs">
@@ -418,7 +418,7 @@ export default function Estadisticas({ onNavigate }) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-text1">
+            <h1 className="font-display text-2xl font-medium tracking-tight text-text1">
               Estadísticas
             </h1>
             <Badge variant="neutral" size="sm">
@@ -433,7 +433,7 @@ export default function Estadisticas({ onNavigate }) {
         {/* Filtros de la Barra */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Segmented Rango Temporal */}
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs">
             {[
               { id: 'anio', label: 'Año completo' },
               { id: '3m', label: 'Últimos 3 meses' },
@@ -449,8 +449,8 @@ export default function Estadisticas({ onNavigate }) {
                 }}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   filterRango === tab.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-surface text-text1 shadow-2xs border border-border'
+                    : 'text-text3 hover:text-text1'
                 }`}
               >
                 {tab.label}
@@ -477,7 +477,7 @@ export default function Estadisticas({ onNavigate }) {
           )}
 
           {/* Segmented Lista */}
-          <div className="flex items-center p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-900/90 border border-zinc-200/70 dark:border-zinc-800/90 text-xs">
+          <div className="flex items-center p-0.5 rounded-lg bg-surface-alt border border-border text-xs">
             {[
               { id: '', label: 'Todas' },
               { id: 'Mat', label: 'Matriculados' },
@@ -489,8 +489,8 @@ export default function Estadisticas({ onNavigate }) {
                 onClick={() => setFilterLista(tab.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   filterLista === tab.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-2xs border border-zinc-200/50 dark:border-zinc-700/60'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    ? 'bg-surface text-text1 shadow-2xs border border-border'
+                    : 'text-text3 hover:text-text1'
                 }`}
               >
                 {tab.label}
@@ -536,60 +536,119 @@ export default function Estadisticas({ onNavigate }) {
         </div>
       ) : (
         <>
-          {/* ── TARJETAS KPI PRINCIPALES ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-1">
-              <div className="flex items-center justify-between text-text3">
-                <span className="text-xs font-medium">Personas activas</span>
-                <Users className="w-4 h-4" />
-              </div>
-              <div className="text-2xl font-bold font-mono text-text1 tracking-tight">
-                {totalActivos}
-              </div>
-              <span className="text-[11px] text-text3 block">
-                {totalInact} registradas como inactivas
-              </span>
-            </div>
+          {/* ── COBERTURA RADIAL + KPIs PRINCIPALES ── */}
+          {(() => {
+            const activosConPart = Math.max(0, totalActivos - sinRegs.length)
+            const coberturaPct = totalActivos > 0 ? Math.round((activosConPart / totalActivos) * 100) : 0
+            const radius = 28
+            const circumference = 2 * Math.PI * radius
+            const dashOffset = circumference - (coberturaPct / 100) * circumference
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                {/* Donut Gauge de Cobertura Activa */}
+                <div className="lg:col-span-4 p-5 rounded-2xl border border-accent-muted-border bg-warm-green-gradient shadow-2xs flex items-center gap-4">
+                  <div className="relative w-20 h-20 shrink-0">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 68 68" aria-label={`Cobertura ${coberturaPct}%`}>
+                      <circle
+                        cx="34"
+                        cy="34"
+                        r={radius}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        className="text-border/70"
+                      />
+                      <circle
+                        cx="34"
+                        cy="34"
+                        r={radius}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={dashOffset}
+                        className="text-accent transition-all duration-500"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="font-display text-base font-medium text-text1">
+                        {coberturaPct}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-accent-muted-text">
+                      Cobertura de rotación
+                    </span>
+                    <div className="font-display text-xl font-medium text-text1">
+                      {activosConPart} / {totalActivos} activos
+                    </div>
+                    <p className="text-[11px] text-text2 leading-snug">
+                      {sinRegs.length === 0
+                        ? 'Todos los participantes activos han participado en este rango.'
+                        : `${sinRegs.length} ${sinRegs.length === 1 ? 'participante sigue' : 'participantes siguen'} sin participación en este rango.`}
+                    </p>
+                  </div>
+                </div>
 
-            <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-1">
-              <div className="flex items-center justify-between text-text3">
-                <span className="text-xs font-medium">Total participaciones</span>
-                <FileText className="w-4 h-4" />
-              </div>
-              <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
-                {totalRegs}
-              </div>
-              <span className="text-[11px] text-text3 block">
-                Asignaciones en el año actual
-              </span>
-            </div>
+                {/* 4 KPI Cards */}
+                <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-2xs flex flex-col justify-between space-y-1">
+                    <div className="flex items-center justify-between text-text3">
+                      <span className="text-xs font-medium">Personas activas</span>
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="font-display text-2xl font-medium text-text1 tracking-tight">
+                      {totalActivos}
+                    </div>
+                    <span className="text-[11px] text-text3 block">
+                      {totalInact} inactivas
+                    </span>
+                  </div>
 
-            <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-1">
-              <div className="flex items-center justify-between text-text3">
-                <span className="text-xs font-medium">Peso acumulado</span>
-                <Flame className="w-4 h-4 text-amber-500" />
-              </div>
-              <div className="text-2xl font-bold font-mono text-text1 tracking-tight">
-                {pesoTotal}
-              </div>
-              <span className="text-[11px] text-text3 block">
-                Puntaje de esfuerzo relativo
-              </span>
-            </div>
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-2xs flex flex-col justify-between space-y-1">
+                    <div className="flex items-center justify-between text-text3">
+                      <span className="text-xs font-medium">Participaciones</span>
+                      <FileText className="w-4 h-4 text-accent" />
+                    </div>
+                    <div className="font-display text-2xl font-medium text-accent tracking-tight">
+                      {totalRegs}
+                    </div>
+                    <span className="text-[11px] text-text3 block">
+                      Total en rango
+                    </span>
+                  </div>
 
-            <div className="p-4 rounded-xl bg-surface border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xs space-y-1">
-              <div className="flex items-center justify-between text-text3">
-                <span className="text-xs font-medium">Promedio por activo</span>
-                <TrendingUp className="w-4 h-4 text-blue-500" />
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-2xs flex flex-col justify-between space-y-1">
+                    <div className="flex items-center justify-between text-text3">
+                      <span className="text-xs font-medium">Peso acumulado</span>
+                      <Flame className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="font-display text-2xl font-medium text-text1 tracking-tight">
+                      {pesoTotal}
+                    </div>
+                    <span className="text-[11px] text-text3 block">
+                      Esfuerzo relativo
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-surface border border-border shadow-2xs flex flex-col justify-between space-y-1">
+                    <div className="flex items-center justify-between text-text3">
+                      <span className="text-xs font-medium">Promedio</span>
+                      <TrendingUp className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div className="font-display text-2xl font-medium text-text1 tracking-tight">
+                      {promedioPorActivo}
+                    </div>
+                    <span className="text-[11px] text-text3 block">
+                      Por persona activa
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="text-2xl font-bold font-mono text-text1 tracking-tight">
-                {promedioPorActivo}
-              </div>
-              <span className="text-[11px] text-text3 block">
-                Part. promedio por persona
-              </span>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* ── CUADRÍCULA DE GRÁFICOS Y ANÁLISIS ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

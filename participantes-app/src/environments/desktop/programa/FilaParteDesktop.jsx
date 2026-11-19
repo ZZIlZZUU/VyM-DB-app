@@ -81,15 +81,24 @@ export default function FilaParteDesktop({
     )
   }
 
+  const getInitials = (nombre = '') =>
+    String(nombre)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0]?.toUpperCase() || '')
+      .join('') || '?'
+
   // CONCLU y ORACION — read-only, siempre refleja al Presidente
   if (parte.tipo_asignacion === 'CONCLU' || parte.tipo_asignacion === 'ORACION') {
     const nombrePresidente = personas.find(p => p.clave === clavePresidente)?.nombre || '—'
     return (
       <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
+        className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center ${
           modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
+            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
@@ -136,10 +145,10 @@ export default function FilaParteDesktop({
 
     return (
       <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center ${
+        className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center ${
           modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
+            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
@@ -174,7 +183,7 @@ export default function FilaParteDesktop({
   if (esVisita && parte.tipo_asignacion === 'LEBC') {
     return (
       <div
-        className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center opacity-70 ${
+        className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center opacity-70 ${
           modoLectura
             ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
             : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
@@ -188,13 +197,13 @@ export default function FilaParteDesktop({
             {parte.titulo}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-zinc-100 dark:bg-zinc-800 text-text3">
+            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-surface-alt text-text3 border-border">
               LEBC
             </span>
           </div>
         </div>
 
-        <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-zinc-50/50 dark:bg-zinc-900/30 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+        <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-surface-alt/50 border border-dashed border-border rounded-lg">
           No requiere lector (Discurso de 30 min)
         </div>
 
@@ -209,13 +218,20 @@ export default function FilaParteDesktop({
     evento?.oracion_visitante !== false &&
     !principal?.clave
 
+  const nombrePrincipal = principal?.clave
+    ? (personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave)
+    : null
+  const nombreAyudante = ayudante?.clave
+    ? (personas.find(p => p.clave === ayudante.clave)?.nombre ?? ayudante.clave)
+    : null
+
   return (
     <div
       id={`parte-${parte.id}`}
-      className={`grid gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 items-center transition-all ${
+      className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center transition-all ${
         modoLectura
-          ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
-          : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+          ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
+          : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
       }`}
     >
       {/* Hora */}
@@ -244,7 +260,7 @@ export default function FilaParteDesktop({
 
       {/* Asignaciones: Modo Lectura vs Modo Edición */}
       {modoLectura ? (
-        <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex flex-col gap-1 min-w-0">
           {esOracionVisitantePredeterminada ? (
             <div className="flex items-center gap-1.5 min-w-0">
               <Briefcase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -255,45 +271,56 @@ export default function FilaParteDesktop({
                 Visitante
               </Badge>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span
-                className={`text-xs truncate ${
-                  principal?.clave ? 'font-medium text-text1' : 'text-text3 italic'
-                }`}
-              >
-                {principal?.clave
-                  ? personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave
-                  : '— Sin asignar'}
-              </span>
-              {principal?.clave && (
-                <Badge
-                  variant={
-                    principal?.confirmado && !necesitaReconfirmar
-                      ? 'success'
-                      : necesitaReconfirmar
-                        ? 'warning'
-                        : 'neutral'
-                  }
-                  size="xs"
-                >
-                  {principal?.confirmado && !necesitaReconfirmar
-                    ? 'Confirmado'
+          ) : principal?.clave ? (
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-6 h-6 rounded-full bg-accent-muted-bg border border-accent-muted-border text-[10px] font-semibold text-accent-muted-text flex items-center justify-center shrink-0">
+                  {getInitials(nombrePrincipal)}
+                </span>
+                <div className="min-w-0">
+                  <span
+                    className="text-xs font-medium text-text1 block truncate"
+                    title={
+                      parte.requiere_ayudante && nombreAyudante
+                        ? `${nombrePrincipal} y ${nombreAyudante}`
+                        : nombrePrincipal
+                    }
+                  >
+                    {parte.requiere_ayudante && nombreAyudante
+                      ? `${nombrePrincipal} y ${nombreAyudante}`
+                      : nombrePrincipal}
+                  </span>
+                  {parte.requiere_ayudante && !nombreAyudante && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 block">
+                      Falta ayudante
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Badge
+                variant={
+                  principal?.confirmado && !necesitaReconfirmar
+                    ? 'success'
                     : necesitaReconfirmar
-                      ? 'Reconfirmar'
-                      : 'Pendiente'}
-                </Badge>
-              )}
+                      ? 'warning'
+                      : 'neutral'
+                }
+                size="xs"
+                className="shrink-0"
+              >
+                {principal?.confirmado && !necesitaReconfirmar
+                  ? '✓ Confirmado'
+                  : necesitaReconfirmar
+                    ? '↻ Reconfirmar'
+                    : '◷ Por confirmar'}
+              </Badge>
             </div>
-          )}
-          {parte.requiere_ayudante && (
-            <span className="text-[11px] text-text3 truncate">
-              {ayudante?.clave
-                ? `↳ ${personas.find(p => p.clave === ayudante.clave)?.nombre ?? ayudante.clave}`
-                : principal?.clave
-                  ? '↳ Sin ayudante'
-                  : null}
-            </span>
+          ) : (
+            <div>
+              <Badge variant="neutral" size="xs">
+                — Sin asignar
+              </Badge>
+            </div>
           )}
         </div>
       ) : (
@@ -372,13 +399,17 @@ export default function FilaParteDesktop({
                   ? 'Reconfirmar'
                   : principal?.confirmado
                     ? 'Confirmado'
-                    : 'Confirmar'}
+                    : 'Por confirmar'}
               </Button>
             ) : esOracionVisitantePredeterminada ? (
               <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
                 Predeterminada
               </span>
-            ) : null}
+            ) : (
+              <Badge variant="neutral" size="xs">
+                — Sin asignar
+              </Badge>
+            )}
           </div>
         </>
       )}

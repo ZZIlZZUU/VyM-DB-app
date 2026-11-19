@@ -1,28 +1,28 @@
 const VARIANTS = {
   neutral:
-    'bg-zinc-100 text-zinc-700 border-zinc-200/80 dark:bg-zinc-900/60 dark:text-zinc-300 dark:border-zinc-800',
+    'bg-surface-alt text-text2 border-border',
   success:
-    'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40',
+    'bg-accent-muted-bg text-accent border-accent-muted-border',
   warning:
-    'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40',
+    'bg-amber-bg text-amber border-amber/25',
   danger:
-    'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40',
+    'bg-danger-bg text-danger border-danger/25',
   info:
-    'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
+    'bg-blue-bg text-blue border-blue/25',
   purple:
-    'bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
+    'bg-purple-bg text-purple border-purple/25',
   teal:
-    'bg-teal-50 text-teal-800 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/40',
+    'bg-teal-bg text-teal border-teal/25',
 }
 
 const DOT_COLORS = {
-  neutral: 'bg-zinc-400 dark:bg-zinc-500',
-  success: 'bg-emerald-600 dark:bg-emerald-400',
-  warning: 'bg-amber-600 dark:bg-amber-400',
-  danger:  'bg-red-600 dark:bg-red-400',
-  info:    'bg-blue-600 dark:bg-blue-400',
-  purple:  'bg-purple-600 dark:bg-purple-400',
-  teal:    'bg-teal-600 dark:bg-teal-400',
+  neutral: 'bg-text3',
+  success: 'bg-accent',
+  warning: 'bg-amber',
+  danger:  'bg-danger',
+  info:    'bg-blue',
+  purple:  'bg-purple',
+  teal:    'bg-teal',
 }
 
 export function Badge({

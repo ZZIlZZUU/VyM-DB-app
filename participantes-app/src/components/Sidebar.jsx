@@ -14,16 +14,21 @@ import {
   History,
   ChevronLeft,
   Search,
-  Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
   User,
-  Sun,
-  Moon,
+  Palette,
+  ClipboardList,
+  Shield,
+  LogOut,
+  Contrast,
+  ChevronUp,
 } from 'lucide-react'
 import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 import { prefetchView } from '../core/prefetch'
+import { getAvatarColorClasses } from '../lib/themes'
+import { formatBindingLabel, loadKeybinds } from '../lib/keybinds'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const NAV_ITEMS = [
@@ -141,9 +146,13 @@ export function Sidebar({
   rol,
   user,
   userName,
-  theme,
+  nombreCongregacion,
+  themeMeta,
+  avatarColor = 'accent',
+  avatarUrl = null,
   onToggleTheme,
   onOpenPerfil,
+  onLogout,
   rtStatus,
   semanasPendientes = 0,
   onOpenPalette,
@@ -151,14 +160,51 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const [isHoverExpanded, setIsHoverExpanded] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [keybinds, setKeybinds] = useState(() => loadKeybinds())
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState(null)
   const hoverTimeoutRef = useRef(null)
+  const profileMenuRef = useRef(null)
   const sections = ['Reunión y Programa', 'Participantes', 'Gestión y Sistema']
+
+  useEffect(() => {
+    const sync = () => setKeybinds(loadKeybinds())
+    window.addEventListener('preferences-updated', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('preferences-updated', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
+  const showAvatarPhoto = Boolean(avatarUrl && failedAvatarUrl !== avatarUrl)
+  const paletteShortcutLabel = formatBindingLabel(keybinds.openPalette) || '⌘K'
 
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!popoverOpen) return undefined
+    function handleOutsideClick(e) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setPopoverOpen(false)
+      }
+    }
+    function handleEscape(e) {
+      if (e.key === 'Escape') {
+        setPopoverOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [popoverOpen])
 
   // En móvil o fijada como expandida o en hover-peek
   const isExpanded = mobileOpen || !isCollapsed || isHoverExpanded
@@ -180,22 +226,37 @@ export function Sidebar({
   }
 
   const handleNavClick = (viewId) => {
+    setPopoverOpen(false)
     onNavigate(viewId)
     onCloseMobile?.()
   }
 
+  const handleOpenProfileSection = (sectionId) => {
+    setPopoverOpen(false)
+    onOpenPerfil?.(sectionId)
+    onCloseMobile?.()
+  }
+
+  const avatarClasses = getAvatarColorClasses(avatarColor)
+  const displayUserName = userName || user?.email?.split('@')[0] || 'Usuario'
+  const userInitials = userName
+    ? userName.slice(0, 2).toUpperCase()
+    : user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : null
+
   const renderNavContent = () => (
-    <div className="flex flex-col h-full bg-surface text-text1 select-none overflow-hidden">
+    <div className="flex flex-col h-full bg-surface text-text1 select-none">
       {/* Workspace / Brand Header */}
-      <div className="h-13 px-2 flex items-center justify-between border-b border-zinc-200/80 dark:border-zinc-800/80 shrink-0">
+      <div className="h-13 px-2 flex items-center justify-between border-b border-border shrink-0">
         <button
           type="button"
           onClick={isCollapsed ? () => { onToggleCollapse(); setIsHoverExpanded(false); } : undefined}
-          className="flex items-center px-1.5 h-9 rounded-lg min-w-0 text-left cursor-pointer transition-colors hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 w-full"
+          className="flex items-center px-1.5 h-9 rounded-lg min-w-0 text-left cursor-pointer transition-colors hover:bg-surface-alt/60 w-full"
           title={isCollapsed ? 'Clic para expandir y fijar' : undefined}
         >
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0 shadow-xs hover:bg-emerald-500/25 transition-colors">
-            <Sparkles className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-lg bg-accent-muted-bg text-accent border border-accent-muted-border flex items-center justify-center font-display font-semibold text-xs shrink-0 shadow-2xs">
+            VyM
           </div>
           <div
             className={`flex flex-col min-w-0 ml-2 transition-all duration-200 ease-out ${
@@ -205,7 +266,7 @@ export function Sidebar({
             }`}
           >
             <span className="font-semibold text-xs text-text1 tracking-tight truncate leading-tight whitespace-nowrap">
-              VyM-DB
+              {nombreCongregacion || 'VyM-DB'}
             </span>
             <span className="text-[10px] text-text3 truncate leading-tight whitespace-nowrap">
               Participantes App
@@ -218,7 +279,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="hidden md:flex w-7 h-7 items-center justify-center rounded-md text-text3 hover:text-text1 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0 ml-1"
+            className="hidden md:flex w-7 h-7 items-center justify-center rounded-md text-text3 hover:text-text1 hover:bg-surface-alt transition-colors cursor-pointer shrink-0 ml-1"
             title="Colapsar barra lateral"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -230,7 +291,7 @@ export function Sidebar({
       <div className="px-2 py-1.5 shrink-0">
         <Tooltip
           content="Buscar o comandos"
-          shortcut="⌘K"
+          shortcut={paletteShortcutLabel}
           side="right"
           disabled={isExpanded}
           wrapperClassName="w-full flex items-center"
@@ -240,7 +301,7 @@ export function Sidebar({
             onClick={onOpenPalette}
             onMouseEnter={() => prefetchView('palette')}
             onFocus={() => prefetchView('palette')}
-            className="w-full h-9 flex items-center px-1.5 rounded-lg text-xs text-text2 bg-zinc-100/70 hover:bg-zinc-200/70 dark:bg-zinc-800/60 dark:hover:bg-zinc-700/60 border border-zinc-200/50 dark:border-zinc-700/50 transition-all cursor-pointer"
+            className="w-full h-9 flex items-center px-1.5 rounded-lg text-xs text-text2 bg-surface-alt/70 hover:bg-surface-alt border border-border transition-all cursor-pointer"
           >
             <div className="w-8 h-8 flex items-center justify-center shrink-0">
               <Search className="w-3.5 h-3.5 text-text3" />
@@ -253,8 +314,8 @@ export function Sidebar({
               }`}
             >
               <span className="truncate whitespace-nowrap text-text2 text-xs">Buscar...</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-surface border border-zinc-200 dark:border-zinc-700 text-text3 shadow-2xs whitespace-nowrap">
-                ⌘K
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-surface border border-border text-text3 shadow-2xs whitespace-nowrap">
+                {paletteShortcutLabel}
               </kbd>
             </div>
           </button>
@@ -294,18 +355,18 @@ export function Sidebar({
                     onFocus={() => prefetchView(item.id)}
                     className={`group relative w-full h-9 flex items-center px-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       isActive
-                        ? 'bg-zinc-200/90 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50 shadow-2xs font-semibold'
-                        : 'text-text2 hover:text-text1 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50'
+                        ? 'bg-accent-muted-bg text-text1 shadow-2xs font-semibold'
+                        : 'text-text2 hover:text-text1 hover:bg-surface-alt/60'
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.75 rounded-r-full bg-emerald-600 dark:bg-emerald-400" />
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.75 rounded-r-full bg-accent" />
                     )}
                     <div className="w-8 h-8 flex items-center justify-center shrink-0">
                       <Icon
                         className={`w-4 h-4 transition-colors ${
                           isActive
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? 'text-accent'
                             : 'text-text3 group-hover:text-text2'
                         }`}
                       />
@@ -347,23 +408,157 @@ export function Sidebar({
         })}
       </div>
 
-      {/* User Profile Card / Trigger */}
-      <div className="p-2 border-t border-zinc-200/80 dark:border-zinc-800/80 shrink-0">
+      {/* User Profile Card / Quick Popover Trigger */}
+      <div ref={profileMenuRef} className="relative p-2 border-t border-border shrink-0">
+        {popoverOpen && (
+          <div
+            role="menu"
+            aria-label="Menú rápido de usuario"
+            className={`absolute z-50 bg-surface border border-border2 rounded-xl shadow-2xl p-1.5 animate-scale-in ${
+              isExpanded
+                ? 'bottom-full left-2 right-2 mb-2'
+                : 'left-full bottom-2 ml-2 w-60'
+            }`}
+          >
+            <div className="px-2.5 py-2 border-b border-border mb-1">
+              <div className="text-xs font-semibold text-text1 truncate">
+                {displayUserName}
+              </div>
+              {user?.email && (
+                <div className="text-[10px] font-mono text-text3 truncate">
+                  {user.email}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-accent-muted-bg text-accent border border-accent-muted-border uppercase">
+                  {rol === 'admin' ? 'Admin' : 'Editor'}
+                </span>
+                {themeMeta?.fullLabel && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-mono rounded bg-surface-alt text-text2 border border-border">
+                    {themeMeta.fullLabel}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenProfileSection('perfil')}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <User className="w-3.5 h-3.5 text-text3" />
+                Mi Perfil
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenProfileSection('apariencia')}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Palette className="w-3.5 h-3.5 text-accent" />
+                Apariencia y Temas
+              </span>
+              <span className="text-[10px] font-mono text-accent">6 estilos</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenProfileSection('asignaciones')}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <ClipboardList className="w-3.5 h-3.5 text-text3" />
+                Mis Asignaciones
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenProfileSection('seguridad')}
+              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5 text-text3" />
+                Seguridad y Acceso
+              </span>
+            </button>
+
+            {onToggleTheme && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onToggleTheme()
+                    setPopoverOpen(false)
+                  }}
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Contrast className="w-3.5 h-3.5 text-text3" />
+                    {themeMeta?.mode === 'dark' ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+                  </span>
+                </button>
+              </>
+            )}
+
+            {onLogout && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setPopoverOpen(false)
+                    onCloseMobile?.()
+                    onLogout()
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-danger hover:bg-danger-bg transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Cerrar sesión
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <Tooltip
-          content={`Mi perfil (${userName || 'Usuario'})`}
+          content={`Mi perfil (${displayUserName})`}
           side="right"
-          disabled={isExpanded}
+          disabled={isExpanded || popoverOpen}
           wrapperClassName="w-full flex items-center"
         >
           <button
             type="button"
-            onClick={onOpenPerfil}
+            onClick={() => setPopoverOpen(prev => !prev)}
             onMouseEnter={() => prefetchView('perfil')}
             onFocus={() => prefetchView('perfil')}
-            className="w-full h-10 flex items-center px-1.5 rounded-lg text-left transition-colors cursor-pointer group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60"
+            aria-expanded={popoverOpen}
+            aria-haspopup="menu"
+            className={`w-full h-10 flex items-center px-1.5 rounded-lg text-left transition-colors cursor-pointer group ${
+              popoverOpen ? 'bg-surface-alt' : 'hover:bg-surface-alt/70'
+            }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 group-hover:border-emerald-500/40 text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs">
-              {userName ? userName.slice(0, 2).toUpperCase() : <User className="w-4 h-4" />}
+            <div className={`w-8 h-8 rounded-lg border text-xs font-semibold flex items-center justify-center shrink-0 shadow-2xs overflow-hidden ${avatarClasses}`}>
+              {showAvatarPhoto ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayUserName}
+                  onError={() => setFailedAvatarUrl(avatarUrl)}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                userInitials || <User className="w-4 h-4" />
+              )}
             </div>
             <div
               className={`flex items-center justify-between flex-1 min-w-0 ml-2.5 pr-1 transition-all duration-200 ease-out ${
@@ -374,24 +569,31 @@ export function Sidebar({
             >
               <div className="flex flex-col min-w-0">
                 <span className="font-semibold text-xs text-text1 truncate leading-tight whitespace-nowrap">
-                  {userName || user?.email?.split('@')[0] || 'Usuario'}
+                  {displayUserName}
                 </span>
                 <span className="text-[10px] text-text3 truncate leading-tight whitespace-nowrap">
                   {user?.email || (rol === 'admin' ? 'Administrador' : 'Publicador')}
                 </span>
               </div>
-              {rol === 'admin' && (
-                <span className="px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 uppercase">
-                  Admin
-                </span>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                {rol === 'admin' && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-accent-muted-bg text-accent border border-accent-muted-border uppercase">
+                    Admin
+                  </span>
+                )}
+                <ChevronUp
+                  className={`w-3.5 h-3.5 text-text3 transition-transform duration-150 ${
+                    popoverOpen ? 'rotate-180 text-text1' : ''
+                  }`}
+                />
+              </div>
             </div>
           </button>
         </Tooltip>
       </div>
 
-      {/* Footer: Realtime Status, Theme & Collapse/Expand Toggle */}
-      <div className="p-2 border-t border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 shrink-0">
+      {/* Footer: Realtime Status & Collapse/Expand Toggle (sin toggle de tema redundante) */}
+      <div className="p-2 border-t border-border bg-surface-alt/40 shrink-0">
         {isExpanded ? (
           /* Expanded Footer: Horizontal layout */
           <div className="flex items-center justify-between gap-1">
@@ -400,15 +602,15 @@ export function Sidebar({
                 <span className="relative flex h-2 w-2">
                   {rtStatus === 'conectando' || rtStatus === 'error' ? (
                     <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      rtStatus === 'conectando' ? 'bg-amber-400' : 'bg-red-400'
+                      rtStatus === 'conectando' ? 'bg-amber' : 'bg-danger'
                     }`} />
                   ) : null}
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${
                     rtStatus === 'conectado'
-                      ? 'bg-emerald-500'
+                      ? 'bg-accent'
                       : rtStatus === 'conectando'
-                      ? 'bg-amber-500'
-                      : 'bg-red-500'
+                      ? 'bg-amber'
+                      : 'bg-danger'
                   }`} />
                 </span>
               </div>
@@ -422,57 +624,25 @@ export function Sidebar({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
-              <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="top">
+            {!mobileOpen && (
+              <Tooltip content="Colapsar barra lateral" side="top">
                 <button
                   type="button"
-                  onClick={onToggleTheme}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text2 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                  aria-label="Cambiar tema"
+                  onClick={() => {
+                    onToggleCollapse()
+                    setIsHoverExpanded(false)
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-surface-alt transition-colors cursor-pointer shrink-0"
+                  aria-label="Colapsar barra lateral"
                 >
-                  {theme === 'dark' ? (
-                    <Sun className="w-4 h-4 text-amber-400" />
-                  ) : (
-                    <Moon className="w-4 h-4 text-zinc-600" />
-                  )}
+                  <PanelLeftClose className="w-4 h-4" />
                 </button>
               </Tooltip>
-
-              {!mobileOpen && (
-                <Tooltip content="Colapsar barra lateral" side="top">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onToggleCollapse()
-                      setIsHoverExpanded(false)
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                    aria-label="Colapsar barra lateral"
-                  >
-                    <PanelLeftClose className="w-4 h-4" />
-                  </button>
-                </Tooltip>
-              )}
-            </div>
+            )}
           </div>
         ) : (
           /* Collapsed Footer: Clean Vertical Column */
           <div className="flex flex-col items-center gap-1.5">
-            <Tooltip content={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'} side="right" wrapperClassName="w-full flex items-center justify-center">
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-text2 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                aria-label="Cambiar tema"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Moon className="w-4 h-4 text-zinc-600" />
-                )}
-              </button>
-            </Tooltip>
-
             <Tooltip
               content={`Estado de sincronización en tiempo real: ${rtStatus}`}
               side="right"
@@ -482,15 +652,15 @@ export function Sidebar({
                 <span className="relative flex h-2 w-2">
                   {rtStatus === 'conectando' || rtStatus === 'error' ? (
                     <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      rtStatus === 'conectando' ? 'bg-amber-400' : 'bg-red-400'
+                      rtStatus === 'conectando' ? 'bg-amber' : 'bg-danger'
                     }`} />
                   ) : null}
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${
                     rtStatus === 'conectado'
-                      ? 'bg-emerald-500'
+                      ? 'bg-accent'
                       : rtStatus === 'conectando'
-                      ? 'bg-amber-500'
-                      : 'bg-red-500'
+                      ? 'bg-amber'
+                      : 'bg-danger'
                   }`} />
                 </span>
               </div>
@@ -504,7 +674,7 @@ export function Sidebar({
                     onToggleCollapse()
                     setIsHoverExpanded(false)
                   }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text3 hover:text-text1 hover:bg-surface-alt transition-colors cursor-pointer"
                   aria-label="Fijar barra lateral"
                 >
                   <PanelLeftOpen className="w-4 h-4" />
@@ -526,9 +696,10 @@ export function Sidebar({
         }`}
       >
         <aside
+          data-app-sidebar="true"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className={`h-screen border-r border-zinc-200 dark:border-zinc-800/80 bg-surface transition-[width,box-shadow] duration-200 ease-out z-40 flex flex-col ${
+          className={`h-screen border-r border-border bg-surface transition-[width,box-shadow] duration-200 ease-out z-40 flex flex-col ${
             isCollapsed
               ? isHoverExpanded
                 ? 'w-60 shadow-2xl absolute top-0 left-0'
@@ -547,7 +718,10 @@ export function Sidebar({
             className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
           />
-          <div className="relative z-10 w-64 max-w-[80vw] h-full shadow-2xl animate-slide-left">
+          <div
+            data-app-sidebar="true"
+            className="relative z-10 w-64 max-w-[80vw] h-full shadow-2xl animate-slide-left"
+          >
             {renderNavContent()}
           </div>
         </div>

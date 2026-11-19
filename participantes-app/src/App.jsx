@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
+import { queryClient } from './core/queryClient'
+import { limpiarDatosSensiblesLogout, registrarEventoSeguridad } from './lib/seguridad'
 import { useRealtimeCacheSync } from './core/realtimeSync'
 import { useSemanasPendientesCount } from './core/queries/useAppQueries'
 import { useEventosReunion } from './hooks/useEventosReunion'
+import { useConfiguracion } from './hooks/useConfiguracion'
 import { useConfirm } from './hooks/useConfirm'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useIdleLogout } from './hooks/useIdleLogout'
 import { useTheme } from './hooks/useTheme'
 import { useToast } from './hooks/useToast'
 import Toast from './components/Toast'
@@ -15,7 +19,9 @@ import BottomNavBar from './environments/mobile/shell/BottomNavBar'
 import { SkeletonList } from './components/Skeleton'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { EmptyState } from './components/ui/EmptyState'
-import { ShieldAlert } from 'lucide-react'
+import { Dialog } from './components/ui/Dialog'
+import { Button } from './components/ui/Button'
+import { ShieldAlert, Clock } from 'lucide-react'
 
 // Lazy-loaded pages (Code-Splitting por vista)
 const Home              = lazy(() => import('./pages/Home'))
@@ -70,7 +76,8 @@ function resolveViewFromPath(pathname = window.location.pathname) {
 }
 
 export default function App() {
-  const { theme, toggle: toggleTheme } = useTheme()
+  const themeState = useTheme()
+  const { toggle: toggleTheme, themeMeta, avatarColor } = themeState
   const { toast, showToast, success, error: toastError } = useToast()
   const [view, setView] = useState(() => resolveViewFromPath())
   const [selectedSemanaId, setSelectedSemanaId] = useState(null)
@@ -78,13 +85,20 @@ export default function App() {
   const [selectedPersonaTab, setSelectedPersonaTab] = useState('historial')
   const [user, setUser] = useState(null)
   const [userName, setUserName] = useState('')
+  const [userAvatarUrl, setUserAvatarUrl] = useState(null)
   const [rol, setRol] = useState('editor')
   const [rtStatus, setRtStatus] = useState('conectando')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [perfilOpen, setPerfilOpen] = useState(false)
+  const [perfilTab, setPerfilTab] = useState('perfil')
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false)
   const [openRegistrosCreate, setOpenRegistrosCreate] = useState(false)
+
+  const handleOpenPerfil = useCallback((tab = 'perfil') => {
+    setPerfilTab(typeof tab === 'string' ? tab : 'perfil')
+    setPerfilOpen(true)
+  }, [])
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebarCollapsed')
@@ -94,10 +108,23 @@ export default function App() {
 
   const { confirm, confirmProps } = useConfirm()
   const [configuracionInitialTab, setConfiguracionInitialTab] = useState(null)
+  const [historialUserFilter, setHistorialUserFilter] = useState('ALL')
 
-  // Caché global de eventos y conteo reactivo de semanas pendientes (0 queries redundantes)
+  // Caché global de eventos, configuración y conteo reactivo de semanas pendientes
+  const { config } = useConfiguracion()
   const { eventos } = useEventosReunion()
   const semanasPendientes = useSemanasPendientesCount(eventos)
+
+  const handleOpenNuevaAsignacion = useCallback(() => {
+    setOpenRegistrosCreate(true)
+    setMobileOpen(false)
+    setView(() => {
+      if (window.location.pathname !== '/registros') {
+        window.history.pushState({ view: 'registros', params: null }, '', '/registros')
+      }
+      return 'registros'
+    })
+  }, [])
 
   const handleNavigate = useCallback((targetView, params) => {
     if (params?.semanaId) {
@@ -109,6 +136,11 @@ export default function App() {
     }
     if (params?.tab) {
       setConfiguracionInitialTab(params.tab)
+    }
+    if (params?.filterUserEmail !== undefined) {
+      setHistorialUserFilter(params.filterUserEmail || 'ALL')
+    } else if (targetView === 'historial') {
+      setHistorialUserFilter('ALL')
     }
 
     setView(prevView => {
@@ -147,10 +179,11 @@ export default function App() {
   useKeyboardShortcuts({
     onOpenPalette: () => setPaletteOpen(true),
     onNavigate: handleNavigate,
-    onOpenPerfil: () => setPerfilOpen(true),
+    onOpenPerfil: handleOpenPerfil,
     onToggleTheme: toggleTheme,
     onExportS140: handleExportCurrentWeekS140,
     onOpenShortcutsHelp: () => setShortcutsModalOpen(true),
+    onOpenNuevaAsignacion: handleOpenNuevaAsignacion,
   })
 
   useEffect(() => {
@@ -188,6 +221,14 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [mobileOpen, paletteOpen])
 
+  const resolveUserAvatar = (currentUser, ua) => {
+    const meta = currentUser?.user_metadata
+    if (meta && 'avatar_url' in meta) {
+      return meta.avatar_url || null
+    }
+    return ua?.avatar_url || null
+  }
+
   const fetchUserData = useCallback(async () => {
     const {
       data: { user: currentUser },
@@ -196,11 +237,14 @@ export default function App() {
     if (currentUser?.email) {
       const { data: ua } = await supabase
         .from('usuarios_autorizados')
-        .select('rol, nombre')
+        .select('*')
         .eq('email', currentUser.email)
         .single()
       setRol(ua?.rol ?? 'editor')
       setUserName(ua?.nombre ?? '')
+      setUserAvatarUrl(resolveUserAvatar(currentUser, ua))
+    } else {
+      setUserAvatarUrl(resolveUserAvatar(currentUser, null))
     }
   }, [])
 
@@ -215,12 +259,15 @@ export default function App() {
       if (currentUser?.email) {
         const { data: ua } = await supabase
           .from('usuarios_autorizados')
-          .select('rol, nombre')
+          .select('*')
           .eq('email', currentUser.email)
           .single()
         if (ignore) return
         setRol(ua?.rol ?? 'editor')
         setUserName(ua?.nombre ?? '')
+        setUserAvatarUrl(resolveUserAvatar(currentUser, ua))
+      } else {
+        setUserAvatarUrl(resolveUserAvatar(currentUser, null))
       }
     }
     initUser()
@@ -235,15 +282,33 @@ export default function App() {
     onUserTableChange: fetchUserData,
   })
 
-  async function handleLogout() {
-    const ok = await confirm({
-      title: '¿Cerrar sesión?',
-      message: 'Tendrás que volver a iniciar sesión para acceder a tu cuenta.',
-    })
-    if (!ok) return
-    setMobileOpen(false)
-    await supabase.auth.signOut()
-  }
+  const handleLogout = useCallback(
+    async (options = {}) => {
+      if (!options?.skipConfirm) {
+        const ok = await confirm({
+          title: '¿Cerrar sesión?',
+          message: 'Tendrás que volver a iniciar sesión para acceder a tu cuenta.',
+        })
+        if (!ok) return
+      }
+      setMobileOpen(false)
+      if (options?.reason === 'idle') {
+        await registrarEventoSeguridad(supabase, { tipo: 'IDLE_LOGOUT' })
+      }
+      await limpiarDatosSensiblesLogout(queryClient)
+      await supabase.auth.signOut()
+    },
+    [confirm]
+  )
+
+  const {
+    warningOpen: idleWarningOpen,
+    secondsLeft: idleSecondsLeft,
+    staySignedIn: staySignedInFromIdle,
+  } = useIdleLogout({
+    enabled: Boolean(user),
+    onIdleLogout: () => handleLogout({ skipConfirm: true, reason: 'idle' }),
+  })
 
   function renderView() {
     switch (view) {
@@ -252,6 +317,8 @@ export default function App() {
           <Home
             onNavigate={handleNavigate}
             rol={rol}
+            userName={userName}
+            user={user}
             onOpenRegistrosCreate={() => {
               setOpenRegistrosCreate(true)
               handleNavigate('registros')
@@ -338,7 +405,13 @@ export default function App() {
       case 'estadisticas':
         return <Estadisticas onNavigate={handleNavigate} />
       case 'historial':
-        return <HistorialCambios />
+        return (
+          <HistorialCambios
+            key={historialUserFilter}
+            currentUser={user}
+            initialUserEmail={historialUserFilter}
+          />
+        )
       default:
         return null
     }
@@ -347,6 +420,37 @@ export default function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-text1">
       <ConfirmDialog {...confirmProps} />
+      <Dialog
+        isOpen={idleWarningOpen}
+        onClose={staySignedInFromIdle}
+        title="¿Sigues ahí?"
+        description="Por tu seguridad, esta sesión se cerrará automáticamente tras el periodo de inactividad configurado."
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleLogout({ skipConfirm: true, reason: 'idle' })}
+            >
+              Cerrar sesión ahora
+            </Button>
+            <Button type="button" variant="accent" size="sm" onClick={staySignedInFromIdle}>
+              Seguir conectado
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-3.5 rounded-xl bg-amber-bg border border-amber/25 flex items-center gap-3 text-xs text-text1">
+          <Clock className="w-5 h-5 text-amber shrink-0" />
+          <span>
+            Tu sesión se cerrará en{' '}
+            <strong className="font-mono text-sm">{idleSecondsLeft}s</strong> si no confirmas tu
+            presencia.
+          </span>
+        </div>
+      </Dialog>
 
       {/* Modern Collapsible Sidebar */}
       <Sidebar
@@ -357,11 +461,15 @@ export default function App() {
         rol={rol}
         user={user}
         userName={userName}
+        nombreCongregacion={config?.nombreCongregacion}
         rtStatus={rtStatus}
         semanasPendientes={semanasPendientes}
         onOpenPalette={() => setPaletteOpen(true)}
-        onOpenPerfil={() => setPerfilOpen(true)}
-        theme={theme}
+        onOpenPerfil={handleOpenPerfil}
+        onLogout={handleLogout}
+        themeMeta={themeMeta}
+        avatarColor={avatarColor}
+        avatarUrl={userAvatarUrl}
         onToggleTheme={toggleTheme}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
@@ -375,17 +483,18 @@ export default function App() {
           onNavigate={handleNavigate}
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
-          onOpenPerfil={() => setPerfilOpen(true)}
+          onOpenPerfil={() => handleOpenPerfil('perfil')}
           onOpenShortcutsHelp={() => setShortcutsModalOpen(true)}
-          theme={theme}
-          onToggleTheme={toggleTheme}
+          onOpenNuevaAsignacion={handleOpenNuevaAsignacion}
+          avatarColor={avatarColor}
+          avatarUrl={userAvatarUrl}
           userName={userName}
           user={user}
           isCollapsed={isCollapsed}
         />
 
         {/* Scrollable Page Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6">
+        <main id="app-main" className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 md:pb-6">
           <div key={view} className="w-full animate-view-fade">
             <ErrorBoundary title="Error al cargar la sección">
               <Suspense fallback={<SkeletonList rows={6} cols={4} />}>
@@ -400,6 +509,7 @@ export default function App() {
       <BottomNavBar
         currentView={view}
         onNavigate={handleNavigate}
+        onOpenNuevaAsignacion={handleOpenNuevaAsignacion}
         semanasPendientes={semanasPendientes}
         mobileOpen={mobileOpen}
         onOpenMobileNav={() => setMobileOpen(v => !v)}
@@ -409,14 +519,25 @@ export default function App() {
       <Suspense fallback={null}>
         {perfilOpen && (
           <PerfilDrawer
+            key={perfilTab}
             open={perfilOpen}
             onClose={() => setPerfilOpen(false)}
+            initialTab={perfilTab}
             user={user}
             rol={rol}
+            avatarUrl={userAvatarUrl}
+            config={config}
+            eventos={eventos}
             onLogout={handleLogout}
             onUserUpdated={fetchUserData}
-            theme={theme}
-            onToggleTheme={toggleTheme}
+            themeState={themeState}
+            isCollapsed={isCollapsed}
+            onSetSidebarCollapsed={setIsCollapsed}
+            onNavigate={handleNavigate}
+            onOpenShortcutsHelp={() => {
+              setPerfilOpen(false)
+              setShortcutsModalOpen(true)
+            }}
           />
         )}
 
@@ -426,9 +547,9 @@ export default function App() {
             onClose={() => setPaletteOpen(false)}
             rol={rol}
             onNavigate={handleNavigate}
-            onOpenPerfil={() => setPerfilOpen(true)}
+            onOpenPerfil={handleOpenPerfil}
             onLogout={handleLogout}
-            theme={theme}
+            themeMeta={themeMeta}
             onToggleTheme={toggleTheme}
             onExportS140={handleExportCurrentWeekS140}
           />

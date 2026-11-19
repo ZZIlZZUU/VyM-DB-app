@@ -32,6 +32,7 @@ export function RegistrosMobile({
   page,
   setPage,
   totalRecords,
+  totalUnfiltered = totalRecords,
   totalPages,
   startIndex,
   endIndex,
@@ -81,8 +82,11 @@ export function RegistrosMobile({
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1 text-[11px] text-text3">
         <span>
-          Mostrando <strong className="text-text2">{startIndex}</strong>–
+          Mostrando <strong className="text-text2">{totalRecords > 0 ? startIndex + 1 : 0}</strong>–
           <strong className="text-text2">{endIndex}</strong> de {totalRecords}
+          {totalUnfiltered != null && totalUnfiltered !== totalRecords
+            ? ` (de ${totalUnfiltered})`
+            : ''}
         </span>
         <span className="font-mono">Toca para editar</span>
       </div>
@@ -107,10 +111,10 @@ export function RegistrosMobile({
                   startEdit(r)
                 }
               }}
-              className={`bg-surface border rounded-xl p-3 shadow-2xs transition-colors cursor-pointer ${
+              className={`bg-surface border rounded-2xl p-3.5 shadow-2xs transition-colors cursor-pointer ${
                 isSelected
-                  ? 'border-emerald-400 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20'
-                  : 'border-zinc-200/80 dark:border-zinc-800/80 active:bg-zinc-50 dark:active:bg-zinc-900/60'
+                  ? 'border-accent-muted-border bg-accent-muted-bg/50'
+                  : 'border-border active:bg-surface-alt/80'
               }`}
             >
               <div className="flex items-start justify-between gap-2.5">
@@ -137,7 +141,7 @@ export function RegistrosMobile({
                       <span className="text-sm font-semibold text-text1 truncate">
                         {per?.nombre || r.clave}
                       </span>
-                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800/90 text-text2 border border-zinc-200/60 dark:border-zinc-700/60">
+                      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.2 rounded bg-surface-alt text-text2 border border-border">
                         {r.clave}
                       </span>
                     </div>

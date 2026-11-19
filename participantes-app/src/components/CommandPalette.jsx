@@ -5,13 +5,14 @@ import {
   LogOut,
   CornerDownLeft,
   FileDown,
-  Sun,
-  Moon,
+  Palette,
+  Contrast,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getSemanaActualInfo, exportarS140SemanaActual } from '../lib/generarS140'
 import { NAV_ITEMS } from './Sidebar'
 import { Badge } from './ui/Badge'
+import { formatBindingLabel, loadKeybinds } from '../lib/keybinds'
 
 function initials(nombre) {
   return (nombre || '')
@@ -31,7 +32,7 @@ export default function CommandPalette({
   onNavigate,
   onOpenPerfil,
   onLogout,
-  theme,
+  themeMeta,
   onToggleTheme,
   onExportS140,
 }) {
@@ -59,6 +60,18 @@ export default function CommandPalette({
     }
   }, [])
 
+  const [keybinds, setKeybinds] = useState(() => loadKeybinds())
+
+  useEffect(() => {
+    const sync = () => setKeybinds(loadKeybinds())
+    window.addEventListener('preferences-updated', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('preferences-updated', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
+
   useEffect(() => {
     if (open) {
       setQuery('')
@@ -77,7 +90,7 @@ export default function CommandPalette({
       icon: n.icon,
       group: 'Navegación',
       action: () => onNavigate(n.id),
-      shortcut: n.shortcut,
+      shortcut: formatBindingLabel(keybinds[`nav_${n.id}`]) || n.shortcut,
       keywords: n.keywords || [],
     }))
 
@@ -88,7 +101,7 @@ export default function CommandPalette({
       label: 'Generar S-140 — semana actual',
       icon: FileDown,
       group: 'Acciones',
-      shortcut: 'Ctrl+Shift+E',
+      shortcut: formatBindingLabel(keybinds.exportS140),
       disabled: !semanaActual,
       secondaryText: !semanaActual ? 'Sin programa para esta semana' : null,
       action: () => {
@@ -103,18 +116,29 @@ export default function CommandPalette({
     },
     {
       id: 'action-theme',
-      label: theme === 'dark' ? 'Cambiar tema (dark → light)' : 'Cambiar tema (light → dark)',
-      icon: theme === 'dark' ? Sun : Moon,
+      label:
+        themeMeta?.mode === 'dark'
+          ? `Cambiar polaridad (${themeMeta.fullLabel} → Claro)`
+          : `Cambiar polaridad (${themeMeta?.fullLabel || 'Claro'} → Oscuro)`,
+      icon: Contrast,
       group: 'Acciones',
-      shortcut: 'Ctrl+Shift+T',
+      shortcut: formatBindingLabel(keybinds.toggleTheme),
       action: onToggleTheme,
     },
     {
+      id: 'action-apariencia',
+      label: 'Apariencia y galería de temas',
+      icon: Palette,
+      group: 'Acciones',
+      action: () => onOpenPerfil?.('apariencia'),
+    },
+    {
       id: 'action-perfil',
-      label: 'Mi perfil y cuenta',
+      label: 'Mi perfil y preferencias',
       icon: User,
       group: 'Acciones',
-      action: onOpenPerfil,
+      shortcut: formatBindingLabel(keybinds.openPerfil),
+      action: () => onOpenPerfil?.('perfil'),
     },
     {
       id: 'action-logout',
@@ -201,11 +225,11 @@ export default function CommandPalette({
 
       {/* Palette Panel */}
       <div
-        className="relative w-full max-w-lg bg-surface border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+        className="relative w-full max-w-lg bg-surface border border-border2 rounded-xl shadow-2xl overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Search Input Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-200/80 dark:border-zinc-800/80">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <Search className="w-4 h-4 text-text3 shrink-0" />
           <input
             ref={inputRef}

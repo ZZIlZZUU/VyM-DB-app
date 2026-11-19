@@ -246,6 +246,20 @@ const DIAS_SEMANA_MAP = {
 }
 
 /**
+ * Devuelve la fecha en formato ISO local (YYYY-MM-DD) sin desfase UTC.
+ * @param {Date|string|number} [date]
+ * @returns {string}
+ */
+export function getHoyLocalIso(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  const ry = d.getFullYear()
+  const rm = String(d.getMonth() + 1).padStart(2, '0')
+  const rd = String(d.getDate()).padStart(2, '0')
+  return `${ry}-${rm}-${rd}`
+}
+
+/**
  * Suma `days` días a una fecha ISO (YYYY-MM-DD) sin desfase UTC.
  */
 export function addDaysIso(isoStr, days) {
@@ -599,6 +613,7 @@ export function getProximaReunion(config = {}, fechaReferencia = new Date(), eve
 
   return {
     tipo: esEntreSemana ? 'entre_semana' : 'fin_semana',
+    fechaIso: getHoyLocalIso(ganador.fecha),
     nombreReunion,
     nombreDia,
     hora: ganador.horaStr,

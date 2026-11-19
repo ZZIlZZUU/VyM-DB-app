@@ -11,6 +11,7 @@ import {
   getPrefFormatoFecha,
   MESES,
   MESES_ABBR,
+  getHoyLocalIso,
   getProximaReunion,
   addDaysIso,
   inferirAfectaReunion,
@@ -474,6 +475,29 @@ describe('fechas helper utils (abreviaturas, preferencias y programa S-140)', ()
       expect(impacto.esVisitaSC).toBe(true)
       expect(impacto.nombreVisitante).toBe('Hermano Hermoso')
       expect(impacto.oracionVisitante).toBe(true)
+    })
+  })
+
+  describe('getHoyLocalIso y fechaIso de getProximaReunion', () => {
+    it('formatea YYYY-MM-DD en hora local incluso cerca de medianoche sin saltar al día UTC', () => {
+      const domingoNoche = new Date(2026, 10, 15, 23, 27, 0)
+      expect(getHoyLocalIso(domingoNoche)).toBe('2026-11-15')
+    })
+
+    it('incluye fechaIso exacta de la próxima reunión en getProximaReunion', () => {
+      const domingoNoche = new Date(2026, 10, 15, 23, 27, 0)
+      const res = getProximaReunion(
+        {
+          diaReunionEntreSemana: 'Martes',
+          horaReunionEntreSemana: '19:00',
+          diaReunionFinSemana: 'Sábado',
+          horaReunionFinSemana: '18:00',
+        },
+        domingoNoche,
+        []
+      )
+      expect(res.tipo).toBe('entre_semana')
+      expect(res.fechaIso).toBe('2026-11-17')
     })
   })
 })

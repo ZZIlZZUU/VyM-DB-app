@@ -14,7 +14,13 @@ export const QUERY_KEYS = {
   eventosReunion: ['eventos_reunion'],
   userProfile: ['user_profile'],
   usuarios: ['usuarios_autorizados'],
-  historialCambios: (operation = 'ALL', limit = 50) => ['historial_cambios', operation, limit],
+  historialCambios: (operation = 'ALL', limit = 50, usuarioEmail = 'ALL', tabla = 'ALL') => [
+    'historial_cambios',
+    operation,
+    limit,
+    usuarioEmail,
+    tabla,
+  ],
 }
 
 export const queryClient = new QueryClient({

@@ -49,6 +49,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,docx}'],
         runtimeCaching: [
           {
+            // Never cache Supabase Auth endpoints (tokens, sessions, MFA)
+            urlPattern: /^https:\/\/.*\.supabase\.co\/auth\/v1\/.*/i,
+            handler: 'NetworkOnly',
+          },
+          {
             // Supabase API requests: always go network-first
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',

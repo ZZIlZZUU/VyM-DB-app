@@ -179,9 +179,9 @@ export default function TarjetaSemanaDesktop({
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
 
   return (
-    <div className="bg-surface border border-zinc-200/80 dark:border-zinc-800/80 rounded-xl overflow-hidden shadow-2xs hover:border-zinc-300 dark:hover:border-zinc-700/80 transition-all">
+    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs hover:border-accent-muted-border transition-all">
       {/* Card Header Accordion */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-50/50 dark:bg-zinc-900/40 border-b border-zinc-100 dark:border-zinc-800/60 select-none">
+      <div className="flex items-center justify-between px-4 py-3 bg-surface-alt/60 border-b border-border/80 select-none">
         <button
           type="button"
           onClick={onToggleExpand}
@@ -190,8 +190,8 @@ export default function TarjetaSemanaDesktop({
           {/* Fechas y Lectura */}
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
-              <span className="text-sm font-semibold text-text1">
+              <Calendar className="w-4 h-4 text-accent" />
+              <span className="font-display text-base font-medium text-text1 tracking-tight">
                 {formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}
               </span>
             </div>
@@ -225,7 +225,7 @@ export default function TarjetaSemanaDesktop({
                   .map((c, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800/80 text-text2 px-2 py-0.5 rounded border border-zinc-200/60 dark:border-zinc-700/60"
+                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-surface text-text2 px-2 py-0.5 rounded-md border border-border"
                     >
                       <Music className="w-3 h-3 text-text3" />
                       {c}
@@ -367,6 +367,31 @@ export default function TarjetaSemanaDesktop({
             </div>
           ) : (
             <>
+              {hayReconfirmaciones && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-amber-50/85 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200">
+                  <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                    <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+                    <div>
+                      <span className="font-semibold">Reconfirmaciones pendientes: </span>
+                      <span>
+                        Se modificaron asignaciones ya confirmadas. Actualiza las confirmaciones antes de compartir el S-140.
+                      </span>
+                    </div>
+                  </div>
+                  {!modoLectura && (
+                    <Button
+                      variant="danger"
+                      size="xs"
+                      icon={RotateCcw}
+                      onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
+                      className="shrink-0 self-end sm:self-center"
+                    >
+                      Reconfirmar semana
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {impacto?.esDesplazada && (
                 <div className="flex items-center gap-2.5 p-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 text-xs text-blue-900 dark:text-blue-200">
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
@@ -403,10 +428,57 @@ export default function TarjetaSemanaDesktop({
                 const partesSeccion = partes.filter(p => p.seccion === sec)
                 if (!partesSeccion.length) return null
 
+                const secContables = partesSeccion.filter(
+                  p =>
+                    p.tipo_asignacion !== 'CONCLU' &&
+                    p.tipo_asignacion !== 'ORACION' &&
+                    p.tipo_asignacion !== 'SMT_VACIO' &&
+                    !(esVisita && p.tipo_asignacion === 'LEBC')
+                )
+                const secConfirmadas = secContables.filter(p => {
+                  if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
+                  const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
+                  if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false && !asigP?.clave) {
+                    return true
+                  }
+                  const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+                  const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
+                  const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
+                  const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
+                  const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
+                  const aNuevo = p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
+                  const aRem = p.requiere_ayudante && !asigA?.clave && ar
+                  return !!asigP?.confirmado && !(pCambio || aCambio || aNuevo || aRem)
+                }).length
+
+                const secDot = {
+                  APERTURA: 'bg-zinc-400 dark:bg-zinc-500',
+                  TB: 'bg-teal-500',
+                  SMT: 'bg-amber-500',
+                  VC: 'bg-rose-500',
+                  CIERRE: 'bg-zinc-400 dark:bg-zinc-500',
+                }[sec] || 'bg-zinc-400'
+
                 return (
                   <div key={sec} className="space-y-2">
-                    <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
-                      {SECCION_LABEL[sec]}
+                    <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-border/80">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${secDot}`} />
+                        <span className="text-[11px] font-mono font-semibold text-text2 uppercase tracking-wider">
+                          {SECCION_LABEL[sec]}
+                        </span>
+                      </div>
+                      {secContables.length > 0 && (
+                        <span
+                          className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border ${
+                            secConfirmadas === secContables.length
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/60'
+                              : 'bg-surface-alt text-text3 border-border'
+                          }`}
+                        >
+                          {secConfirmadas} de {secContables.length} confirmadas
+                        </span>
+                      )}
                     </div>
                     {partesSeccion.map(parte => (
                       <FilaParteDesktop
@@ -431,7 +503,7 @@ export default function TarjetaSemanaDesktop({
               })}
 
               {!modoLectura && (
-                <div className="flex items-center justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800/80 gap-3">
+                <div className="flex items-center justify-end pt-3 border-t border-border/80 gap-3">
                   {confirmadas < totalPartes && totalPartes > 0 && (
                     <Button
                       variant="secondary"

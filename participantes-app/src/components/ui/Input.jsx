@@ -29,14 +29,14 @@ export const Input = forwardRef(function Input(
         <input
           ref={ref}
           type={type}
-          className={`w-full rounded-lg border bg-white dark:bg-zinc-900/90 text-text1 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 transition-all duration-150 outline-none
+          className={`w-full rounded-lg border bg-surface text-text1 placeholder:text-text3 transition-all duration-150 outline-none
             ${Icon ? 'pl-9' : ''}
             ${IconRight ? 'pr-9' : ''}
             ${sizeClasses}
             ${
               error
                 ? 'border-red-500/80 focus:border-red-500 focus:ring-1 focus:ring-red-500/40'
-                : 'border-zinc-200 dark:border-zinc-800 focus:border-zinc-400 dark:focus:border-zinc-600 focus:ring-1 focus:ring-zinc-400/20 dark:focus:ring-zinc-600/20'
+                : 'border-border2 focus:border-accent focus:ring-1 focus:ring-accent/20'
             }
             ${className}`}
           {...props}

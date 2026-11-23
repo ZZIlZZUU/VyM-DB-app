@@ -20,12 +20,15 @@ import {
 import { supabase } from '../lib/supabase'
 import { Button } from './ui/Button'
 import { Badge } from './ui/Badge'
+import { Select } from './ui/Select'
 import { Sheet } from './ui/Sheet'
 import { EmptyState } from './ui/EmptyState'
+import { TimePickerModal } from './ui/TimePickerModal'
 import Toast from './Toast'
 import { useToast } from '../hooks/useToast'
 import { useConfiguracion } from '../hooks/useConfiguracion'
 import { useEventosReunion } from '../hooks/useEventosReunion'
+import { formatHora12 } from '../lib/horarios'
 import {
   formatFechaLegible,
   addDaysIso,
@@ -179,6 +182,7 @@ export function CalendarioEventos({
     nombre_visitante: '',
     oracion_visitante: true,
   })
+  const [timePickerOpen, setTimePickerOpen] = useState(false)
 
   const anio = currentDate.getFullYear()
   const mesIndex = currentDate.getMonth()
@@ -971,7 +975,10 @@ export function CalendarioEventos({
               <Tag className="w-4 h-4 text-text3 shrink-0" />
               <div className="flex-1 min-w-0">
                 {canEdit ? (
-                  <select
+                  <Select
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Tipo de evento"
                     value={eventoForm.tipo_evento}
                     onChange={e => {
                       const tipo = e.target.value
@@ -996,14 +1003,14 @@ export function CalendarioEventos({
                         }
                       })
                     }}
-                    className="w-full bg-transparent text-xs font-medium text-text1 focus:outline-none cursor-pointer py-1 rounded hover:bg-zinc-100/70 dark:hover:bg-zinc-800/60 px-1.5 -mx-1.5 transition-colors"
+                    className="font-medium -mx-1.5"
                   >
                     {tiposEvento.map(t => (
-                      <option key={t.id} value={t.id} className="bg-surface text-text1">
+                      <option key={t.id} value={t.id}>
                         {t.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
                   <span className="text-xs font-medium text-text1">{metaTipoSeleccionado.label}</span>
                 )}
@@ -1043,16 +1050,20 @@ export function CalendarioEventos({
                           className="bg-zinc-100/80 dark:bg-zinc-800/70 text-text1 text-xs px-2 py-1 rounded-md border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 focus:outline-none"
                           required
                         />
-                        <input
-                          type="time"
+                        <button
+                          type="button"
                           disabled={!canEdit}
-                          value={eventoForm.hora_efectiva}
-                          onChange={e =>
-                            setEventoForm(prev => ({ ...prev, hora_efectiva: e.target.value }))
-                          }
-                          placeholder="Hora"
-                          className="bg-zinc-100/80 dark:bg-zinc-800/70 text-text1 text-xs px-2 py-1 rounded-md border border-transparent focus:border-zinc-300 dark:focus:border-zinc-700 focus:outline-none w-24"
-                        />
+                          onClick={() => setTimePickerOpen(true)}
+                          className="inline-flex items-center justify-center gap-1.5 bg-surface-alt/80 hover:bg-surface-alt text-text1 text-xs px-2.5 py-1 rounded-md border border-border/80 hover:border-accent/50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed min-w-[84px]"
+                          title="Seleccionar hora de reunión"
+                        >
+                          <Clock className="w-3 h-3 text-text3 shrink-0" />
+                          <span className={eventoForm.hora_efectiva ? 'font-mono font-medium' : 'text-text3'}>
+                            {eventoForm.hora_efectiva
+                              ? `${formatHora12(eventoForm.hora_efectiva)} ${parseInt(eventoForm.hora_efectiva.split(':')[0] || '0', 10) >= 12 ? 'PM' : 'AM'}`
+                              : 'Hora'}
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1155,6 +1166,19 @@ export function CalendarioEventos({
           </form>
         </Sheet>
       )}
+
+      <TimePickerModal
+        isOpen={timePickerOpen}
+        onClose={() => setTimePickerOpen(false)}
+        initialTime={eventoForm.hora_efectiva || activeConfig?.horaReunionEntreSemana || '19:30'}
+        baseHourStr={activeConfig?.horaReunionEntreSemana || '19:30'}
+        title="Hora de la reunión desplazada"
+        subtitle={eventoForm.titulo_evento || 'Ajuste de horario'}
+        onConfirm={hora24 => {
+          setEventoForm(prev => ({ ...prev, hora_efectiva: hora24 }))
+          setTimePickerOpen(false)
+        }}
+      />
     </div>
   )
 }

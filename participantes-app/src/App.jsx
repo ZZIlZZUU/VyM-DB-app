@@ -485,7 +485,6 @@ export default function App() {
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenPerfil={() => handleOpenPerfil('perfil')}
           onOpenShortcutsHelp={() => setShortcutsModalOpen(true)}
-          onOpenNuevaAsignacion={handleOpenNuevaAsignacion}
           avatarColor={avatarColor}
           avatarUrl={userAvatarUrl}
           userName={userName}

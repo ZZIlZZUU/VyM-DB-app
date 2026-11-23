@@ -289,6 +289,31 @@ export function saveHomeAlertPrefs(next) {
   return normalized
 }
 
+export const PROGRAMA_QUITAR_TITULAR_SMT_KEY = 'programa_quitarTitularSmt'
+export const VALID_QUITAR_TITULAR_SMT_PREFS = ['preguntar', 'ambos', 'solo_titular']
+
+export function loadQuitarTitularSmtPref() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return 'preguntar'
+    const raw = window.localStorage.getItem(PROGRAMA_QUITAR_TITULAR_SMT_KEY)
+    return VALID_QUITAR_TITULAR_SMT_PREFS.includes(raw) ? raw : 'preguntar'
+  } catch {
+    return 'preguntar'
+  }
+}
+
+export function saveQuitarTitularSmtPref(next) {
+  const normalized = VALID_QUITAR_TITULAR_SMT_PREFS.includes(next) ? next : 'preguntar'
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(PROGRAMA_QUITAR_TITULAR_SMT_KEY, normalized)
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return normalized
+}
+
 export function dispatchPreferencesUpdated(detail = {}) {
   try {
     if (typeof window !== 'undefined') {

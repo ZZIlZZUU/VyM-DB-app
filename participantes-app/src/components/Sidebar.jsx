@@ -28,7 +28,32 @@ import { Badge } from './ui/Badge'
 import { Tooltip } from './ui/Tooltip'
 import { prefetchView } from '../core/prefetch'
 import { getAvatarColorClasses } from '../lib/themes'
-import { formatBindingLabel, loadKeybinds } from '../lib/keybinds'
+import {
+  formatBindingLabel,
+  loadKeybinds,
+  normalizeKeyToken,
+  parseSequenceBinding,
+} from '../lib/keybinds'
+
+function isTypingTarget() {
+  const active = document.activeElement
+  if (!active) return false
+  const tag = active.tagName?.toLowerCase()
+  return (
+    tag === 'input' ||
+    tag === 'textarea' ||
+    tag === 'select' ||
+    active.isContentEditable
+  )
+}
+
+function getNavShortcutLabel(keybinds, itemId) {
+  const binding = keybinds?.[`nav_${itemId}`]
+  if (!binding) return ''
+  const seq = parseSequenceBinding(binding)
+  if (seq) return `${seq.leader}+${seq.key}`
+  return formatBindingLabel(binding)
+}
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const NAV_ITEMS = [
@@ -160,6 +185,7 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const [isHoverExpanded, setIsHoverExpanded] = useState(false)
+  const [isGHeld, setIsGHeld] = useState(false)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [keybinds, setKeybinds] = useState(() => loadKeybinds())
   const [failedAvatarUrl, setFailedAvatarUrl] = useState(null)
@@ -205,6 +231,43 @@ export function Sidebar({
       window.removeEventListener('keydown', handleEscape)
     }
   }, [popoverOpen])
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.defaultPrevented || e.repeat) return
+      if (document.body?.dataset?.recordingKeybind === 'true') return
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      if (isTypingTarget()) return
+      if (normalizeKeyToken(e.key) === 'G') {
+        setIsGHeld(true)
+      }
+    }
+
+    function handleKeyUp(e) {
+      if (normalizeKeyToken(e.key) === 'G') {
+        setIsGHeld(false)
+      }
+    }
+
+    function resetHeld() {
+      setIsGHeld(false)
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) setIsGHeld(false)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', resetHeld)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', resetHeld)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
 
   // En móvil o fijada como expandida o en hover-peek
   const isExpanded = mobileOpen || !isCollapsed || isHoverExpanded
@@ -346,6 +409,7 @@ export function Sidebar({
                 const Icon = item.icon
                 const isActive = currentView === item.id
                 const pendingCount = item.badgeKey === 'semanasPendientes' ? semanasPendientes : 0
+                const shortcutLabel = getNavShortcutLabel(keybinds, item.id)
 
                 const navButton = (
                   <button
@@ -362,7 +426,7 @@ export function Sidebar({
                     {isActive && (
                       <span className="absolute left-0 top-1.5 bottom-1.5 w-0.75 rounded-r-full bg-accent" />
                     )}
-                    <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                    <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
                       <Icon
                         className={`w-4 h-4 transition-colors ${
                           isActive
@@ -370,6 +434,11 @@ export function Sidebar({
                             : 'text-text3 group-hover:text-text2'
                         }`}
                       />
+                      {!isExpanded && isGHeld && shortcutLabel && (
+                        <span className="absolute -bottom-1 -right-1 px-1 py-0.5 text-[9px] leading-none font-mono font-semibold rounded-full bg-accent text-accent-fg shadow-sm border border-surface pointer-events-none">
+                          {shortcutLabel}
+                        </span>
+                      )}
                     </div>
                     <div
                       className={`flex items-center justify-between flex-1 min-w-0 ml-1.5 pr-1 transition-all duration-200 ease-out ${
@@ -381,11 +450,24 @@ export function Sidebar({
                       <span className="truncate whitespace-nowrap text-xs font-medium">
                         {item.label}
                       </span>
-                      {pendingCount > 0 && (
-                        <Badge variant="warning" size="xs" dot>
-                          {pendingCount}
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
+                        {pendingCount > 0 && (
+                          <Badge variant="warning" size="xs" dot>
+                            {pendingCount}
+                          </Badge>
+                        )}
+                        {shortcutLabel && (
+                          <kbd
+                            className={`px-1.5 py-0.5 text-[10px] font-mono font-medium leading-none rounded-full border shadow-2xs whitespace-nowrap transition-all duration-150 ${
+                              isGHeld
+                                ? 'opacity-100 scale-100 bg-accent-muted-bg border-accent-muted-border text-accent'
+                                : 'opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 bg-surface border-border text-text3'
+                            }`}
+                          >
+                            {shortcutLabel}
+                          </kbd>
+                        )}
+                      </div>
                     </div>
                   </button>
                 )
@@ -394,7 +476,7 @@ export function Sidebar({
                   <Tooltip
                     key={item.id}
                     content={item.label}
-                    shortcut={item.shortcut}
+                    shortcut={shortcutLabel || item.shortcut}
                     side="right"
                     disabled={isExpanded}
                     wrapperClassName="w-full flex items-center"

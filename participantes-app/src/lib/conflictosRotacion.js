@@ -45,6 +45,92 @@ export const TIPO_LABEL = {
   SMT_VACIO: '—',
 }
 
+export const TIPO_BADGE_LABEL = {
+  P: 'Presidente',
+  ORACION: 'Oración',
+  ORACION_C: 'Oración final',
+  OC: 'Oración final',
+  CONCLU: 'Conclusión',
+  TB: 'Tesoros',
+  PE: 'Perlas',
+  LB: 'Lectura',
+  SMT_EST: 'Estudiante',
+  SMT_EXP: 'Creencias',
+  SMT_DSC: 'Discurso',
+  DSC: 'Discurso',
+  SMT_AYU: 'Ayudante',
+  A: 'Ayudante',
+  T: 'Estudiante',
+  VC: 'Vida Cristiana',
+  NC: 'Necesidades',
+  EBC_CON: 'Conductor EBC',
+  EBC: 'Conductor EBC',
+  LEBC: 'Lector EBC',
+  SMT_VACIO: 'SMT',
+}
+
+export const ESTADOS_REVISION = {
+  BORRADOR: 'borrador',
+  EN_REVISION: 'en_revision',
+  VERIFICADA: 'verificada',
+}
+
+export const ESTADO_REVISION_META = {
+  borrador: {
+    id: 'borrador',
+    label: 'Borrador',
+    shortLabel: 'Borrador',
+    badgeVariant: 'neutral',
+    description: 'Semana en armado o pendiente de revisión formal',
+  },
+  en_revision: {
+    id: 'en_revision',
+    label: 'En revisión',
+    shortLabel: 'En revisión',
+    badgeVariant: 'info',
+    description: 'Marcada para verificar cambios o disponibilidad antes de emitir el S-140',
+  },
+  verificada: {
+    id: 'verificada',
+    label: 'Verificada',
+    shortLabel: 'Verificada',
+    badgeVariant: 'success',
+    description: 'Revisada y aprobada, lista para publicar/imprimir el S-140',
+  },
+}
+
+export function normalizarEstadoRevision(valor) {
+  if (valor === 'en_revision' || valor === 'verificada' || valor === 'borrador') {
+    return valor
+  }
+  return 'borrador'
+}
+
+export function evaluarReconfirmacionParte(parte, asigP, asigA, historial = []) {
+  const hist = Array.isArray(historial) ? historial : []
+  const pr = asigP?.participacion_id ? hist.find(h => h.id === asigP.participacion_id) : null
+  const ar = asigA?.participacion_id ? hist.find(h => h.id === asigA.participacion_id) : null
+
+  const principalCambiado = !!asigP?.participacion_id && !!pr && pr.clave !== asigP?.clave
+  const ayudanteCambiado = !!asigA?.participacion_id && !!ar && ar.clave !== asigA?.clave
+  const ayudanteNuevo =
+    Boolean(parte?.requiere_ayudante) &&
+    Boolean(asigA?.clave) &&
+    Boolean(asigP?.participacion_id) &&
+    !asigA?.participacion_id
+  const ayudanteRemovido =
+    Boolean(parte?.requiere_ayudante) && !asigA?.clave && Boolean(ar)
+
+  return {
+    principalCambiado,
+    ayudanteCambiado,
+    ayudanteNuevo,
+    ayudanteRemovido,
+    necesitaReconfirmar:
+      principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido,
+  }
+}
+
 export const TIPO_COLOR = {
   P: 'bg-purple-50 text-purple-800 border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40',
   ORACION: 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40',
@@ -300,48 +386,200 @@ export function getEventoParaSemana(s, eventos) {
   )
 }
 
-export function calcularEstadoSemana(semanaOrId, todasPartes, todasAsignaciones, todoHistorial, eventos, config) {
+export function calcularEstadoSemana(
+  semanaOrId,
+  todasPartes,
+  todasAsignaciones,
+  todoHistorial,
+  eventos,
+  config,
+  personas = null
+) {
   const semanaId = typeof semanaOrId === 'object' ? semanaOrId?.id : semanaOrId
   const semanaObj = typeof semanaOrId === 'object' ? semanaOrId : null
+  const estadoRevision = normalizarEstadoRevision(semanaObj?.estado_revision)
 
-  if (semanaObj && eventos?.length) {
-    const impacto = getImpactoEventoSemana(
-      semanaObj,
-      eventos,
-      config?.diaReunionEntreSemana,
-      config?.diaReunionFinSemana
-    )
-    if (impacto.cancelaEntreSemana) {
-      return { totalPartes: 0, confirmadas: 0, esCompleta: true }
+  const impacto =
+    semanaObj && Array.isArray(eventos) && eventos.length > 0
+      ? getImpactoEventoSemana(
+          semanaObj,
+          eventos,
+          config?.diaReunionEntreSemana,
+          config?.diaReunionFinSemana
+        )
+      : null
+
+  if (impacto?.cancelaEntreSemana) {
+    return {
+      totalPartes: 0,
+      asignadas: 0,
+      confirmadas: 0,
+      sinAsignar: 0,
+      porConfirmar: 0,
+      hayReconfirmaciones: false,
+      reconfirmacionesCount: 0,
+      faltanAyudantes: 0,
+      alertasCount: 0,
+      pct: 100,
+      esCompleta: true,
+      esCancelada: true,
+      esVisita: false,
+      estadoRevision,
     }
   }
 
-  const partesSemana = todasPartes.filter(p => p.semana_id === semanaId)
-  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
+  const esVisita = Boolean(impacto?.esVisita)
+  const oracionVisitanteActiva = esVisita && impacto?.oracionVisitante !== false
+
+  const partesSemana = (todasPartes || []).filter(p => p.semana_id === semanaId)
+  const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU', ...(esVisita ? ['LEBC'] : [])]
   const partesContables = partesSemana.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
   const totalPartes = partesContables.length
-  if (totalPartes === 0) return { totalPartes: 0, confirmadas: 0, esCompleta: false }
 
-  const confirmadas = partesContables.filter(p => {
-    const asigParte = todasAsignaciones.filter(a => a.parte_id === p.id && a.confirmado)
-    const asigP = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    const asigA = todasAsignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+  if (totalPartes === 0) {
+    return {
+      totalPartes: 0,
+      asignadas: 0,
+      confirmadas: 0,
+      sinAsignar: 0,
+      porConfirmar: 0,
+      hayReconfirmaciones: false,
+      reconfirmacionesCount: 0,
+      faltanAyudantes: 0,
+      alertasCount: 0,
+      pct: 0,
+      esCompleta: false,
+      esCancelada: false,
+      esVisita,
+      estadoRevision,
+    }
+  }
 
-    const pr = asigP?.participacion_id ? todoHistorial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? todoHistorial.find(h => h.id === asigA.participacion_id) : null
-    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-    const necesitaRec = pCambio || aCambio || aNuevo || aRem
+  const asigSemana = (todasAsignaciones || []).filter(a =>
+    partesSemana.some(p => p.id === a.parte_id)
+  )
 
-    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
-  }).length
+  const semanaAsignados = asigSemana
+    .filter(a => a.clave)
+    .map(a => {
+      const parteObj = partesSemana.find(p => p.id === a.parte_id)
+      return {
+        id: a.id,
+        parte_id: a.parte_id,
+        rol: a.rol,
+        clave: a.clave,
+        tipo: a.rol === 'ayudante' ? 'SMT_AYU' : (parteObj?.tipo_asignacion || ''),
+      }
+    })
+
+  let asignadas = 0
+  let confirmadas = 0
+  let reconfirmacionesCount = 0
+  let faltanAyudantes = 0
+  let alertasCount = 0
+
+  for (const p of partesContables) {
+    if (esVisita && p.tipo_asignacion === 'EBC_CON') {
+      asignadas++
+      confirmadas++
+      continue
+    }
+
+    const asigP = asigSemana.find(a => a.parte_id === p.id && a.rol === 'principal')
+    const asigA = asigSemana.find(a => a.parte_id === p.id && a.rol === 'ayudante')
+
+    if (oracionVisitanteActiva && p.tipo_asignacion === 'ORACION_C' && !asigP?.clave) {
+      asignadas++
+      confirmadas++
+      continue
+    }
+
+    if (asigP?.clave) {
+      asignadas++
+    }
+
+    if (p.requiere_ayudante && asigP?.clave && !asigA?.clave) {
+      faltanAyudantes++
+    }
+
+    const { necesitaReconfirmar } = evaluarReconfirmacionParte(p, asigP, asigA, todoHistorial)
+    if (asigP?.clave && necesitaReconfirmar) {
+      reconfirmacionesCount++
+    }
+
+    if (asigP?.confirmado && !necesitaReconfirmar) {
+      confirmadas++
+    }
+
+    // Contar alertas de rotación si se suministra catálogo de personas
+    if (Array.isArray(personas) && personas.length > 0) {
+      if (asigP?.clave) {
+        const personaP = personas.find(per => per.clave === asigP.clave)
+        if (personaP) {
+          const yaParaP = semanaAsignados
+            .filter(a => !(a.parte_id === p.id && a.rol === 'principal'))
+            .map(a =>
+              a.parte_id === p.id && a.rol === 'ayudante'
+                ? { ...a, esTitularMismaParte: true }
+                : a
+            )
+          const confsP = evaluarConflictosPersona(
+            personaP,
+            p.tipo_asignacion,
+            todoHistorial,
+            semanaObj?.mes,
+            semanaObj?.fecha_inicio,
+            yaParaP
+          )
+          if (confsP.some(c => c.severity === 'warning')) {
+            alertasCount++
+          }
+        }
+      }
+      if (p.requiere_ayudante && asigA?.clave) {
+        const personaA = personas.find(per => per.clave === asigA.clave)
+        if (personaA) {
+          const yaParaA = semanaAsignados
+            .filter(a => !(a.parte_id === p.id && a.rol === 'ayudante'))
+            .map(a =>
+              a.parte_id === p.id && a.rol === 'principal'
+                ? { ...a, esTitularMismaParte: true }
+                : a
+            )
+          const confsA = evaluarConflictosPersona(
+            personaA,
+            'SMT_AYU',
+            todoHistorial,
+            semanaObj?.mes,
+            semanaObj?.fecha_inicio,
+            yaParaA
+          )
+          if (confsA.some(c => c.severity === 'warning')) {
+            alertasCount++
+          }
+        }
+      }
+    }
+  }
+
+  const sinAsignar = Math.max(0, totalPartes - asignadas)
+  const porConfirmar = Math.max(0, totalPartes - confirmadas)
+  const pct = Math.round((confirmadas / totalPartes) * 100)
 
   return {
     totalPartes,
+    asignadas,
     confirmadas,
+    sinAsignar,
+    porConfirmar,
+    hayReconfirmaciones: reconfirmacionesCount > 0,
+    reconfirmacionesCount,
+    faltanAyudantes,
+    alertasCount,
+    pct,
     esCompleta: confirmadas === totalPartes,
+    esCancelada: false,
+    esVisita,
+    estadoRevision,
   }
 }

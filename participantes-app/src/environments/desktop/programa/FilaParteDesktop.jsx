@@ -1,9 +1,16 @@
 import { useState } from 'react'
-import { Check, RotateCcw, Briefcase } from 'lucide-react'
-import { TIPO_COLOR } from '../../../lib/conflictosRotacion'
+import { Check, RotateCcw, Briefcase, X, ArrowUpDown, AlertCircle } from 'lucide-react'
+import {
+  TIPO_COLOR,
+  TIPO_BADGE_LABEL,
+  evaluarReconfirmacionParte,
+} from '../../../lib/conflictosRotacion'
 import { Button } from '../../../components/ui/Button'
 import { Badge } from '../../../components/ui/Badge'
 import PersonaSelectorDesktop from './PersonaSelectorDesktop'
+
+const GRID_EDIT = 'grid-cols-1 md:grid-cols-[64px_minmax(190px,1fr)_minmax(285px,350px)_128px]'
+const GRID_READ = 'grid-cols-1 sm:grid-cols-[64px_minmax(190px,1fr)_minmax(250px,310px)]'
 
 export default function FilaParteDesktop({
   parte,
@@ -14,11 +21,14 @@ export default function FilaParteDesktop({
   fechaSemana,
   semanaAsignados,
   onAsignar,
+  onQuitar,
+  onIntercambiar,
   onConfirmar,
   clavePresidente,
   modoLectura,
   evento,
   horaCalculada,
+  highlightQuery = '',
 }) {
   const [flashing, setFlashing] = useState(false)
   const asig = asignaciones.filter(a => a.parte_id === parte.id && a.rol === 'principal')
@@ -33,45 +43,27 @@ export default function FilaParteDesktop({
     ? (evento.nombre_visitante || (esVisitaSC ? 'Superintendente de Circuito' : 'Representante de la Sucursal'))
     : null
 
-  const principalPartRecord = principal?.participacion_id
-    ? historial.find(h => h.id === principal.participacion_id)
-    : null
-  const ayudantePartRecord = ayudante?.participacion_id
-    ? historial.find(h => h.id === ayudante.participacion_id)
-    : null
+  const { necesitaReconfirmar } = evaluarReconfirmacionParte(
+    parte,
+    principal,
+    ayudante,
+    historial
+  )
 
-  const principalCambiado =
-    !!principal?.participacion_id &&
-    principalPartRecord &&
-    principalPartRecord.clave !== principal?.clave
-  const ayudanteCambiado =
-    !!ayudante?.participacion_id &&
-    ayudantePartRecord &&
-    ayudantePartRecord.clave !== ayudante?.clave
-  const ayudanteNuevo =
-    parte.requiere_ayudante &&
-    ayudante?.clave &&
-    principal?.participacion_id &&
-    !ayudante?.participacion_id
-  const ayudanteRemovido = parte.requiere_ayudante && !ayudante?.clave && ayudantePartRecord
-
-  const necesitaReconfirmar =
-    principalCambiado || ayudanteCambiado || ayudanteNuevo || ayudanteRemovido
+  const badgeLabel = TIPO_BADGE_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion
 
   // Slot vacío — no renderizar asignable
   if (parte.tipo_asignacion === 'SMT_VACIO') {
     return (
       <div
-        className={`grid gap-2 sm:gap-3 py-2.5 border-b border-zinc-100 dark:divide-zinc-800/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+        className={`grid gap-2 sm:gap-3 py-2.5 border-b border-border/50 last:border-0 items-center ${
+          modoLectura ? GRID_READ : GRID_EDIT
         }`}
       >
-        <div className="text-xs font-mono text-text3 w-16" />
+        <div className="text-xs font-mono text-text3" />
         <div>
           <div className="text-xs text-text3 italic">Sin cuarta asignación</div>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-text3">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-alt text-text3">
             SMT
           </span>
         </div>
@@ -96,23 +88,23 @@ export default function FilaParteDesktop({
     return (
       <div
         className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
+          modoLectura ? GRID_READ : GRID_EDIT
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
           {horaCalculada || parte.hora_inicio || ''}
         </div>
-        <div>
-          <div className="text-xs font-medium text-text1 leading-snug">{parte.titulo}</div>
-          <div className="flex items-center gap-1.5 mt-0.5">
+        <div className="min-w-0">
+          <div className="text-xs font-medium text-text1 leading-snug line-clamp-2">
+            {parte.titulo}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
             <span
-              className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${
-                TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                TIPO_COLOR[parte.tipo_asignacion] || 'bg-surface-alt text-text2 border-border'
               }`}
             >
-              {parte.tipo_asignacion}
+              {badgeLabel}
             </span>
           </div>
         </div>
@@ -128,7 +120,7 @@ export default function FilaParteDesktop({
             </span>
           </div>
         ) : (
-          <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-zinc-50/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800 rounded-lg">
+          <div className="px-2.5 py-1.5 text-xs text-text3 italic bg-surface-alt/50 border border-border rounded-lg truncate">
             {clavePresidente ? nombrePresidente : '— Presidente asignado —'}
           </div>
         )}
@@ -146,21 +138,19 @@ export default function FilaParteDesktop({
     return (
       <div
         className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center ${
-          modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
+          modoLectura ? GRID_READ : GRID_EDIT
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
           {horaCalculada || parte.hora_inicio || ''}
         </div>
         <div className="min-w-0">
-          <div className="text-xs font-semibold text-text1 leading-snug truncate">
+          <div className="text-xs font-semibold text-text1 leading-snug line-clamp-2">
             {tituloDiscurso}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
-              DISCURSO SC
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
+              Discurso SC
             </span>
             <span className="text-[11px] text-text3 font-mono">30 min</span>
           </div>
@@ -184,21 +174,19 @@ export default function FilaParteDesktop({
     return (
       <div
         className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center opacity-70 ${
-          modoLectura
-            ? 'grid-cols-1 sm:grid-cols-[72px_1fr_200px]'
-            : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_110px]'
+          modoLectura ? GRID_READ : GRID_EDIT
         }`}
       >
         <div className="text-xs font-mono text-text3 whitespace-nowrap">
           {horaCalculada || parte.hora_inicio || ''}
         </div>
         <div className="min-w-0">
-          <div className="text-xs font-medium text-text3 leading-snug line-through truncate">
+          <div className="text-xs font-medium text-text3 leading-snug line-through line-clamp-2">
             {parte.titulo}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border bg-surface-alt text-text3 border-border">
-              LEBC
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-surface-alt text-text3 border-border">
+              {badgeLabel}
             </span>
           </div>
         </div>
@@ -218,20 +206,47 @@ export default function FilaParteDesktop({
     evento?.oracion_visitante !== false &&
     !principal?.clave
 
-  const nombrePrincipal = principal?.clave
-    ? (personas.find(p => p.clave === principal.clave)?.nombre ?? principal.clave)
+  const personaPrincipal = principal?.clave
+    ? personas.find(p => p.clave === principal.clave) || null
     : null
-  const nombreAyudante = ayudante?.clave
-    ? (personas.find(p => p.clave === ayudante.clave)?.nombre ?? ayudante.clave)
+  const personaAyudante = ayudante?.clave
+    ? personas.find(p => p.clave === ayudante.clave) || null
     : null
+
+  const nombrePrincipal = personaPrincipal?.nombre ?? principal?.clave ?? null
+  const nombreAyudante = personaAyudante?.nombre ?? ayudante?.clave ?? null
+
+  const normalizedQuery = highlightQuery.trim().toLowerCase()
+  const matchesHighlight = Boolean(
+    normalizedQuery &&
+      ((nombrePrincipal && nombrePrincipal.toLowerCase().includes(normalizedQuery)) ||
+        (principal?.clave && principal.clave.toLowerCase().includes(normalizedQuery)) ||
+        (nombreAyudante && nombreAyudante.toLowerCase().includes(normalizedQuery)) ||
+        (ayudante?.clave && ayudante.clave.toLowerCase().includes(normalizedQuery)))
+  )
+
+  const puedeIntercambiar = Boolean(
+    parte.requiere_ayudante &&
+      principal?.clave &&
+      ayudante?.clave &&
+      onIntercambiar
+  )
+
+  const faltaAyudante = Boolean(
+    parte.requiere_ayudante && principal?.clave && !ayudante?.clave
+  )
 
   return (
     <div
       id={`parte-${parte.id}`}
-      className={`grid gap-3 py-2.5 border-b border-border/60 last:border-0 items-center transition-all ${
-        modoLectura
-          ? 'grid-cols-1 sm:grid-cols-[72px_1fr_260px]'
-          : 'grid-cols-1 md:grid-cols-[80px_1fr_220px_115px]'
+      className={`grid gap-3 py-2.5 px-2 -mx-2 rounded-xl border-b border-border/60 last:border-0 items-center transition-all ${
+        modoLectura ? GRID_READ : GRID_EDIT
+      } ${
+        matchesHighlight
+          ? 'bg-accent-muted-bg/60 ring-1 ring-accent-muted-border'
+          : necesitaReconfirmar
+            ? 'bg-amber-bg/40 border-l-2 border-l-amber'
+            : 'hover:bg-surface-alt/30'
       }`}
     >
       {/* Hora */}
@@ -241,18 +256,29 @@ export default function FilaParteDesktop({
 
       {/* Título y Tipo */}
       <div className="min-w-0">
-        <div className="text-xs font-medium text-text1 leading-snug truncate">{parte.titulo}</div>
-        <div className="flex items-center gap-1.5 mt-0.5">
+        <div
+          className="text-xs font-medium text-text1 leading-snug line-clamp-2"
+          title={parte.titulo}
+        >
+          {parte.titulo}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
           <span
-            className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${
-              TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+              TIPO_COLOR[parte.tipo_asignacion] || 'bg-surface-alt text-text2 border-border'
             }`}
           >
-            {parte.tipo_asignacion}
+            {badgeLabel}
           </span>
           {parte.duracion_min && (
             <span className="text-[11px] text-text3 font-mono">
               {parte.duracion_min} min
+            </span>
+          )}
+          {faltaAyudante && !modoLectura && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber">
+              <AlertCircle className="w-3 h-3" />
+              Falta ayudante
             </span>
           )}
         </div>
@@ -274,7 +300,7 @@ export default function FilaParteDesktop({
           ) : principal?.clave ? (
             <div className="flex items-center justify-between gap-2 min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="w-6 h-6 rounded-full bg-accent-muted-bg border border-accent-muted-border text-[10px] font-semibold text-accent-muted-text flex items-center justify-center shrink-0">
+                <span className="w-6 h-6 rounded-full bg-accent-muted-bg border border-accent-muted-border text-[10px] font-semibold text-accent flex items-center justify-center shrink-0">
                   {getInitials(nombrePrincipal)}
                 </span>
                 <div className="min-w-0">
@@ -286,12 +312,15 @@ export default function FilaParteDesktop({
                         : nombrePrincipal
                     }
                   >
-                    {parte.requiere_ayudante && nombreAyudante
-                      ? `${nombrePrincipal} y ${nombreAyudante}`
-                      : nombrePrincipal}
+                    {nombrePrincipal}
                   </span>
+                  {parte.requiere_ayudante && nombreAyudante && (
+                    <span className="text-[11px] text-text2 block truncate">
+                      Ayudante: {nombreAyudante}
+                    </span>
+                  )}
                   {parte.requiere_ayudante && !nombreAyudante && (
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400 block">
+                    <span className="text-[10px] text-amber block">
                       Falta ayudante
                     </span>
                   )}
@@ -325,52 +354,136 @@ export default function FilaParteDesktop({
         </div>
       ) : (
         <>
-          {/* Selectores de participantes */}
+          {/* Selectores de participantes + botón directo para quitar / intercambiar */}
           <div className="flex flex-col gap-1.5 min-w-0">
-            <PersonaSelectorDesktop
-              tipo={parte.tipo_asignacion}
-              value={principal?.clave}
-              onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
-              personas={personas}
-              historial={historial}
-              mes={mes}
-              fechaSemana={fechaSemana}
-              yaAsignados={semanaAsignados
-                .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
-                .map(a =>
-                  a.parte_id === parte.id && a.rol === 'ayudante'
-                    ? { ...a, esTitularMismaParte: true }
-                    : a
-                )}
-              disabled={false}
-              placeholder={
-                esVisita && evento?.oracion_visitante !== false && parte.tipo_asignacion === 'ORACION_C'
-                  ? `${nombreVisitante} (Visitante)`
-                  : undefined
-              }
-            />
-            {parte.requiere_ayudante &&
-              (() => {
-                const titularSexo = personas.find(p => p.clave === principal?.clave)?.sexo
-                const tipoAyu = titularSexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F'
-                return (
+            {/* Titular */}
+            <div className="flex flex-col gap-0.5 min-w-0">
+              {parte.requiere_ayudante && (
+                <div className="flex items-center justify-between px-0.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-text3">
+                    Titular
+                  </span>
+                  {puedeIntercambiar && (
+                    <button
+                      type="button"
+                      onClick={() => onIntercambiar(parte, principal, ayudante)}
+                      title="Intercambiar Titular ↔ Ayudante"
+                      className="inline-flex items-center gap-1 text-[10px] font-medium text-text3 hover:text-accent transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-surface-alt"
+                    >
+                      <ArrowUpDown className="w-3 h-3" />
+                      <span>Intercambiar</span>
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="flex items-start gap-1 min-w-0">
+                <div className="flex-1 min-w-0">
                   <PersonaSelectorDesktop
-                    tipo={tipoAyu}
-                    value={ayudante?.clave}
-                    onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+                    tipo={parte.tipo_asignacion}
+                    value={principal?.clave}
+                    onChange={clave => onAsignar(parte.id, clave, 'principal', principal?.id)}
                     personas={personas}
                     historial={historial}
                     mes={mes}
                     fechaSemana={fechaSemana}
                     yaAsignados={semanaAsignados
-                      .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
+                      .filter(a => !(a.parte_id === parte.id && a.rol === 'principal'))
                       .map(a =>
-                        a.parte_id === parte.id && a.rol === 'principal'
+                        a.parte_id === parte.id && a.rol === 'ayudante'
                           ? { ...a, esTitularMismaParte: true }
                           : a
                       )}
-                    disabled={!principal?.clave}
+                    disabled={false}
+                    placeholder={
+                      esVisita && evento?.oracion_visitante !== false && parte.tipo_asignacion === 'ORACION_C'
+                        ? `${nombreVisitante} (Visitante)`
+                        : undefined
+                    }
                   />
+                </div>
+                {principal?.clave && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onQuitar
+                        ? onQuitar(parte, 'principal', principal, ayudante)
+                        : onAsignar(parte.id, null, 'principal', principal?.id)
+                    }
+                    aria-label={`Quitar ${nombrePrincipal} de ${parte.titulo}`}
+                    title={
+                      principal?.confirmado
+                        ? `Quitar a ${nombrePrincipal} (asignación confirmada)`
+                        : `Quitar a ${nombrePrincipal}`
+                    }
+                    className="h-[30px] w-7 shrink-0 inline-flex items-center justify-center rounded-lg border border-transparent text-text3 hover:text-danger hover:bg-danger-bg hover:border-danger/20 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Ayudante (solo en partes SMT que lo requieren) */}
+            {parte.requiere_ayudante &&
+              (() => {
+                const titularSexo =
+                  personaPrincipal?.sexo ||
+                  personaAyudante?.sexo ||
+                  null
+                const tipoAyu = titularSexo === 'M' ? 'SMT_EXP_M' : 'SMT_EXP_F'
+                const selectorDeshabilitado = !principal?.clave && !ayudante?.clave
+
+                return (
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-text3 px-0.5">
+                      Ayudante
+                    </span>
+                    <div className="flex items-start gap-1 min-w-0">
+                      <div className="flex-1 min-w-0">
+                        <PersonaSelectorDesktop
+                          tipo={tipoAyu}
+                          value={ayudante?.clave}
+                          onChange={clave => onAsignar(parte.id, clave, 'ayudante', ayudante?.id)}
+                          personas={personas}
+                          historial={historial}
+                          mes={mes}
+                          fechaSemana={fechaSemana}
+                          yaAsignados={semanaAsignados
+                            .filter(a => !(a.parte_id === parte.id && a.rol === 'ayudante'))
+                            .map(a =>
+                              a.parte_id === parte.id && a.rol === 'principal'
+                                ? { ...a, esTitularMismaParte: true }
+                                : a
+                            )}
+                          disabled={selectorDeshabilitado}
+                          placeholder={
+                            selectorDeshabilitado
+                              ? '— Elegir titular primero —'
+                              : '— Sin ayudante —'
+                          }
+                        />
+                      </div>
+                      {ayudante?.clave && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onQuitar
+                              ? onQuitar(parte, 'ayudante', ayudante, principal)
+                              : onAsignar(parte.id, null, 'ayudante', ayudante?.id)
+                          }
+                          aria-label={`Quitar ayudante ${nombreAyudante} de ${parte.titulo}`}
+                          title={
+                            ayudante?.confirmado
+                              ? `Quitar ayudante ${nombreAyudante} (confirmado)`
+                              : `Quitar ayudante ${nombreAyudante}`
+                          }
+                          className="h-[30px] w-7 shrink-0 inline-flex items-center justify-center rounded-lg border border-transparent text-text3 hover:text-danger hover:bg-danger-bg hover:border-danger/20 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )
               })()}
           </div>

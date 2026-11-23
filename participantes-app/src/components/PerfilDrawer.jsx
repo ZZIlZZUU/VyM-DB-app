@@ -62,6 +62,9 @@ import {
   getAvatarColorClasses,
   loadHomeAlertPrefs,
   saveHomeAlertPrefs,
+  loadQuitarTitularSmtPref,
+  saveQuitarTitularSmtPref,
+  PROGRAMA_QUITAR_TITULAR_SMT_KEY,
   dispatchPreferencesUpdated,
 } from '../lib/themes'
 import { useToast } from '../hooks/useToast'
@@ -258,6 +261,20 @@ export default function PerfilDrawer({
   const [programaModoLectura, setProgramaModoLectura] = useState(
     () => localStorage.getItem('programa_modoLectura') === 'true'
   )
+  const [programaQuitarTitularSmt, setProgramaQuitarTitularSmt] = useState(
+    () => loadQuitarTitularSmtPref()
+  )
+  useEffect(() => {
+    function handleExternalPrefs(e) {
+      if (e?.detail?.programa_quitarTitularSmt) {
+        setProgramaQuitarTitularSmt(e.detail.programa_quitarTitularSmt)
+      } else if (e?.detail?.reset_all) {
+        setProgramaQuitarTitularSmt('preguntar')
+      }
+    }
+    window.addEventListener('preferences-updated', handleExternalPrefs)
+    return () => window.removeEventListener('preferences-updated', handleExternalPrefs)
+  }, [])
   const [registrosPageSize, setRegistrosPageSize] = useState(
     () => localStorage.getItem('registros_pageSize') || '50'
   )
@@ -627,6 +644,7 @@ export default function PerfilDrawer({
         prefVistaDefault,
         prefFormatoFecha,
         programaModoLectura,
+        programaQuitarTitularSmt,
         registrosPageSize,
         alertPrefs,
         sidebarCollapsed: isCollapsed,
@@ -681,6 +699,10 @@ export default function PerfilDrawer({
         setProgramaModoLectura(p.programaModoLectura)
         localStorage.setItem('programa_modoLectura', String(p.programaModoLectura))
       }
+      if (typeof p.programaQuitarTitularSmt === 'string') {
+        const normalized = saveQuitarTitularSmtPref(p.programaQuitarTitularSmt)
+        setProgramaQuitarTitularSmt(normalized)
+      }
       if (p.registrosPageSize) {
         setRegistrosPageSize(String(p.registrosPageSize))
         localStorage.setItem('registros_pageSize', String(p.registrosPageSize))
@@ -733,6 +755,18 @@ export default function PerfilDrawer({
     success(next ? 'Programa S-140 abrirá en modo lectura' : 'Programa S-140 abrirá en modo edición')
   }
 
+  function handleProgramaQuitarTitularSmtChange(val) {
+    const normalized = saveQuitarTitularSmtPref(val)
+    setProgramaQuitarTitularSmt(normalized)
+    dispatchPreferencesUpdated({ programa_quitarTitularSmt: normalized })
+    const msgMap = {
+      preguntar: 'Se preguntará qué quitar al desasignar un titular SMT',
+      ambos: 'Al quitar un titular SMT se quitará también su ayudante',
+      solo_titular: 'Al quitar un titular SMT se conservará su ayudante',
+    }
+    success(msgMap[normalized] || 'Preferencia actualizada')
+  }
+
   function handleRegistrosPageSizeChange(val) {
     setRegistrosPageSize(val)
     localStorage.setItem('registros_pageSize', String(val))
@@ -775,11 +809,13 @@ export default function PerfilDrawer({
     localStorage.removeItem('pref_vista_default')
     localStorage.removeItem('pref_formato_fecha')
     localStorage.removeItem('programa_modoLectura')
+    localStorage.removeItem(PROGRAMA_QUITAR_TITULAR_SMT_KEY)
     localStorage.removeItem('registros_pageSize')
     localStorage.removeItem('pref_home_alerts')
     setPrefVistaDefault('home')
     setPrefFormatoFecha('dd/mm/yyyy')
     setProgramaModoLectura(false)
+    setProgramaQuitarTitularSmt('preguntar')
     setRegistrosPageSize('50')
     setAlertPrefs(saveHomeAlertPrefs({ semanasIncompletas: true, personasInactivas: true, epubDisponible: true }))
     setKeybinds(resetKeybinds())
@@ -2080,6 +2116,27 @@ export default function PerfilDrawer({
                       onChange={handleProgramaModoLecturaToggle}
                       label="Abrir Programa en modo lectura"
                     />
+                  </div>
+
+                  <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-text1">Al quitar titular SMT con ayudante</div>
+                      <p className="text-[11px] text-text3 mt-0.5">
+                        Define si preguntar, quitar ambos o conservar al ayudante en Programa S-140.
+                      </p>
+                    </div>
+                    <div className="sm:w-48">
+                      <Select
+                        value={programaQuitarTitularSmt}
+                        onChange={e => handleProgramaQuitarTitularSmtChange(e.target.value)}
+                        size="sm"
+                        aria-label="Comportamiento al quitar titular SMT con ayudante"
+                      >
+                        <option value="preguntar">Preguntar cada vez</option>
+                        <option value="ambos">Quitar titular y ayudante</option>
+                        <option value="solo_titular">Quitar solo al titular</option>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="pt-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

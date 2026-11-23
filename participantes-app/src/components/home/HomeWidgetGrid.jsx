@@ -28,6 +28,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { EmptyState } from '../ui/EmptyState'
 import { Dialog } from '../ui/Dialog'
+import { Select } from '../ui/Select'
 import { formatFechaLegible, formatRangoSemanaPrograma, getHoyLocalIso } from '../../lib/fechas'
 import { buildLogResumenCorto } from '../../lib/homeAlertas'
 import { buildUsuariosByEmailMap, resolveAutorLog, getTablaLabel } from '../../lib/auditoria'
@@ -1322,26 +1323,29 @@ function WidgetFrame({
             onPointerDown={e => e.stopPropagation()}
           >
             {Array.isArray(meta.presets) && meta.presets.length > 0 && (
-              <select
-                aria-label={`Tamaño sugerido para ${meta.titulo}`}
-                value={`${item.w}x${item.h}`}
-                onChange={e => {
-                  const [pw, ph] = e.target.value.split('x').map(Number)
-                  if (pw && ph) onResizeStep(item, pw, ph)
-                }}
-                className="h-5.5 px-1 rounded-md bg-surface border border-border text-[10px] font-medium text-text2 cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-600"
-              >
-                {!meta.presets.some(p => p.w === item.w && p.h === item.h) && (
-                  <option value={`${item.w}x${item.h}`}>
-                    {item.w}×{item.h}
-                  </option>
-                )}
-                {meta.presets.map(p => (
-                  <option key={p.label} value={`${p.w}x${p.h}`}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-[82px]">
+                <Select
+                  size="xs"
+                  aria-label={`Tamaño sugerido para ${meta.titulo}`}
+                  value={`${item.w}x${item.h}`}
+                  onChange={e => {
+                    const [pw, ph] = e.target.value.split('x').map(Number)
+                    if (pw && ph) onResizeStep(item, pw, ph)
+                  }}
+                  className="h-6 text-[10px] font-medium text-text2"
+                >
+                  {!meta.presets.some(p => p.w === item.w && p.h === item.h) && (
+                    <option value={`${item.w}x${item.h}`}>
+                      {item.w}×{item.h}
+                    </option>
+                  )}
+                  {meta.presets.map(p => (
+                    <option key={p.label} value={`${p.w}x${p.h}`}>
+                      {p.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             )}
 
             <div className="xl:hidden inline-flex items-center rounded-md border border-border bg-surface overflow-hidden">

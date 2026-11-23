@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Drawer } from 'vaul'
 import {
   Search,
@@ -9,7 +9,7 @@ import {
   ChevronDown,
   X,
 } from 'lucide-react'
-import { sugerirCandidatos } from '../../../lib/asignacionesSugeridas'
+import { sugerirCandidatos, normalizarTipo, getCargaMensualTipo } from '../../../lib/asignacionesSugeridas'
 import { evaluarConflictosPersona, TIPO_COLOR, TIPO_LABEL } from '../../../lib/conflictosRotacion'
 import { useEnvironment } from '../../../hooks/useEnvironment'
 import { Input } from '../../../components/ui/Input'
@@ -84,6 +84,61 @@ function getResumenRotacion(p, historial, fechaSemana) {
     barCls: 'w-full bg-accent',
     estado: 'listo',
   }
+}
+
+function getCargaMesBadge(persona, historial, mes) {
+  if (!persona || !mes) return null
+  const regs = (historial || []).filter(
+    h => h.clave === persona.clave && h.mes === mes && normalizarTipo(h.tipo) !== 'OC'
+  )
+  const carga = regs.reduce((acc, h) => acc + getCargaMensualTipo(h.tipo), 0)
+  if (persona.lista === 'Anc/SM') {
+    const saturado = carga >= 3
+    return {
+      text: `${regs.length}/3 mes`,
+      cls: saturado
+        ? 'bg-amber-bg text-amber border-amber/30'
+        : regs.length > 0
+          ? 'bg-surface-alt text-text2 border-border'
+          : 'bg-accent-muted-bg/60 text-accent border-accent-muted-border/60',
+    }
+  }
+  return {
+    text: regs.length === 0 ? 'Libre mes' : `${regs.length} este mes`,
+    cls:
+      carga >= 1
+        ? 'bg-amber-bg text-amber border-amber/30'
+        : 'bg-accent-muted-bg/60 text-accent border-accent-muted-border/60',
+  }
+}
+
+function computeDropdownStyle(triggerEl) {
+  if (!triggerEl) return {}
+  const rect = triggerEl.getBoundingClientRect()
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+  const dropdownHeight = 240
+  const dropdownWidth = 260
+
+  const style = {
+    position: 'fixed',
+    zIndex: 200,
+    width: `${Math.max(rect.width, dropdownWidth)}px`,
+  }
+
+  if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+    style.bottom = `${window.innerHeight - rect.top + 4}px`
+  } else {
+    style.top = `${rect.bottom + 4}px`
+  }
+
+  if (rect.left + dropdownWidth > window.innerWidth - 12) {
+    style.right = `${Math.max(12, window.innerWidth - rect.right)}px`
+  } else {
+    style.left = `${Math.max(12, rect.left)}px`
+  }
+
+  return style
 }
 
 /**
@@ -217,9 +272,17 @@ export default function PersonaSelectorDesktop({
     const handleScroll = e => {
       clearTimeout(hoverTimer.current)
       setTooltip(null)
-      if (!containerRef.current?.contains(e.target)) {
+      if (e.target?.closest?.('[data-persona-dropdown]')) return
+      if (!triggerRef.current) {
         setOpen(false)
+        return
       }
+      const rect = triggerRef.current.getBoundingClientRect()
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        setOpen(false)
+        return
+      }
+      setDropdownStyle(computeDropdownStyle(triggerRef.current))
     }
     const handleResize = () => {
       setOpen(false)
@@ -326,21 +389,26 @@ export default function PersonaSelectorDesktop({
     }
   }
 
-  function handleItemMouseEnter(clave, e) {
-    if (isMobile) return
-    clearTimeout(hoverTimer.current)
-    const rect = e.currentTarget.getBoundingClientRect()
-    const spaceRight = window.innerWidth - rect.right
-    const left = spaceRight >= TOOLTIP_W + 12 ? rect.right + 8 : rect.left - TOOLTIP_W - 8
-    hoverTimer.current = setTimeout(() => {
-      setTooltip({ clave, top: rect.top, left })
-    }, 150)
-  }
+  const handleItemMouseEnter = useCallback(
+    e => {
+      if (isMobile) return
+      const clave = e.currentTarget?.dataset?.clave
+      if (!clave) return
+      clearTimeout(hoverTimer.current)
+      const rect = e.currentTarget.getBoundingClientRect()
+      const spaceRight = window.innerWidth - rect.right
+      const left = spaceRight >= TOOLTIP_W + 12 ? rect.right + 8 : rect.left - TOOLTIP_W - 8
+      hoverTimer.current = setTimeout(() => {
+        setTooltip({ clave, top: rect.top, left })
+      }, 150)
+    },
+    [isMobile]
+  )
 
-  function handleItemMouseLeave() {
+  const handleItemMouseLeave = useCallback(() => {
     clearTimeout(hoverTimer.current)
     setTooltip(null)
-  }
+  }, [])
 
   function getIndicador(p) {
     if (typeof p._score === 'number') {
@@ -358,35 +426,6 @@ export default function PersonaSelectorDesktop({
       .filter(h => h.clave === clave && !h._virtual)
       .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
       .slice(0, 3)
-  }
-
-  function computeDropdownStyle(triggerEl) {
-    if (!triggerEl) return {}
-    const rect = triggerEl.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceAbove = rect.top
-    const dropdownHeight = 240
-    const dropdownWidth = 260
-
-    const style = {
-      position: 'fixed',
-      zIndex: 200,
-      width: `${Math.max(rect.width, dropdownWidth)}px`,
-    }
-
-    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-      style.bottom = `${window.innerHeight - rect.top + 4}px`
-    } else {
-      style.top = `${rect.bottom + 4}px`
-    }
-
-    if (rect.left + dropdownWidth > window.innerWidth - 12) {
-      style.right = `${Math.max(12, window.innerWidth - rect.right)}px`
-    } else {
-      style.left = `${Math.max(12, rect.left)}px`
-    }
-
-    return style
   }
 
   const tooltipPersona = tooltip
@@ -408,8 +447,10 @@ export default function PersonaSelectorDesktop({
         onClick={handleToggle}
         className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-all border outline-none select-none ${
           open
-            ? 'border-emerald-600 dark:border-emerald-500 bg-surface ring-1 ring-emerald-500/20'
-            : 'border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 hover:border-zinc-300 dark:hover:border-zinc-700'
+            ? 'border-accent bg-surface ring-1 ring-accent/20'
+            : conflictoSeleccionado?.severity === 'warning'
+              ? 'border-amber-400/70 dark:border-amber-600/60 bg-surface hover:border-amber-500'
+              : 'border-border2 bg-surface hover:border-text3/50'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} text-text1`}
       >
         {seleccionado ? (
@@ -495,15 +536,27 @@ export default function PersonaSelectorDesktop({
                 </button>
               </div>
 
-              <div className="p-3 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 shrink-0">
-                <Input
-                  value={query}
-                  onChange={handleQueryChange}
-                  placeholder="Buscar por nombre o clave..."
-                  icon={Search}
-                  size="md"
-                  className="border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-text1"
-                />
+              <div className="p-3 border-b border-border bg-surface-alt/50 shrink-0">
+                <div className="relative">
+                  <Input
+                    value={query}
+                    onChange={handleQueryChange}
+                    placeholder="Buscar por nombre o clave..."
+                    icon={Search}
+                    size="md"
+                    className="pr-8 border-border bg-surface text-text1"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      aria-label="Limpiar búsqueda"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-text3 hover:text-text1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/60 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -523,6 +576,7 @@ export default function PersonaSelectorDesktop({
                   filtrados.map((p, idx) => {
                     const isSelected = p.clave === value
                     const resumen = getResumenRotacion(p, historial, fechaSemana)
+                    const cargaMes = getCargaMesBadge(p, historial, mes)
                     const esSugerida = idx === 0 && !p.conflicto && resumen.estado === 'listo'
 
                     return (
@@ -541,11 +595,16 @@ export default function PersonaSelectorDesktop({
                             {getInitials(p.nombre)}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-medium truncate">{p.nombre}</span>
                               {esSugerida && (
                                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-accent-muted-bg text-accent border border-accent-muted-border shrink-0">
                                   Sugerida
+                                </span>
+                              )}
+                              {cargaMes && (
+                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono border shrink-0 ${cargaMes.cls}`}>
+                                  {cargaMes.text}
                                 </span>
                               )}
                             </div>
@@ -604,16 +663,32 @@ export default function PersonaSelectorDesktop({
               </span>
               <span className="font-mono text-[10px]">/ buscar</span>
             </div>
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={handleQueryChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Buscar por nombre o clave..."
-              icon={Search}
-              size="sm"
-              className="border-border bg-surface text-text1"
-            />
+            <div className="relative">
+              <Input
+                ref={inputRef}
+                value={query}
+                onChange={handleQueryChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Buscar por nombre o clave..."
+                icon={Search}
+                size="sm"
+                className="pr-7 border-border bg-surface text-text1"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('')
+                    setHighlightedIndex(0)
+                    inputRef.current?.focus()
+                  }}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-text3 hover:text-text1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Opciones */}
@@ -645,6 +720,7 @@ export default function PersonaSelectorDesktop({
                 const isSelected = p.clave === value
                 const isHighlighted = highlightedIndex === idx
                 const resumen = getResumenRotacion(p, historial, fechaSemana)
+                const cargaMes = getCargaMesBadge(p, historial, mes)
                 const esSugerida = idx === 0 && !p.conflicto && resumen.estado === 'listo'
 
                 return (
@@ -652,9 +728,10 @@ export default function PersonaSelectorDesktop({
                     key={p.clave}
                     type="button"
                     data-index={idx}
+                    data-clave={p.clave}
                     onClick={() => handleSelect(p.clave)}
                     onMouseMove={() => setHighlightedIndex(idx)}
-                    onMouseEnter={e => handleItemMouseEnter(p.clave, e)}
+                    onMouseEnter={handleItemMouseEnter}
                     onMouseLeave={handleItemMouseLeave}
                     className={`w-full text-left flex items-center gap-2.5 px-3 py-2 text-xs transition-colors cursor-pointer ${
                       isSelected
@@ -676,8 +753,13 @@ export default function PersonaSelectorDesktop({
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] text-text3 truncate">
-                        {resumen.subtitulo}
+                      <div className="flex items-center gap-1.5 text-[10px] text-text3 truncate mt-0.5">
+                        <span className="truncate">{resumen.subtitulo}</span>
+                        {cargaMes && (
+                          <span className={`px-1.5 py-0 rounded-full text-[9px] font-mono border shrink-0 ${cargaMes.cls}`}>
+                            {cargaMes.text}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">

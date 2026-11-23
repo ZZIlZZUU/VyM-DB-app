@@ -6,11 +6,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Briefcase,
+  ClipboardCheck,
+  ShieldCheck,
+  RotateCcw,
 } from 'lucide-react'
 import {
   SECCION_LABEL,
   TIPO_COLOR,
+  TIPO_BADGE_LABEL,
   evaluarConflictosPersona,
+  evaluarReconfirmacionParte,
 } from '../../lib/conflictosRotacion'
 import { formatRangoSemanaPrograma } from '../../lib/fechas'
 import { Button } from '../ui/Button'
@@ -25,6 +30,7 @@ function RevisarSemanaModalInner({
   personas,
   historial,
   onConfirmarBatch,
+  onCambiarEstadoRevision,
   onAsignarManual,
   isBatchSaving,
   evento,
@@ -73,7 +79,8 @@ function RevisarSemanaModalInner({
 
       const personaP = asigP?.clave ? personas.find(p => p.clave === asigP.clave) : null
       const personaA = asigA?.clave ? personas.find(p => p.clave === asigA.clave) : null
-      const yaConfirmada = !!asigP?.confirmado
+      const { necesitaReconfirmar } = evaluarReconfirmacionParte(parte, asigP, asigA, historial)
+      const yaConfirmada = !!asigP?.confirmado && !necesitaReconfirmar
 
       let estado
       let advertencias = []
@@ -124,6 +131,26 @@ function RevisarSemanaModalInner({
           ...confsA.map(c => ({ ...c, persona: personaA.nombre, esAyudante: true })),
         ]
 
+        if (parte.requiere_ayudante && !personaA) {
+          advertencias.push({
+            tipo: 'falta_ayudante',
+            severity: 'warning',
+            mensaje: 'Falta asignar ayudante para esta parte SMT',
+            persona: personaP.nombre,
+            esAyudante: false,
+          })
+        }
+
+        if (necesitaReconfirmar) {
+          advertencias.unshift({
+            tipo: 'reconfirmacion',
+            severity: 'warning',
+            mensaje: 'Asignación modificada: requiere reconfirmar para actualizar el historial',
+            persona: personaP.nombre,
+            esAyudante: false,
+          })
+        }
+
         estado = advertencias.length > 0 ? 'amarillo' : 'verde'
       }
 
@@ -134,6 +161,7 @@ function RevisarSemanaModalInner({
         personaP,
         personaA,
         estado,
+        necesitaReconfirmar,
         advertencias,
       }
     })
@@ -147,13 +175,22 @@ function RevisarSemanaModalInner({
     return initial
   })
 
+  const [notaRevision, setNotaRevision] = useState(() => semana?.notas_revision || '')
+  const [marcarVerificadaAlConfirmar, setMarcarVerificadaAlConfirmar] = useState(true)
+  const [savingEstado, setSavingEstado] = useState(false)
+
   if (!isOpen || !semana) return null
 
   const totalPartes = partesEvaluadas.length
   const partesPendientes = partesEvaluadas.filter(p => p.estado !== 'confirmada')
   const totalPendientes = partesPendientes.length
   const totalAdvertencias = partesEvaluadas.filter(p => p.estado === 'amarillo').length
+  const totalSinAsignar = partesEvaluadas.filter(p => p.estado === 'rojo').length
   const seleccionadasCount = Object.values(seleccionadas).filter(Boolean).length
+
+  const quedariaCompletaAlConfirmar =
+    totalSinAsignar === 0 &&
+    partesPendientes.every(item => !!seleccionadas[item.parte.id])
 
   const handleToggle = parteId => {
     setSeleccionadas(prev => ({
@@ -162,9 +199,45 @@ function RevisarSemanaModalInner({
     }))
   }
 
+  const handleSeleccionarSoloVerdes = () => {
+    const next = {}
+    partesEvaluadas.forEach(item => {
+      next[item.parte.id] = item.estado === 'verde'
+    })
+    setSeleccionadas(next)
+  }
+
+  const handleSeleccionarTodasPendientes = () => {
+    const next = {}
+    partesEvaluadas.forEach(item => {
+      next[item.parte.id] = item.estado === 'verde' || item.estado === 'amarillo'
+    })
+    setSeleccionadas(next)
+  }
+
+  const handleDeseleccionarTodas = () => {
+    setSeleccionadas({})
+  }
+
   const handleConfirmar = () => {
     const ids = Object.keys(seleccionadas).filter(id => seleccionadas[id])
-    onConfirmarBatch(semana, ids)
+    const marcarVerificada =
+      quedariaCompletaAlConfirmar && marcarVerificadaAlConfirmar
+    onConfirmarBatch(semana, ids, {
+      marcarVerificada,
+      notasRevision: notaRevision.trim() || null,
+    })
+  }
+
+  const handleMarcarEnRevision = async () => {
+    if (!onCambiarEstadoRevision) return
+    setSavingEstado(true)
+    try {
+      await onCambiarEstadoRevision(semana.id, 'en_revision', notaRevision.trim() || null)
+      onClose?.()
+    } finally {
+      setSavingEstado(false)
+    }
   }
 
   return (
@@ -172,35 +245,107 @@ function RevisarSemanaModalInner({
       isOpen={isOpen}
       onClose={onClose}
       title={`Revisar semana — ${formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}`}
-      description={`${totalPartes} partes (${totalPendientes} pendientes) · ${totalAdvertencias} con advertencias`}
+      description={`${totalPartes} partes (${totalPendientes} pendientes) · ${totalAdvertencias} con advertencias${totalSinAsignar > 0 ? ` · ${totalSinAsignar} sin asignar` : ''}`}
       size="lg"
       footer={
-        <div className="flex items-center justify-between w-full">
-          <span className="text-xs text-text2 font-medium">
-            {seleccionadasCount} de {totalPendientes} partes pendientes seleccionadas
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              disabled={isBatchSaving}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="accent"
-              size="sm"
-              disabled={seleccionadasCount === 0 || isBatchSaving}
-              onClick={handleConfirmar}
-            >
-              {isBatchSaving ? 'Confirmando...' : 'Confirmar seleccionadas'}
-            </Button>
+        <div className="flex flex-col gap-3 w-full">
+          {onCambiarEstadoRevision && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <input
+                type="text"
+                value={notaRevision}
+                onChange={e => setNotaRevision(e.target.value)}
+                placeholder="Nota opcional de revisión (ej: confirmar disponibilidad del conductor)..."
+                className="flex-1 h-8 px-2.5 rounded-lg border border-border2 bg-surface text-xs text-text1 placeholder:text-text3 focus:border-accent focus:outline-none"
+              />
+              {quedariaCompletaAlConfirmar && (
+                <label className="inline-flex items-center gap-1.5 text-[11px] text-text2 cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={marcarVerificadaAlConfirmar}
+                    onChange={e => setMarcarVerificadaAlConfirmar(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-border2 text-accent focus:ring-accent cursor-pointer"
+                  />
+                  <span>Marcar verificada</span>
+                </label>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+            <span className="text-xs text-text2 font-medium">
+              {seleccionadasCount} de {totalPendientes} pendientes seleccionadas
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                disabled={isBatchSaving || savingEstado}
+              >
+                Cancelar
+              </Button>
+              {onCambiarEstadoRevision && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={ClipboardCheck}
+                  loading={savingEstado}
+                  disabled={isBatchSaving}
+                  onClick={handleMarcarEnRevision}
+                >
+                  Dejar en revisión
+                </Button>
+              )}
+              <Button
+                variant="accent"
+                size="sm"
+                icon={quedariaCompletaAlConfirmar && marcarVerificadaAlConfirmar ? ShieldCheck : Check}
+                disabled={seleccionadasCount === 0 || isBatchSaving || savingEstado}
+                onClick={handleConfirmar}
+              >
+                {isBatchSaving
+                  ? 'Confirmando...'
+                  : quedariaCompletaAlConfirmar && marcarVerificadaAlConfirmar
+                    ? 'Confirmar y verificar'
+                    : 'Confirmar seleccionadas'}
+              </Button>
+            </div>
           </div>
         </div>
       }
     >
       <div className="space-y-4">
+        {/* Acciones rápidas de selección */}
+        {totalPendientes > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-surface-alt/60 border border-border text-xs">
+            <span className="text-[11px] text-text2 font-medium">Selección rápida:</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleSeleccionarSoloVerdes}
+                className="px-2 py-1 rounded-md text-[11px] font-medium bg-surface border border-border text-text1 hover:border-accent-muted-border cursor-pointer transition-colors"
+              >
+                Solo sin conflictos
+              </button>
+              <button
+                type="button"
+                onClick={handleSeleccionarTodasPendientes}
+                className="px-2 py-1 rounded-md text-[11px] font-medium bg-surface border border-border text-text1 hover:border-accent-muted-border cursor-pointer transition-colors"
+              >
+                Todas las pendientes
+              </button>
+              <button
+                type="button"
+                onClick={handleDeseleccionarTodas}
+                className="px-2 py-1 rounded-md text-[11px] font-medium text-text3 hover:text-text1 hover:bg-surface cursor-pointer transition-colors"
+              >
+                Ninguna
+              </button>
+            </div>
+          </div>
+        )}
+
         {esVisita && (
           <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
             <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -209,25 +354,27 @@ function RevisarSemanaModalInner({
             </span>
           </div>
         )}
+
         {secciones.map(sec => {
           const partesSec = partesEvaluadas.filter(item => item.parte.seccion === sec)
           if (!partesSec.length) return null
 
           return (
             <div key={sec} className="space-y-2">
-              <div className="text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider pb-1 border-b border-zinc-100 dark:border-zinc-800/80">
+              <div className="text-[10px] font-mono font-semibold text-text3 uppercase tracking-wider pb-1 border-b border-border/80">
                 {SECCION_LABEL[sec]}
               </div>
 
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div className="divide-y divide-border/60">
                 {partesSec.map(item => {
-                  const { parte, personaP, personaA, estado, advertencias } = item
+                  const { parte, personaP, personaA, estado, necesitaReconfirmar, advertencias } = item
                   const isChecked = !!seleccionadas[parte.id]
+                  const badgeLabel = TIPO_BADGE_LABEL[parte.tipo_asignacion] || parte.tipo_asignacion
 
                   return (
                     <div
                       key={parte.id}
-                      className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 px-1.5 rounded-lg"
+                      className="flex items-start justify-between gap-3 py-2.5 transition-colors hover:bg-surface-alt/40 px-1.5 rounded-lg"
                     >
                       {/* Checkbox o Placeholder */}
                       <div className="pt-0.5 shrink-0">
@@ -241,7 +388,7 @@ function RevisarSemanaModalInner({
                             id={`chk-${parte.id}`}
                             checked={isChecked}
                             onChange={() => handleToggle(parte.id)}
-                            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-0 bg-surface dark:bg-zinc-800 cursor-pointer"
+                            className="w-4 h-4 rounded border-border2 text-accent focus:ring-accent focus:ring-offset-0 bg-surface cursor-pointer"
                           />
                         ) : (
                           <div className="w-4 h-4" />
@@ -252,13 +399,13 @@ function RevisarSemanaModalInner({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border shrink-0 ${
-                              TIPO_COLOR[parte.tipo_asignacion] || 'bg-zinc-100 text-zinc-700'
+                            className={`text-[10px] font-medium px-1.5 py-0.5 rounded border shrink-0 ${
+                              TIPO_COLOR[parte.tipo_asignacion] || 'bg-surface-alt text-text2 border-border'
                             }`}
                           >
-                            {parte.tipo_asignacion}
+                            {badgeLabel}
                           </span>
-                          <span className="text-xs font-semibold text-text1 truncate">
+                          <span className="text-xs font-semibold text-text1 line-clamp-2">
                             {parte.titulo}
                           </span>
                         </div>
@@ -315,22 +462,36 @@ function RevisarSemanaModalInner({
                         )}
 
                         {estado === 'amarillo' && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                            <AlertTriangle className="w-3 h-3" />
-                            Advertencia
-                          </span>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                              {necesitaReconfirmar ? (
+                                <RotateCcw className="w-3 h-3" />
+                              ) : (
+                                <AlertTriangle className="w-3 h-3" />
+                              )}
+                              {necesitaReconfirmar ? 'Reconfirmar' : 'Advertencia'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onAsignarManual(parte.id)}
+                              className="text-[11px] font-medium text-accent hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <span>Ir a revisar</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
                         )}
 
                         {estado === 'rojo' && (
                           <div className="flex flex-col items-end gap-1">
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20">
                               <AlertCircle className="w-3 h-3" />
-                              Sin sugerencia
+                              Sin asignar
                             </span>
                             <button
                               type="button"
                               onClick={() => onAsignarManual(parte.id)}
-                              className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                              className="text-xs font-medium text-accent hover:underline flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <span>Asignar manualmente</span>
                               <ArrowRight className="w-3 h-3" />
@@ -351,11 +512,6 @@ function RevisarSemanaModalInner({
 }
 
 export default function RevisarSemanaModal(props) {
-  if (!props.isOpen || !props.semana) return null
-  return (
-    <RevisarSemanaModalInner
-      key={`${props.semana.id}-${props.isOpen}`}
-      {...props}
-    />
-  )
+  const modalKey = `${props.semana?.id || 'none'}-${props.isOpen ? 'open' : 'closed'}`
+  return <RevisarSemanaModalInner key={modalKey} {...props} />
 }

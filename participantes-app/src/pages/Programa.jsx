@@ -18,6 +18,13 @@ import {
   X,
   Printer,
   Briefcase,
+  Search,
+  ShieldCheck,
+  ClipboardCheck,
+  AlertTriangle,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  ArrowRight,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { parsearEPUB, inferirTipoParteSMT } from '../lib/epubParser'
@@ -25,6 +32,8 @@ import { sugerirCandidatos, sugerirAyudante } from '../lib/asignacionesSugeridas
 import {
   PESO_TIPO,
   TIPO_PARTICIPACION,
+  ESTADO_REVISION_META,
+  normalizarEstadoRevision,
   formatearIssueLegible,
   buildHistorialParaSemana,
   getEventoParaSemana,
@@ -44,7 +53,12 @@ import {
   useParticipacionesQuery,
 } from '../core/queries/useAppQueries'
 import { invalidateAppQueries, QUERY_KEYS } from '../core/queryClient'
-import { loadHomeAlertPrefs } from '../lib/themes'
+import {
+  loadHomeAlertPrefs,
+  loadQuitarTitularSmtPref,
+  saveQuitarTitularSmtPref,
+  dispatchPreferencesUpdated,
+} from '../lib/themes'
 import { useToast } from '../hooks/useToast'
 import { useConfirm } from '../hooks/useConfirm'
 import { useEventosReunion } from '../hooks/useEventosReunion'
@@ -53,10 +67,12 @@ import Toast from '../components/Toast'
 import { SkeletonPrograma } from '../components/Skeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 import RevisarSemanaModal from '../components/programa/RevisarSemanaModal'
+import QuitarTitularSmtModal from '../components/programa/QuitarTitularSmtModal'
 import TarjetaSemanaDesktop from '../environments/desktop/programa/TarjetaSemanaDesktop'
 
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { Input } from '../components/ui/Input'
 import { EmptyState } from '../components/ui/EmptyState'
 
 export default function Programa() {
@@ -231,6 +247,30 @@ export default function Programa() {
   const [semanaParaRevisar, setSemanaParaRevisar] = useState(null)
   const [isBatchSaving, setIsBatchSaving] = useState(false)
 
+  // Modal y preferencia al quitar titular SMT con ayudante
+  const [quitarTitularSmtPref, setQuitarTitularSmtPref] = useState(() => loadQuitarTitularSmtPref())
+  const [smtRemovalModal, setSmtRemovalModal] = useState(null)
+  const [isRemovingParticipant, setIsRemovingParticipant] = useState(false)
+
+  // Filtros rápidos, búsqueda de participante y estado de revisión global
+  const [filtroEstado, setFiltroEstado] = useState('todas')
+  const [busquedaParticipante, setBusquedaParticipante] = useState('')
+  const [savingRevisionPrograma, setSavingRevisionPrograma] = useState(false)
+  const [usuarioActualLabel, setUsuarioActualLabel] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return
+      const email = data?.user?.email || ''
+      const nombre = data?.user?.user_metadata?.nombre || data?.user?.user_metadata?.full_name || ''
+      setUsuarioActualLabel(nombre || email || '')
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Flujo EPUB Automático (Brief #31)
   const [epubsDisponibles, setEpubsDisponibles] = useState([])
   const [nuevoEpubDisponible, setNuevoEpubDisponible] = useState(null)
@@ -333,11 +373,15 @@ export default function Programa() {
       if (typeof e?.detail?.programa_modoLectura === 'boolean') {
         setModoLectura(e.detail.programa_modoLectura)
       }
+      if (typeof e?.detail?.programa_quitarTitularSmt === 'string') {
+        setQuitarTitularSmtPref(e.detail.programa_quitarTitularSmt)
+      }
       if (e?.detail?.pref_home_alerts) {
         setEpubAlertsEnabled(e.detail.pref_home_alerts.epubDisponible !== false)
       }
       if (e?.detail?.reset_all) {
         setModoLectura(false)
+        setQuitarTitularSmtPref('preguntar')
         setEpubAlertsEnabled(true)
       }
     }
@@ -345,39 +389,143 @@ export default function Programa() {
     return () => window.removeEventListener('preferences-updated', handlePrefsSync)
   }, [])
 
-  // Detección de programa completado al 100% en la sesión activa
+  // Mapa unificado de salud y progreso por semana (fuente única de verdad para cards, cinta, filtros y resumen)
+  const estadoPorSemanaMap = useMemo(() => {
+    const map = new Map()
+    for (const s of semanasPrograma) {
+      const histSem = buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)
+      const est = calcularEstadoSemana(
+        s,
+        partes,
+        asignaciones,
+        histSem,
+        eventos,
+        config,
+        personas
+      )
+      map.set(s.id, { estado: est, historial: histSem })
+    }
+    return map
+  }, [semanasPrograma, semanas, partes, asignaciones, historial, eventos, config, personas])
+
+  // Detección de programa completado al 100% y métricas globales de revisión
   const resumenProgresoPrograma = useMemo(() => {
     if (loading) return null
     let totalConfirmadasEnPrograma = 0
     let totalPartesEnPrograma = 0
+    let totalSinAsignar = 0
+    let totalPorConfirmar = 0
+    let totalReconfirmaciones = 0
+    let totalAlertas = 0
+    let totalFaltanAyudantes = 0
     let semanasCompletadas = 0
+    let semanasOperativas = 0
+    let semanasEnRevision = 0
+    let semanasVerificadas = 0
+    let semanasConAlertas = 0
+    let semanasPendientes = 0
 
     semanasPrograma.forEach(s => {
-      const { esCompleta, confirmadas, totalPartes } = calcularEstadoSemana(
-        s,
-        partes,
-        asignaciones,
-        historial,
-        eventos,
-        config
-      )
-      totalConfirmadasEnPrograma += confirmadas
-      totalPartesEnPrograma += totalPartes
-      if (esCompleta) {
+      const entry = estadoPorSemanaMap.get(s.id)
+      const est = entry?.estado || calcularEstadoSemana(s, partes, asignaciones, historial, eventos, config, personas)
+      totalConfirmadasEnPrograma += est.confirmadas
+      totalPartesEnPrograma += est.totalPartes
+      totalSinAsignar += est.sinAsignar || 0
+      totalPorConfirmar += est.porConfirmar || 0
+      totalReconfirmaciones += est.reconfirmacionesCount || 0
+      totalAlertas += est.alertasCount || 0
+      totalFaltanAyudantes += est.faltanAyudantes || 0
+
+      if (est.esCompleta) {
         semanasCompletadas++
+      }
+      if (!est.esCancelada) {
+        semanasOperativas++
+        if (!est.esCompleta || est.hayReconfirmaciones) semanasPendientes++
+        if (est.alertasCount > 0 || est.faltanAyudantes > 0) semanasConAlertas++
+        if (est.estadoRevision === 'en_revision') semanasEnRevision++
+        if (est.estadoRevision === 'verificada') semanasVerificadas++
       }
     })
 
     const isNowProgramComplete =
       semanasPrograma.length > 0 && semanasCompletadas === semanasPrograma.length
+    const pctGlobal =
+      totalPartesEnPrograma > 0
+        ? Math.round((totalConfirmadasEnPrograma / totalPartesEnPrograma) * 100)
+        : 0
 
     return {
       isNowProgramComplete,
       totalSemanas: semanasPrograma.length,
+      semanasOperativas,
+      semanasCompletadas,
+      semanasPendientes,
+      semanasConAlertas,
+      semanasEnRevision,
+      semanasVerificadas,
       totalAsignaciones: totalConfirmadasEnPrograma,
       totalPartes: totalPartesEnPrograma,
+      totalSinAsignar,
+      totalPorConfirmar,
+      totalReconfirmaciones,
+      totalAlertas,
+      totalFaltanAyudantes,
+      pctGlobal,
     }
-  }, [loading, semanasPrograma, partes, asignaciones, historial, eventos, config])
+  }, [loading, semanasPrograma, estadoPorSemanaMap, partes, asignaciones, historial, eventos, config, personas])
+
+  // Semanas filtradas por estado y búsqueda de participante
+  const semanasFiltradas = useMemo(() => {
+    const q = busquedaParticipante.trim().toLowerCase()
+    return semanasPrograma.filter(s => {
+      const est = estadoPorSemanaMap.get(s.id)?.estado
+      if (filtroEstado === 'pendientes' && (!est || est.esCancelada || (est.esCompleta && !est.hayReconfirmaciones))) {
+        return false
+      }
+      if (filtroEstado === 'alertas' && (!est || (est.alertasCount === 0 && est.faltanAyudantes === 0 && !est.hayReconfirmaciones))) {
+        return false
+      }
+      if (filtroEstado === 'en_revision' && (!est || est.esCancelada || est.estadoRevision !== 'en_revision')) {
+        return false
+      }
+      if (filtroEstado === 'verificadas' && (!est || est.esCancelada || est.estadoRevision !== 'verificada')) {
+        return false
+      }
+
+      if (q) {
+        const partesSem = partes.filter(p => p.semana_id === s.id)
+        const asigSem = asignaciones.filter(a => a.clave && partesSem.some(p => p.id === a.parte_id))
+        const matchAsig = asigSem.some(a => {
+          const per = personas.find(p => p.clave === a.clave)
+          return (
+            a.clave.toLowerCase().includes(q) ||
+            (per?.nombre && per.nombre.toLowerCase().includes(q))
+          )
+        })
+        if (!matchAsig) return false
+      }
+
+      return true
+    })
+  }, [semanasPrograma, estadoPorSemanaMap, filtroEstado, busquedaParticipante, partes, asignaciones, personas])
+
+  const todasVisiblesExpandidas = useMemo(() => {
+    if (semanasFiltradas.length === 0) return false
+    return semanasFiltradas.every(s => !!expandedWeeks[s.id])
+  }, [semanasFiltradas, expandedWeeks])
+
+  const handleToggleExpandirTodas = useCallback(() => {
+    if (semanasFiltradas.length === 0) return
+    const nextVal = !todasVisiblesExpandidas
+    setExpandedWeeks(prev => {
+      const next = { ...prev }
+      semanasFiltradas.forEach(s => {
+        next[s.id] = nextVal
+      })
+      return next
+    })
+  }, [semanasFiltradas, todasVisiblesExpandidas])
 
   useEffect(() => {
     if (!resumenProgresoPrograma) return
@@ -715,15 +863,299 @@ export default function Programa() {
     }
   }
 
+  async function autoReabrirSiVerificada(semanaId) {
+    if (!semanaId) return
+    const sem = semanas.find(s => s.id === semanaId)
+    if (!sem || normalizarEstadoRevision(sem.estado_revision) !== 'verificada') return
+    try {
+      const { error } = await supabase
+        .from('programa_semanas')
+        .update({
+          estado_revision: 'en_revision',
+          revisado_por: usuarioActualLabel || null,
+          revisado_en: new Date().toISOString(),
+        })
+        .eq('id', semanaId)
+      if (!error) {
+        showToast('Semana movida a "En revisión" tras el cambio')
+      }
+    } catch {
+      // Si la columna aún no existe en BD remota, no interrumpir la operación principal
+    }
+  }
+
+  async function handleCambiarEstadoRevisionSemana(semanaId, nuevoEstado, notasRevision = undefined) {
+    const estadoNorm = normalizarEstadoRevision(nuevoEstado)
+    const payload = {
+      estado_revision: estadoNorm,
+      revisado_por: usuarioActualLabel || null,
+      revisado_en: new Date().toISOString(),
+    }
+    if (notasRevision !== undefined) {
+      payload.notas_revision = notasRevision || null
+    }
+
+    const { error } = await supabase
+      .from('programa_semanas')
+      .update(payload)
+      .eq('id', semanaId)
+
+    if (error) {
+      if (error.code === '42703' || String(error.message || '').includes('estado_revision')) {
+        toastError(
+          'Falta aplicar la migración SQL 20261122_programa_estado_revision.sql en Supabase para guardar estados de revisión.'
+        )
+        return
+      }
+      toastError('Error al actualizar estado de revisión: ' + error.message)
+      return
+    }
+
+    const meta = ESTADO_REVISION_META[estadoNorm]
+    success(`Semana marcada como "${meta?.label || estadoNorm}"`)
+    refreshPrograma()
+  }
+
+  async function handleCambiarEstadoRevisionPrograma(nuevoEstado) {
+    const estadoNorm = normalizarEstadoRevision(nuevoEstado)
+    const operativas = semanasPrograma.filter(s => {
+      const est = estadoPorSemanaMap.get(s.id)?.estado
+      return est && !est.esCancelada
+    })
+    if (operativas.length === 0) return
+
+    if (estadoNorm === 'verificada' && resumenProgresoPrograma) {
+      const { totalSinAsignar, totalPorConfirmar, totalReconfirmaciones } = resumenProgresoPrograma
+      if (totalSinAsignar > 0 || totalPorConfirmar > 0 || totalReconfirmaciones > 0) {
+        const detalles = []
+        if (totalSinAsignar > 0) detalles.push(`${totalSinAsignar} sin asignar`)
+        if (totalPorConfirmar > 0) detalles.push(`${totalPorConfirmar} por confirmar`)
+        if (totalReconfirmaciones > 0) detalles.push(`${totalReconfirmaciones} por reconfirmar`)
+        const ok = await confirm({
+          title: '¿Marcar todo el programa como verificado?',
+          message: `Todavía quedan pendientes en la guía activa (${detalles.join(', ')}). ¿Deseas marcar las ${operativas.length} semanas como verificadas de todos modos?`,
+          confirmText: 'Sí, marcar verificadas',
+        })
+        if (!ok) return
+      }
+    }
+
+    setSavingRevisionPrograma(true)
+    try {
+      const ids = operativas.map(s => s.id)
+      const { error } = await supabase
+        .from('programa_semanas')
+        .update({
+          estado_revision: estadoNorm,
+          revisado_por: usuarioActualLabel || null,
+          revisado_en: new Date().toISOString(),
+        })
+        .in('id', ids)
+
+      if (error) {
+        if (error.code === '42703' || String(error.message || '').includes('estado_revision')) {
+          toastError(
+            'Falta aplicar la migración SQL 20261122_programa_estado_revision.sql en Supabase para guardar estados de revisión.'
+          )
+          return
+        }
+        throw error
+      }
+
+      const meta = ESTADO_REVISION_META[estadoNorm]
+      success(`${operativas.length} semanas marcadas como "${meta?.label || estadoNorm}"`)
+      refreshPrograma()
+    } catch (err) {
+      toastError('Error al actualizar revisión del programa: ' + (err?.message || 'Error de conexión'))
+    } finally {
+      setSavingRevisionPrograma(false)
+    }
+  }
+
+  async function ejecutarQuitarAsignaciones({ parte, principal, ayudante, modo }) {
+    setIsRemovingParticipant(true)
+    try {
+      const targets = []
+      if (modo === 'solo_titular' && principal) targets.push(principal)
+      if (modo === 'ayudante' && ayudante) targets.push(ayudante)
+      if (modo === 'ambos') {
+        if (principal) targets.push(principal)
+        if (ayudante) targets.push(ayudante)
+      }
+
+      const partIds = targets.map(t => t.participacion_id).filter(Boolean)
+      const asigIds = targets.map(t => t.id).filter(Boolean)
+
+      if (partIds.length > 0) {
+        const { error: delPartErr } = await supabase
+          .from('participaciones')
+          .delete()
+          .in('id', partIds)
+        if (delPartErr) throw delPartErr
+      }
+
+      if (asigIds.length > 0) {
+        const { error: delAsigErr } = await supabase
+          .from('programa_asignaciones')
+          .delete()
+          .in('id', asigIds)
+        if (delAsigErr) throw delAsigErr
+      }
+
+      if (parte?.semana_id) {
+        await autoReabrirSiVerificada(parte.semana_id)
+      }
+
+      const msg =
+        modo === 'ambos'
+          ? 'Titular y ayudante quitados de la asignación'
+          : modo === 'ayudante'
+            ? 'Ayudante quitado de la asignación'
+            : 'Participante quitado de la asignación'
+      showToast(msg)
+      refreshPrograma()
+    } catch (err) {
+      console.error('[ejecutarQuitarAsignaciones]', err)
+      toastError('Error al quitar participante: ' + (err?.message || 'Error de conexión'))
+    } finally {
+      setIsRemovingParticipant(false)
+    }
+  }
+
+  async function handleQuitarParticipante(parte, rol, asigObjetivo, asigRelacionada) {
+    if (!asigObjetivo?.id) return
+
+    const nombreObj =
+      personas.find(p => p.clave === asigObjetivo.clave)?.nombre || asigObjetivo.clave || 'el participante'
+
+    // Caso SMT titular con ayudante asignado
+    if (rol === 'principal' && parte?.requiere_ayudante && asigRelacionada?.clave) {
+      const nombreAyu =
+        personas.find(p => p.clave === asigRelacionada.clave)?.nombre ||
+        asigRelacionada.clave ||
+        'el ayudante'
+
+      if (quitarTitularSmtPref === 'preguntar') {
+        setSmtRemovalModal({
+          parte,
+          principal: asigObjetivo,
+          ayudante: asigRelacionada,
+          nombreTitular: nombreObj,
+          nombreAyudante: nombreAyu,
+        })
+        return
+      }
+
+      const modoPref = quitarTitularSmtPref === 'solo_titular' ? 'solo_titular' : 'ambos'
+      const afectaConfirmada =
+        Boolean(asigObjetivo.confirmado || asigObjetivo.participacion_id) ||
+        (modoPref === 'ambos' && Boolean(asigRelacionada.confirmado || asigRelacionada.participacion_id))
+
+      if (afectaConfirmada) {
+        const ok = await confirm({
+          title:
+            modoPref === 'ambos'
+              ? '¿Quitar titular y ayudante confirmados?'
+              : '¿Quitar titular confirmado?',
+          message:
+            modoPref === 'ambos'
+              ? `Se quitará a ${nombreObj} y a ${nombreAyu} de "${parte.titulo}" y se eliminarán sus registros confirmados del historial de participaciones. (Puedes cambiar esta preferencia en Perfil → Preferencias).`
+              : `Se quitará a ${nombreObj} de "${parte.titulo}" y se eliminará su registro confirmado del historial. ${nombreAyu} permanecerá como ayudante. (Puedes cambiar esta preferencia en Perfil → Preferencias).`,
+          danger: true,
+          confirmText: modoPref === 'ambos' ? 'Quitar a ambos' : 'Quitar titular',
+        })
+        if (!ok) return
+      }
+
+      await ejecutarQuitarAsignaciones({
+        parte,
+        principal: asigObjetivo,
+        ayudante: asigRelacionada,
+        modo: modoPref,
+      })
+      return
+    }
+
+    // Caso general (titular sin ayudante, o ayudante individual)
+    const estaConfirmada = Boolean(asigObjetivo.confirmado || asigObjetivo.participacion_id)
+    if (estaConfirmada) {
+      const ok = await confirm({
+        title: rol === 'ayudante' ? '¿Quitar ayudante confirmado?' : '¿Quitar participante confirmado?',
+        message: `Esta asignación ya está confirmada. Al quitar a ${nombreObj} de "${parte?.titulo || 'esta parte'}", también se eliminará su registro del historial de participaciones.`,
+        danger: true,
+        confirmText: 'Sí, quitar',
+      })
+      if (!ok) return
+    }
+
+    await ejecutarQuitarAsignaciones({
+      parte,
+      principal: rol === 'principal' ? asigObjetivo : null,
+      ayudante: rol === 'ayudante' ? asigObjetivo : null,
+      modo: rol === 'ayudante' ? 'ayudante' : 'solo_titular',
+    })
+  }
+
+  async function handleConfirmarModalQuitarSmt({ modo, recordar }) {
+    if (!smtRemovalModal) return
+    const ctx = smtRemovalModal
+    setSmtRemovalModal(null)
+
+    if (recordar) {
+      const saved = saveQuitarTitularSmtPref(modo)
+      setQuitarTitularSmtPref(saved)
+      dispatchPreferencesUpdated({ programa_quitarTitularSmt: saved })
+    }
+
+    await ejecutarQuitarAsignaciones({
+      parte: ctx.parte,
+      principal: ctx.principal,
+      ayudante: ctx.ayudante,
+      modo,
+    })
+  }
+
+  async function handleIntercambiarTitularAyudante(parte, principal, ayudante) {
+    if (!principal?.id || !ayudante?.id || !principal.clave || !ayudante.clave) return
+    try {
+      const { error: err1 } = await supabase
+        .from('programa_asignaciones')
+        .update({ clave: ayudante.clave, sugerido_por_app: false })
+        .eq('id', principal.id)
+      if (err1) throw err1
+
+      const { error: err2 } = await supabase
+        .from('programa_asignaciones')
+        .update({ clave: principal.clave, sugerido_por_app: false })
+        .eq('id', ayudante.id)
+      if (err2) throw err2
+
+      if (parte?.semana_id) {
+        await autoReabrirSiVerificada(parte.semana_id)
+      }
+
+      success(
+        principal.confirmado || ayudante.confirmado
+          ? 'Titular y ayudante intercambiados (reconfirma para actualizar el historial)'
+          : 'Titular y ayudante intercambiados'
+      )
+      refreshPrograma()
+    } catch (err) {
+      toastError('Error al intercambiar participantes: ' + (err?.message || 'Error de conexión'))
+    }
+  }
+
   async function handleAsignar(parteId, clave, rol, existingId) {
+    const parte = partes.find(p => p.id === parteId)
+
     if (!clave) {
       if (existingId) {
         const asigExistente = asignaciones.find(a => a.id === existingId)
-        if (asigExistente?.participacion_id) {
-          await supabase.from('participaciones').delete().eq('id', asigExistente.participacion_id)
+        const rolOtro = rol === 'principal' ? 'ayudante' : 'principal'
+        const asigRelacionada = asignaciones.find(a => a.parte_id === parteId && a.rol === rolOtro) || null
+        if (asigExistente) {
+          await handleQuitarParticipante(parte, rol, asigExistente, asigRelacionada)
         }
-        await supabase.from('programa_asignaciones').delete().eq('id', existingId)
-        refreshPrograma()
       }
       return
     }
@@ -734,6 +1166,10 @@ export default function Programa() {
       await supabase.from('programa_asignaciones').update(payload).eq('id', existingId)
     } else {
       await supabase.from('programa_asignaciones').insert(payload)
+    }
+
+    if (parte?.semana_id) {
+      await autoReabrirSiVerificada(parte.semana_id)
     }
 
     refreshPrograma()
@@ -882,6 +1318,7 @@ export default function Programa() {
           .eq('id', ayudante.id)
       }
 
+      await autoReabrirSiVerificada(semana.id)
       showToast('Asignación desconfirmada')
       refreshPrograma()
       return
@@ -973,6 +1410,7 @@ export default function Programa() {
         await supabase.from('programa_asignaciones').delete().in('id', asigIds)
       }
 
+      await autoReabrirSiVerificada(semanaId)
       showToast('Asignaciones de la semana descartadas correctamente.')
       refreshPrograma()
     } catch (err) {
@@ -1122,7 +1560,7 @@ export default function Programa() {
     [semanaParaRevisar]
   )
 
-  async function handleBatchConfirmar(semana, partesSeleccionadasIds) {
+  async function handleBatchConfirmar(semana, partesSeleccionadasIds, opciones = {}) {
     if (!semana || !partesSeleccionadasIds.length) return
 
     const impacto = getImpactoEventoSemana(
@@ -1143,6 +1581,7 @@ export default function Programa() {
         p => p.semana_id === semana.id && partesSeleccionadasIds.includes(p.id)
       )
 
+      const participacionesAEliminar = []
       const participacionesAInsertar = []
       const asignacionesMap = []
 
@@ -1153,6 +1592,10 @@ export default function Programa() {
         if (!asigP?.clave) continue
         const personaP = personas.find(p => p.clave === asigP.clave)
         if (!personaP) continue
+
+        // Limpiar registros previos en caso de reconfirmación para evitar duplicados en participaciones
+        if (asigP.participacion_id) participacionesAEliminar.push(asigP.participacion_id)
+        if (asigA?.participacion_id) participacionesAEliminar.push(asigA.participacion_id)
 
         const tipoParticipacion = TIPO_PARTICIPACION[parte.tipo_asignacion] || 'X'
 
@@ -1193,6 +1636,10 @@ export default function Programa() {
         return
       }
 
+      if (participacionesAEliminar.length > 0) {
+        await supabase.from('participaciones').delete().in('id', participacionesAEliminar)
+      }
+
       const { data: insertedParts, error: insertError } = await supabase
         .from('participaciones')
         .insert(participacionesAInsertar)
@@ -1212,21 +1659,25 @@ export default function Programa() {
 
       if (updateError) throw updateError
 
+      if (opciones.marcarVerificada) {
+        await supabase
+          .from('programa_semanas')
+          .update({
+            estado_revision: 'verificada',
+            notas_revision: opciones.notasRevision ?? semana.notas_revision ?? null,
+            revisado_por: usuarioActualLabel || null,
+            revisado_en: new Date().toISOString(),
+          })
+          .eq('id', semana.id)
+      }
+
       setSemanaParaRevisar(null)
       const totalConfirmadas = partesSeleccionadasIds.length
-      success(`${totalConfirmadas} partes confirmadas`)
-
-      const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU']
-      const partesContablesSemana = partes.filter(
-        p => p.semana_id === semana.id && !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion)
+      success(
+        opciones.marcarVerificada
+          ? `${totalConfirmadas} partes confirmadas y semana marcada como Verificada`
+          : `${totalConfirmadas} partes confirmadas`
       )
-      const todasQuedanConfirmadas = partesContablesSemana.every(p => {
-        const asig = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-        return partesSeleccionadasIds.includes(p.id) || asig?.confirmado
-      })
-      if (todasQuedanConfirmadas) {
-        success('¡Semana completada al 100%!')
-      }
 
       refreshPrograma()
     } catch (err) {
@@ -1546,6 +1997,48 @@ export default function Programa() {
     }
   }
 
+  // Advertencia no bloqueante con resumen de pendientes antes de exportar / imprimir S-140
+  async function verificarPendientesAntesDeExportar(accionLabel = 'continuar') {
+    if (!resumenProgresoPrograma) return true
+    const {
+      semanasEnRevision,
+      totalSinAsignar,
+      totalPorConfirmar,
+      totalReconfirmaciones,
+      totalFaltanAyudantes,
+    } = resumenProgresoPrograma
+
+    const pendientes = []
+    if (semanasEnRevision > 0) {
+      pendientes.push(
+        `${semanasEnRevision} ${semanasEnRevision === 1 ? 'semana marcada' : 'semanas marcadas'} "En revisión"`
+      )
+    }
+    if (totalSinAsignar > 0) {
+      pendientes.push(`${totalSinAsignar} ${totalSinAsignar === 1 ? 'parte sin asignar' : 'partes sin asignar'}`)
+    }
+    if (totalFaltanAyudantes > 0) {
+      pendientes.push(`${totalFaltanAyudantes} ${totalFaltanAyudantes === 1 ? 'ayudante faltante' : 'ayudantes faltantes'}`)
+    }
+    if (totalReconfirmaciones > 0) {
+      pendientes.push(
+        `${totalReconfirmaciones} ${totalReconfirmaciones === 1 ? 'reconfirmación pendiente' : 'reconfirmaciones pendientes'}`
+      )
+    } else if (totalPorConfirmar > totalSinAsignar) {
+      const sinConfirmar = totalPorConfirmar - totalSinAsignar
+      pendientes.push(`${sinConfirmar} ${sinConfirmar === 1 ? 'asignación sin confirmar' : 'asignaciones sin confirmar'}`)
+    }
+
+    if (pendientes.length === 0) return true
+
+    return confirm({
+      title: 'Hay pendientes en el programa actual',
+      message: `Se detectaron los siguientes puntos antes de ${accionLabel}: ${pendientes.join(' · ')}. ¿Deseas continuar de todos modos?`,
+      danger: false,
+      confirmText: 'Continuar de todos modos',
+    })
+  }
+
   // Generar documento S-140 bajo demanda (Dynamic Import)
   async function handleGenerarDocx(modo = 'auto') {
     const semanasExport = semanasPrograma.length > 0 ? semanasPrograma : semanas
@@ -1553,6 +2046,9 @@ export default function Programa() {
       toastError('No hay semanas en el programa para generar el documento S-140.')
       return
     }
+    const continuar = await verificarPendientesAntesDeExportar('descargar el Word S-140')
+    if (!continuar) return
+
     try {
       showToast(
         modo === 'clasico'
@@ -1577,6 +2073,9 @@ export default function Programa() {
   async function handleAbrirVistaS140() {
     setMenuS140TopOpen(false)
     setMenuS140FabOpen(false)
+    const continuar = await verificarPendientesAntesDeExportar('abrir la vista previa / PDF S-140')
+    if (!continuar) return
+
     const semanasExport = semanasPrograma.length > 0 ? semanasPrograma : semanas
     const { buildDatosDesdeSupabase } = await import('../lib/generarS140')
     const semanasData = buildDatosDesdeSupabase(semanasExport, partes, asignaciones, personas, eventos, config)
@@ -2016,30 +2515,195 @@ export default function Programa() {
             </div>
           )}
 
+          {/* BARRA DE PULSO, REVISIÓN GLOBAL Y FILTROS DE AGILIDAD */}
+          {semanasPrograma.length > 0 && resumenProgresoPrograma && (
+            <div className="p-3.5 rounded-2xl bg-surface border border-border shadow-2xs space-y-3">
+              {/* Fila 1: Pulso global + Acciones de revisión del programa completo */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-text1">Progreso del programa:</span>
+                    <Badge
+                      variant={
+                        resumenProgresoPrograma.pctGlobal === 100
+                          ? 'success'
+                          : resumenProgresoPrograma.pctGlobal >= 50
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                      size="sm"
+                    >
+                      {resumenProgresoPrograma.totalAsignaciones}/{resumenProgresoPrograma.totalPartes} confirmadas ({resumenProgresoPrograma.pctGlobal}%)
+                    </Badge>
+                  </div>
+
+                  {resumenProgresoPrograma.semanasVerificadas > 0 && (
+                    <Badge variant="success" size="xs">
+                      <ShieldCheck className="w-3 h-3" />
+                      {resumenProgresoPrograma.semanasVerificadas}/{resumenProgresoPrograma.semanasOperativas} verificadas
+                    </Badge>
+                  )}
+
+                  {resumenProgresoPrograma.semanasEnRevision > 0 && (
+                    <Badge variant="info" size="xs" dot pulse>
+                      {resumenProgresoPrograma.semanasEnRevision}{' '}
+                      {resumenProgresoPrograma.semanasEnRevision === 1
+                        ? 'semana en revisión'
+                        : 'semanas en revisión'}
+                    </Badge>
+                  )}
+
+                  {resumenProgresoPrograma.totalAlertas > 0 && (
+                    <Badge variant="warning" size="xs">
+                      <AlertTriangle className="w-3 h-3" />
+                      {resumenProgresoPrograma.totalAlertas}{' '}
+                      {resumenProgresoPrograma.totalAlertas === 1 ? 'alerta' : 'alertas'}
+                    </Badge>
+                  )}
+                </div>
+
+                {!modoLectura && resumenProgresoPrograma.semanasOperativas > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      icon={ClipboardCheck}
+                      loading={savingRevisionPrograma}
+                      onClick={() => handleCambiarEstadoRevisionPrograma('en_revision')}
+                      title="Marcar todas las semanas operativas de esta guía como En revisión"
+                    >
+                      Enviar programa a revisión
+                    </Button>
+                    <Button
+                      variant={
+                        resumenProgresoPrograma.semanasVerificadas === resumenProgresoPrograma.semanasOperativas
+                          ? 'secondary'
+                          : 'accent'
+                      }
+                      size="xs"
+                      icon={ShieldCheck}
+                      loading={savingRevisionPrograma}
+                      onClick={() => handleCambiarEstadoRevisionPrograma('verificada')}
+                      title="Marcar todas las semanas operativas de esta guía como Verificadas"
+                    >
+                      {resumenProgresoPrograma.semanasVerificadas === resumenProgresoPrograma.semanasOperativas
+                        ? 'Programa verificado'
+                        : 'Verificar programa'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Fila 2: Filtros rápidos + Buscador de participante + Expandir/Colapsar todas */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2.5 border-t border-border/70">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'todas', label: 'Todas', count: semanasPrograma.length },
+                    { id: 'pendientes', label: 'Pendientes', count: resumenProgresoPrograma.semanasPendientes },
+                    { id: 'alertas', label: 'Con alertas', count: resumenProgresoPrograma.semanasConAlertas },
+                    { id: 'en_revision', label: 'En revisión', count: resumenProgresoPrograma.semanasEnRevision },
+                    { id: 'verificadas', label: 'Verificadas', count: resumenProgresoPrograma.semanasVerificadas },
+                  ].map(f => {
+                    const active = filtroEstado === f.id
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFiltroEstado(f.id)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-accent text-accent-fg border-accent shadow-2xs'
+                            : 'bg-surface-alt/60 border-border text-text2 hover:text-text1 hover:border-border2'
+                        }`}
+                      >
+                        <span>{f.label}</span>
+                        <span
+                          className={`font-mono text-[10px] px-1 rounded-full ${
+                            active ? 'bg-white/20 text-white' : 'text-text3'
+                          }`}
+                        >
+                          {f.count}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 md:w-60">
+                    <Input
+                      size="sm"
+                      icon={Search}
+                      value={busquedaParticipante}
+                      onChange={e => {
+                        const val = e.target.value
+                        setBusquedaParticipante(val)
+                        if (val.trim()) {
+                          setExpandedWeeks(prev => {
+                            const next = { ...prev }
+                            semanasPrograma.forEach(s => {
+                              next[s.id] = true
+                            })
+                            return next
+                          })
+                        }
+                      }}
+                      placeholder="Buscar participante en programa..."
+                      aria-label="Buscar participante en el programa"
+                      className="pr-7"
+                    />
+                    {busquedaParticipante && (
+                      <button
+                        type="button"
+                        onClick={() => setBusquedaParticipante('')}
+                        aria-label="Limpiar búsqueda de participante"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-text3 hover:text-text1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={todasVisiblesExpandidas ? ChevronsDownUp : ChevronsUpDown}
+                    onClick={handleToggleExpandirTodas}
+                    disabled={semanasFiltradas.length === 0}
+                    title={todasVisiblesExpandidas ? 'Colapsar todas las semanas visibles' : 'Expandir todas las semanas visibles'}
+                  >
+                    <span className="hidden sm:inline">
+                      {todasVisiblesExpandidas ? 'Colapsar' : 'Expandir'}
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CINTA DE NAVEGACIÓN HORIZONTAL DE SEMANAS */}
           {semanasPrograma.length > 0 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {semanasPrograma.map(s => {
-                const partesSem = partes.filter(p => p.semana_id === s.id)
-                const asigSem = asignaciones.filter(a => partesSem.some(p => p.id === a.parte_id))
-                const imp = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
-                const contables = partesSem.filter(
-                  p => p.tipo_asignacion !== 'CONCLU' && p.tipo_asignacion !== 'ORACION' && p.tipo_asignacion !== 'SMT_VACIO'
-                )
-                const confirmadasCount = contables.filter(p =>
-                  asigSem.some(a => a.parte_id === p.id && a.rol === 'principal' && a.confirmado)
-                ).length
-                const asignadasCount = contables.filter(p =>
-                  asigSem.some(a => a.parte_id === p.id && a.rol === 'principal' && a.clave)
-                ).length
+                const est = estadoPorSemanaMap.get(s.id)?.estado || {
+                  esCancelada: false,
+                  totalPartes: 0,
+                  confirmadas: 0,
+                  asignadas: 0,
+                  esCompleta: false,
+                  estadoRevision: normalizarEstadoRevision(s.estado_revision),
+                  alertasCount: 0,
+                }
 
-                const dotColor = imp?.cancelaEntreSemana
+                const dotColor = est.esCancelada
                   ? 'bg-purple-500'
-                  : contables.length > 0 && confirmadasCount === contables.length
-                    ? 'bg-emerald-500'
-                    : asignadasCount > 0
-                      ? 'bg-amber-500'
-                      : 'bg-zinc-300 dark:bg-zinc-600'
+                  : est.estadoRevision === 'en_revision'
+                    ? 'bg-blue-500'
+                    : est.estadoRevision === 'verificada' || est.esCompleta
+                      ? 'bg-emerald-500'
+                      : est.asignadas > 0
+                        ? 'bg-amber-500'
+                        : 'bg-zinc-300 dark:bg-zinc-600'
 
                 const isExp = !!expandedWeeks[s.id]
 
@@ -2048,6 +2712,10 @@ export default function Programa() {
                     key={s.id}
                     type="button"
                     onClick={() => {
+                      if (filtroEstado !== 'todas' || busquedaParticipante) {
+                        setFiltroEstado('todas')
+                        setBusquedaParticipante('')
+                      }
                       if (!expandedWeeks[s.id]) handleToggleExpand(s.id)
                       setTimeout(() => {
                         document
@@ -2057,18 +2725,23 @@ export default function Programa() {
                     }}
                     className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all cursor-pointer ${
                       isExp
-                        ? 'bg-accent-muted-bg border-accent-muted-border text-accent-muted-text shadow-2xs'
-                        : 'bg-surface border-border text-text2 hover:border-accent-muted-border hover:text-text1'
+                        ? 'bg-accent-muted-bg border-accent-muted-border text-accent shadow-2xs'
+                        : est.estadoRevision === 'en_revision'
+                          ? 'bg-blue-bg/50 border-blue/30 text-text1 hover:border-blue/60'
+                          : 'bg-surface border-border text-text2 hover:border-accent-muted-border hover:text-text1'
                     }`}
                   >
                     <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
                     <span className="whitespace-nowrap">
                       {formatRangoSemanaPrograma(s.fecha_inicio, s.fecha_fin)}
                     </span>
-                    {!imp?.cancelaEntreSemana && contables.length > 0 && (
+                    {!est.esCancelada && est.totalPartes > 0 && (
                       <span className="text-[10px] font-mono text-text3">
-                        {confirmadasCount}/{contables.length}
+                        {est.confirmadas}/{est.totalPartes}
                       </span>
+                    )}
+                    {!est.esCancelada && est.estadoRevision === 'verificada' && (
+                      <ShieldCheck className="w-3 h-3 text-accent shrink-0" />
                     )}
                   </button>
                 )
@@ -2113,12 +2786,32 @@ export default function Programa() {
                   }
                 />
               </div>
+            ) : semanasFiltradas.length === 0 ? (
+              <div className="bg-surface border border-border rounded-2xl py-10 px-6 text-center space-y-3 shadow-2xs">
+                <p className="text-sm font-medium text-text1">
+                  Ninguna semana coincide con los filtros aplicados
+                </p>
+                <p className="text-xs text-text3">
+                  Prueba limpiando el filtro de estado o la búsqueda de participante.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFiltroEstado('todas')
+                    setBusquedaParticipante('')
+                  }}
+                >
+                  Limpiar filtros
+                </Button>
+              </div>
             ) : (
-              semanasPrograma.map(s => {
+              semanasFiltradas.map(s => {
                 const partesSemana = partes.filter(p => p.semana_id === s.id)
                 const asigSemana = asignaciones.filter(a =>
                   partesSemana.some(p => p.id === a.parte_id)
                 )
+                const entry = estadoPorSemanaMap.get(s.id)
                 return (
                   <div key={s.id} id={`programa-semana-${s.id}`}>
                     <TarjetaSemanaDesktop
@@ -2126,12 +2819,19 @@ export default function Programa() {
                       partes={partesSemana}
                       asignaciones={asigSemana}
                       personas={personas}
-                      historial={buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)}
+                      historial={
+                        entry?.historial ||
+                        buildHistorialParaSemana(s.id, semanas, partes, asignaciones, historial)
+                      }
+                      estadoSemana={entry?.estado}
                       onAsignar={handleAsignar}
+                      onQuitar={handleQuitarParticipante}
+                      onIntercambiar={handleIntercambiarTitularAyudante}
                       onConfirmar={handleConfirmar}
                       onConfirmarTodo={handleConfirmarTodo}
                       onEliminarSemana={handleEliminarSemana}
                       onLimpiarAsignaciones={handleLimpiarAsignacionesSemana}
+                      onCambiarEstadoRevision={handleCambiarEstadoRevisionSemana}
                       expandida={!!expandedWeeks[s.id]}
                       onToggleExpand={() => handleToggleExpand(s.id)}
                       modoLectura={modoLectura}
@@ -2140,6 +2840,7 @@ export default function Programa() {
                       evento={getEventoParaSemana(s, eventos)}
                       impacto={getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)}
                       config={config}
+                      highlightQuery={busquedaParticipante}
                     />
                   </div>
                 )
@@ -2164,45 +2865,59 @@ export default function Programa() {
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
                     <span className="inline-flex items-center gap-1 justify-center">
-                      <Music className="w-3 h-3 text-text3" /> Apertura
+                      <Music className="w-3 h-3 text-text3" /> Canciones
                     </span>
-                  </th>
-                  <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    <span className="inline-flex items-center gap-1 justify-center">
-                      <Music className="w-3 h-3 text-text3" /> Vida Cristiana
-                    </span>
-                  </th>
-                  <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    <span className="inline-flex items-center gap-1 justify-center">
-                      <Music className="w-3 h-3 text-text3" /> Cierre
-                    </span>
-                  </th>
-                  <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
-                    Partes
                   </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
                     Confirmadas
                   </th>
+                  <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
+                    Revisión
+                  </th>
+                  <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-center">
+                    Alertas
+                  </th>
                   <th className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-right">
-                    Acción
+                    Acciones
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <tbody className="divide-y divide-border/60">
                 {semanasPrograma.map(s => {
-                  const impacto = getImpactoEventoSemana(s, eventos, config?.diaReunionEntreSemana, config?.diaReunionFinSemana)
-                  const partesSemana = partes.filter(p => p.semana_id === s.id)
-                  const asigConf = asignaciones.filter(
-                    a => partesSemana.some(p => p.id === a.parte_id) && a.confirmado
+                  const impacto = getImpactoEventoSemana(
+                    s,
+                    eventos,
+                    config?.diaReunionEntreSemana,
+                    config?.diaReunionFinSemana
                   )
-                  const completada =
-                    impacto.cancelaEntreSemana ||
-                    (asigConf.length === partesSemana.length && partesSemana.length > 0)
+                  const est = estadoPorSemanaMap.get(s.id)?.estado || {
+                    totalPartes: 0,
+                    confirmadas: 0,
+                    esCompleta: impacto.cancelaEntreSemana,
+                    esCancelada: impacto.cancelaEntreSemana,
+                    alertasCount: 0,
+                    faltanAyudantes: 0,
+                    estadoRevision: normalizarEstadoRevision(s.estado_revision),
+                  }
+                  const metaRev = ESTADO_REVISION_META[est.estadoRevision] || ESTADO_REVISION_META.borrador
+                  const canciones = [s.cancion_apertura, s.cancion_vc, s.cancion_cierre].filter(Boolean)
+
+                  const saltarASemana = () => {
+                    setVistaTab('semanas')
+                    setFiltroEstado('todas')
+                    setExpandedWeeks(prev => ({ ...prev, [s.id]: true }))
+                    setTimeout(() => {
+                      document
+                        .getElementById(`programa-semana-${s.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }, 60)
+                  }
 
                   return (
                     <tr
                       key={s.id}
-                      className="hover:bg-zinc-100/70 dark:hover:bg-zinc-800/50 transition-colors"
+                      onClick={saltarASemana}
+                      className="hover:bg-surface-alt/60 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-semibold text-text1 text-xs">
@@ -2226,38 +2941,73 @@ export default function Programa() {
                       </td>
                       <td className="px-4 py-3 font-mono text-text2">{s.capitulo_biblico}</td>
                       <td className="px-3 py-3 font-mono text-center text-text3">
-                        {s.cancion_apertura || '—'}
-                      </td>
-                      <td className="px-3 py-3 font-mono text-center text-text3">
-                        {s.cancion_vc || '—'}
-                      </td>
-                      <td className="px-3 py-3 font-mono text-center text-text3">
-                        {s.cancion_cierre || '—'}
-                      </td>
-                      <td className="px-3 py-3 font-mono text-center text-text2">
-                        {partesSemana.length}
+                        {canciones.length > 0 ? canciones.join(' · ') : '—'}
                       </td>
                       <td className="px-3 py-3 text-center">
-                        {impacto.cancelaEntreSemana ? (
+                        {est.esCancelada ? (
                           <Badge variant="purple" size="xs">
                             Sin reunión
                           </Badge>
                         ) : (
-                          <Badge variant={completada ? 'success' : 'neutral'} size="xs">
-                            {asigConf.length}/{partesSemana.length}
+                          <Badge
+                            variant={est.esCompleta ? 'success' : est.pct >= 50 ? 'warning' : 'neutral'}
+                            size="xs"
+                          >
+                            {est.confirmadas}/{est.totalPartes}
                           </Badge>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
-                        <Button
-                          variant="dangerGhost"
-                          size="iconXs"
-                          onClick={() => handleEliminarSemana(s.id)}
-                          aria-label="Eliminar semana"
-                          title="Eliminar semana"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                      <td className="px-3 py-3 text-center">
+                        {est.esCancelada ? (
+                          <span className="text-text3">—</span>
+                        ) : (
+                          <Badge
+                            variant={metaRev.badgeVariant}
+                            size="xs"
+                            dot={est.estadoRevision === 'en_revision'}
+                          >
+                            {metaRev.shortLabel}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {est.esCancelada ? (
+                          <span className="text-text3">—</span>
+                        ) : est.alertasCount > 0 || est.faltanAyudantes > 0 ? (
+                          <Badge variant="warning" size="xs">
+                            <AlertTriangle className="w-3 h-3" />
+                            {est.alertasCount + est.faltanAyudantes}
+                          </Badge>
+                        ) : (
+                          <span className="text-accent font-mono text-[11px]">✓</span>
+                        )}
+                      </td>
+                      <td
+                        className="px-3 py-3 text-right"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="iconXs"
+                            onClick={saltarASemana}
+                            aria-label="Abrir semana"
+                            title="Ir a la semana"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Button>
+                          {!modoLectura && (
+                            <Button
+                              variant="dangerGhost"
+                              size="iconXs"
+                              onClick={() => handleEliminarSemana(s.id)}
+                              aria-label="Eliminar semana"
+                              title="Eliminar semana"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -2350,8 +3100,26 @@ export default function Programa() {
             : historial
         }
         onConfirmarBatch={handleBatchConfirmar}
+        onCambiarEstadoRevision={handleCambiarEstadoRevisionSemana}
         onAsignarManual={handleAsignarManual}
         isBatchSaving={isBatchSaving}
+      />
+
+      {/* MODAL DE ELECCIÓN AL QUITAR TITULAR SMT CON AYUDANTE */}
+      <QuitarTitularSmtModal
+        isOpen={!!smtRemovalModal}
+        onClose={() => setSmtRemovalModal(null)}
+        parteTitulo={smtRemovalModal?.parte?.titulo}
+        nombreTitular={smtRemovalModal?.nombreTitular}
+        nombreAyudante={smtRemovalModal?.nombreAyudante}
+        titularConfirmado={Boolean(
+          smtRemovalModal?.principal?.confirmado || smtRemovalModal?.principal?.participacion_id
+        )}
+        ayudanteConfirmado={Boolean(
+          smtRemovalModal?.ayudante?.confirmado || smtRemovalModal?.ayudante?.participacion_id
+        )}
+        loading={isRemovingParticipant}
+        onConfirmChoice={handleConfirmarModalQuitarSmt}
       />
 
       {/* BOTÓN FLOTANTE S-140 AL HACER SCROLL */}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Menu, Search, ChevronRight, User, Keyboard, Plus } from 'lucide-react'
+import { Menu, Search, ChevronRight, User, Keyboard } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Tooltip } from './ui/Tooltip'
 import { NAV_ITEMS } from './Sidebar'
@@ -26,7 +26,6 @@ export function Header({
   onOpenPalette,
   onOpenPerfil,
   onOpenShortcutsHelp,
-  onOpenNuevaAsignacion,
   avatarColor = 'accent',
   avatarUrl = null,
   userName,
@@ -49,7 +48,6 @@ export function Header({
 
   const showAvatarPhoto = Boolean(avatarUrl && failedAvatarUrl !== avatarUrl)
   const paletteLabel = formatBindingLabel(keybinds.openPalette) || '⌘K'
-  const newAsigLabel = formatBindingLabel(keybinds.newAssignment) || 'N'
   const helpLabel = formatBindingLabel(keybinds.openHelp) || '?'
   const perfilLabel = formatBindingLabel(keybinds.openPerfil)
 
@@ -135,23 +133,6 @@ export function Header({
             </button>
           </Tooltip>
         </div>
-
-        {/* Nueva Asignación Quick CTA */}
-        {onOpenNuevaAsignacion && (
-          <Tooltip content="Registrar nueva participación" shortcut={newAsigLabel} side="bottom">
-            <button
-              type="button"
-              onClick={onOpenNuevaAsignacion}
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-accent hover:bg-accent-hover text-accent-fg shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span>Nueva asignación</span>
-              <kbd className="hidden lg:inline-block px-1 py-0.2 text-[10px] font-mono rounded bg-accent-fg/15 text-accent-fg/90">
-                {newAsigLabel}
-              </kbd>
-            </button>
-          </Tooltip>
-        )}
 
         {/* Keyboard Shortcuts Help */}
         <Tooltip content="Atajos de teclado" shortcut={helpLabel} side="bottom">

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Calendar,
   Music,
@@ -13,8 +13,18 @@ import {
   AlertTriangle,
   CheckCircle2,
   Briefcase,
+  ShieldCheck,
+  ClipboardCheck,
+  Eraser,
+  MessageSquareText,
 } from 'lucide-react'
-import { SECCION_LABEL } from '../../../lib/conflictosRotacion'
+import {
+  SECCION_LABEL,
+  ESTADO_REVISION_META,
+  normalizarEstadoRevision,
+  calcularEstadoSemana,
+  evaluarReconfirmacionParte,
+} from '../../../lib/conflictosRotacion'
 import { mapearHorariosPartesSemana } from '../../../lib/horarios'
 import {
   formatFechaLegible,
@@ -23,6 +33,7 @@ import {
 } from '../../../lib/fechas'
 import { Button } from '../../../components/ui/Button'
 import { Badge } from '../../../components/ui/Badge'
+import { Select } from '../../../components/ui/Select'
 import FilaParteDesktop from './FilaParteDesktop'
 
 export default function TarjetaSemanaDesktop({
@@ -32,10 +43,13 @@ export default function TarjetaSemanaDesktop({
   personas,
   historial,
   onAsignar,
+  onQuitar,
+  onIntercambiar,
   onConfirmar,
   onConfirmarTodo,
   onEliminarSemana,
   onLimpiarAsignaciones,
+  onCambiarEstadoRevision,
   expandida,
   onToggleExpand,
   modoLectura,
@@ -43,11 +57,41 @@ export default function TarjetaSemanaDesktop({
   onSugerirSemana,
   evento,
   impacto: propImpacto,
+  estadoSemana: propEstadoSemana,
   config,
+  highlightQuery = '',
 }) {
   const mes = semana.mes
+  const [notaDraft, setNotaDraft] = useState(semana.notas_revision || '')
+  const [editandoNota, setEditandoNota] = useState(false)
+  const [savingRevision, setSavingRevision] = useState(false)
 
-  const impacto = propImpacto || getImpactoEventoSemana(semana, [evento].filter(Boolean))
+  const openNotaEditor = () => {
+    setNotaDraft(semana.notas_revision || '')
+    setEditandoNota(true)
+  }
+
+  const impacto =
+    propImpacto ||
+    getImpactoEventoSemana(
+      semana,
+      [evento].filter(Boolean),
+      config?.diaReunionEntreSemana,
+      config?.diaReunionFinSemana
+    )
+
+  const estadoSemana = useMemo(() => {
+    if (propEstadoSemana) return propEstadoSemana
+    return calcularEstadoSemana(
+      semana,
+      partes,
+      asignaciones,
+      historial,
+      [evento].filter(Boolean),
+      config,
+      personas
+    )
+  }, [propEstadoSemana, semana, partes, asignaciones, historial, evento, config, personas])
 
   const mapaHoras = useMemo(() => {
     return mapearHorariosPartesSemana(
@@ -95,65 +139,21 @@ export default function TarjetaSemanaDesktop({
 
   const TIPOS_SOLO_VISUAL = ['SMT_VACIO', 'ORACION', 'CONCLU', ...(esVisita ? ['LEBC'] : [])]
   const partesContables = partes.filter(p => !TIPOS_SOLO_VISUAL.includes(p.tipo_asignacion))
-  const totalPartes = partesContables.length
 
-  const hayReconfirmaciones = partesContables.some(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-    if (!asigP?.clave) return false
+  const {
+    totalPartes,
+    confirmadas,
+    hayReconfirmaciones,
+    alertasCount,
+    faltanAyudantes,
+    pct,
+  } = estadoSemana
 
-    const pr = asigP.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
+  const estadoRevision = normalizarEstadoRevision(semana.estado_revision)
+  const metaRevision = ESTADO_REVISION_META[estadoRevision] || ESTADO_REVISION_META.borrador
 
-    const pCambio = !!asigP.participacion_id && pr && pr.clave !== asigP.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-
-    return pCambio || aCambio || aNuevo || aRem
-  })
-
-  const confirmadas = partesContables.filter(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') {
-      return true
-    }
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false && !asigP?.clave) {
-      return true
-    }
-
-    const asigParte = asignaciones.filter(a => a.parte_id === p.id && a.confirmado)
-    const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-
-    const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-    const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
-    const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
-    const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-    const aNuevo =
-      p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
-    const aRem = p.requiere_ayudante && !asigA?.clave && ar
-    const necesitaRec = pCambio || aCambio || aNuevo || aRem
-
-    return asigParte.some(a => a.rol === 'principal') && !necesitaRec
-  }).length
-
-  const hayAsignaciones = partesContables.some(p => {
-    if (esVisita && p.tipo_asignacion === 'EBC_CON') return false
-    const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-    return !!asigP?.clave
-  })
-
-  const todasAsignadas =
-    totalPartes > 0 &&
-    partesContables.every(p => {
-      if (esVisita && p.tipo_asignacion === 'EBC_CON') return true
-      if (esVisita && p.tipo_asignacion === 'ORACION_C' && impacto?.oracionVisitante !== false) return true
-      const asigP = asignaciones.find(a => a.parte_id === p.id && a.rol === 'principal')
-      return !!asigP?.clave
-    })
-
+  const hayAsignaciones = estadoSemana.asignadas > 0
+  const todasAsignadas = totalPartes > 0 && estadoSemana.asignadas === totalPartes
   const todasSugeridas =
     totalPartes > 0 &&
     partesContables.every(p => {
@@ -166,144 +166,238 @@ export default function TarjetaSemanaDesktop({
   const mostrarBotonRevisar =
     !cancelaEntreSemana &&
     totalPartes > 0 &&
-    confirmadas < totalPartes &&
+    (confirmadas < totalPartes || hayReconfirmaciones) &&
     (hayAsignaciones || todasSugeridas)
 
-  const mostrarBotonSugerir =
-    !cancelaEntreSemana &&
-    !todasAsignadas &&
-    confirmadas < totalPartes &&
-    totalPartes > 0
-
-  const pct = totalPartes > 0 ? Math.round((confirmadas / totalPartes) * 100) : 0
   const secciones = ['APERTURA', 'TB', 'SMT', 'VC', 'CIERRE']
 
+  const progressBarColor = cancelaEntreSemana
+    ? 'bg-purple-500/70'
+    : pct === 100
+      ? 'bg-accent'
+      : pct >= 50
+        ? 'bg-amber'
+        : 'bg-rose-500/75'
+
+  const cardBorderCls =
+    estadoRevision === 'en_revision'
+      ? 'border-blue/40 hover:border-blue/60'
+      : estadoRevision === 'verificada'
+        ? 'border-accent-muted-border hover:border-accent/50'
+        : 'border-border hover:border-accent-muted-border'
+
+  async function handleEstadoChange(nuevoEstado) {
+    if (!onCambiarEstadoRevision) return
+    setSavingRevision(true)
+    try {
+      const notaActual = editandoNota ? notaDraft.trim() || null : undefined
+      await onCambiarEstadoRevision(semana.id, nuevoEstado, notaActual)
+    } finally {
+      setSavingRevision(false)
+    }
+  }
+
+  async function handleGuardarNota() {
+    if (!onCambiarEstadoRevision) return
+    setSavingRevision(true)
+    try {
+      await onCambiarEstadoRevision(semana.id, estadoRevision, notaDraft.trim() || null)
+      setEditandoNota(false)
+    } finally {
+      setSavingRevision(false)
+    }
+  }
+
+  const mostrarBannerRevision =
+    !cancelaEntreSemana &&
+    (estadoRevision === 'en_revision' || Boolean(semana.notas_revision) || editandoNota)
+
   return (
-    <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-2xs hover:border-accent-muted-border transition-all">
+    <div className={`bg-surface border rounded-2xl overflow-hidden shadow-2xs transition-all ${cardBorderCls}`}>
       {/* Card Header Accordion */}
-      <div className="flex items-center justify-between px-4 py-3 bg-surface-alt/60 border-b border-border/80 select-none">
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left cursor-pointer mr-3"
-        >
-          {/* Fechas y Lectura */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-accent" />
-              <span className="font-display text-base font-medium text-text1 tracking-tight">
-                {formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text3 font-mono mt-0.5">
-              <BookOpen className="w-3.5 h-3.5 opacity-60" />
-              <span>{semana.capitulo_biblico}</span>
-            </div>
-            {cancelaEntreSemana ? (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
-                  <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                  {impacto.tituloEvento}
+      <div className="relative bg-surface-alt/60 border-b border-border/80 select-none">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 py-3">
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            className="flex-1 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-left cursor-pointer min-w-0"
+          >
+            {/* Fechas, Lectura y Eventos */}
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Calendar className="w-4 h-4 text-accent shrink-0" />
+                <span className="font-display text-base font-medium text-text1 tracking-tight">
+                  {formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}
                 </span>
+
+                {/* Badge de estado de revisión visible incluso colapsada */}
+                {!cancelaEntreSemana && estadoRevision === 'en_revision' && (
+                  <Badge variant="info" size="xs" dot pulse>
+                    En revisión
+                  </Badge>
+                )}
+                {!cancelaEntreSemana && estadoRevision === 'verificada' && (
+                  <Badge variant="success" size="xs">
+                    <ShieldCheck className="w-3 h-3" />
+                    Verificada
+                  </Badge>
+                )}
               </div>
-            ) : esVisita ? (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                  <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  {esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}: {nombreVisitante}
+
+              <div className="flex items-center gap-2 text-xs text-text3 font-mono mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                  <span>{semana.capitulo_biblico}</span>
                 </span>
+                {semana.notas_revision && !expandida && (
+                  <span
+                    className="inline-flex items-center gap-1 font-sans text-[11px] text-blue truncate max-w-[260px]"
+                    title={semana.notas_revision}
+                  >
+                    <MessageSquareText className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{semana.notas_revision}</span>
+                  </span>
+                )}
               </div>
-            ) : null}
-          </div>
 
-          {/* Canciones y Progreso */}
-          <div className="flex items-center gap-4">
-            {!cancelaEntreSemana && (
-              <div className="hidden md:flex items-center gap-1">
-                {[semana.cancion_apertura, semana.cancion_vc, semana.cancion_cierre]
-                  .filter(Boolean)
-                  .map((c, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 font-mono text-[11px] bg-surface text-text2 px-2 py-0.5 rounded-md border border-border"
-                    >
-                      <Music className="w-3 h-3 text-text3" />
-                      {c}
-                    </span>
-                  ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-2.5">
               {cancelaEntreSemana ? (
-                <Badge variant="purple" size="sm">
-                  Sin reunión ordinaria
-                </Badge>
-              ) : (
-                <Badge
-                  variant={
-                    pct === 100
-                      ? 'success'
-                      : pct >= 50
-                        ? 'warning'
-                        : 'neutral'
-                  }
-                  size="sm"
-                >
-                  {confirmadas}/{totalPartes} confirmadas
-                </Badge>
-              )}
-              {expandida ? (
-                <ChevronUp className="w-4 h-4 text-text3" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-text3" />
-              )}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                    <Calendar className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                    {impacto.tituloEvento}
+                  </span>
+                </div>
+              ) : esVisita ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    <Briefcase className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    {esVisitaSC ? 'Visita del SC' : 'Visita Sucursal'}: {nombreVisitante}
+                  </span>
+                </div>
+              ) : null}
             </div>
-          </div>
-        </button>
 
-        {/* Acciones Rápidas */}
-        {!modoLectura && (
-          <div className="flex items-center gap-2 shrink-0">
-            {mostrarBotonRevisar && (
-              <Button
-                variant="secondary"
-                size="xs"
-                icon={CheckCircle2}
-                onClick={e => {
-                  e.stopPropagation()
-                  onRevisarSemana?.(semana)
-                }}
-                className="font-medium text-xs shadow-2xs"
-              >
-                Revisar y aprobar semana
-              </Button>
-            )}
-            {mostrarBotonSugerir && (
-              <Button
-                variant="secondary"
-                size="xs"
-                icon={Sparkles}
-                onClick={e => {
-                  e.stopPropagation()
-                  onSugerirSemana?.(semana.id)
-                }}
-                className="font-medium text-xs shadow-2xs"
-              >
-                Completar con sugerencias
-              </Button>
-            )}
-            <Button
-              variant="dangerGhost"
-              size="iconSm"
-              onClick={() => onEliminarSemana(semana.id)}
-              aria-label="Eliminar semana"
-              title="Eliminar semana"
+            {/* Canciones, Alertas y Progreso */}
+            <div className="flex items-center gap-2.5 flex-wrap lg:justify-end">
+              {!cancelaEntreSemana && (
+                <div className="hidden xl:flex items-center gap-1">
+                  {[semana.cancion_apertura, semana.cancion_vc, semana.cancion_cierre]
+                    .filter(Boolean)
+                    .map((c, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 font-mono text-[11px] bg-surface text-text2 px-2 py-0.5 rounded-md border border-border"
+                      >
+                        <Music className="w-3 h-3 text-text3" />
+                        {c}
+                      </span>
+                    ))}
+                </div>
+              )}
+
+              {!cancelaEntreSemana && alertasCount > 0 && (
+                <Badge variant="warning" size="xs" title="Conflictos de rotación detectados en esta semana">
+                  <AlertTriangle className="w-3 h-3" />
+                  {alertasCount} {alertasCount === 1 ? 'alerta' : 'alertas'}
+                </Badge>
+              )}
+
+              {!cancelaEntreSemana && faltanAyudantes > 0 && (
+                <Badge variant="warning" size="xs" title="Partes SMT con titular asignado pero sin ayudante">
+                  {faltanAyudantes} sin ayudante
+                </Badge>
+              )}
+
+              {!cancelaEntreSemana && hayReconfirmaciones && (
+                <Badge variant="danger" size="xs">
+                  <RotateCcw className="w-3 h-3" />
+                  Reconfirmar
+                </Badge>
+              )}
+
+              <div className="flex items-center gap-2">
+                {cancelaEntreSemana ? (
+                  <Badge variant="purple" size="sm">
+                    Sin reunión ordinaria
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant={
+                      pct === 100
+                        ? 'success'
+                        : pct >= 50
+                          ? 'warning'
+                          : 'neutral'
+                    }
+                    size="sm"
+                  >
+                    {confirmadas}/{totalPartes} confirmadas
+                  </Badge>
+                )}
+                {expandida ? (
+                  <ChevronUp className="w-4 h-4 text-text3 shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-text3 shrink-0" />
+                )}
+              </div>
+            </div>
+          </button>
+
+          {/* Controles compactos de cabecera */}
+          {!modoLectura && (
+            <div
+              className="flex items-center gap-1.5 shrink-0 self-end sm:self-center"
+              onClick={e => e.stopPropagation()}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
+              {!cancelaEntreSemana && onCambiarEstadoRevision && (
+                <div className="w-[126px]">
+                  <Select
+                    size="xs"
+                    value={estadoRevision}
+                    disabled={savingRevision}
+                    onChange={e => handleEstadoChange(e.target.value)}
+                    aria-label={`Estado de revisión de la semana ${formatRangoSemanaPrograma(semana.fecha_inicio, semana.fecha_fin)}`}
+                    title={`Estado de revisión: ${metaRevision.description}`}
+                  >
+                    <option value="borrador">Borrador</option>
+                    <option value="en_revision">En revisión</option>
+                    <option value="verificada">Verificada</option>
+                  </Select>
+                </div>
+              )}
+
+              {mostrarBotonRevisar && !expandida && (
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={CheckCircle2}
+                  onClick={() => onRevisarSemana?.(semana)}
+                  title="Revisar y aprobar asignaciones de la semana"
+                >
+                  Revisar
+                </Button>
+              )}
+
+              <Button
+                variant="dangerGhost"
+                size="iconSm"
+                onClick={() => onEliminarSemana(semana.id)}
+                aria-label="Eliminar semana"
+                title="Eliminar semana"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Barra de progreso fina inferior */}
+        <div className="h-[3px] w-full bg-border/50 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-300 ${progressBarColor}`}
+            style={{ width: `${cancelaEntreSemana ? 100 : pct}%` }}
+          />
+        </div>
       </div>
 
       {/* Contenido Expandido */}
@@ -367,6 +461,99 @@ export default function TarjetaSemanaDesktop({
             </div>
           ) : (
             <>
+              {/* Banner de estado de revisión y nota editable */}
+              {mostrarBannerRevision && (
+                <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-blue-bg/70 border border-blue/25 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-blue font-semibold">
+                      <ClipboardCheck className="w-4 h-4 shrink-0" />
+                      <span>
+                        {estadoRevision === 'en_revision'
+                          ? 'Semana en revisión'
+                          : 'Nota de revisión'}
+                      </span>
+                      {semana.revisado_por && (
+                        <span className="text-[11px] font-normal text-text3">
+                          · Último cambio por {semana.revisado_por}
+                        </span>
+                      )}
+                    </div>
+
+                    {!modoLectura && onCambiarEstadoRevision && (
+                      <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                        {!editandoNota && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={openNotaEditor}
+                          >
+                            {semana.notas_revision ? 'Editar nota' : 'Agregar nota'}
+                          </Button>
+                        )}
+                        {estadoRevision === 'en_revision' && (
+                          <Button
+                            variant="accent"
+                            size="xs"
+                            icon={ShieldCheck}
+                            loading={savingRevision}
+                            onClick={() => handleEstadoChange('verificada')}
+                          >
+                            Marcar verificada
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {editandoNota && !modoLectura ? (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        value={notaDraft}
+                        onChange={e => setNotaDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleGuardarNota()
+                          if (e.key === 'Escape') {
+                            setNotaDraft(semana.notas_revision || '')
+                            setEditandoNota(false)
+                          }
+                        }}
+                        placeholder="Ej: Verificar disponibilidad del conductor o cambiar lector EBC..."
+                        className="flex-1 h-8 px-2.5 rounded-lg border border-border2 bg-surface text-xs text-text1 placeholder:text-text3 focus:border-accent focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => {
+                            setNotaDraft(semana.notas_revision || '')
+                            setEditandoNota(false)
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          loading={savingRevision}
+                          onClick={handleGuardarNota}
+                        >
+                          Guardar nota
+                        </Button>
+                      </div>
+                    </div>
+                  ) : semana.notas_revision ? (
+                    <p className="text-xs text-text1 leading-relaxed">
+                      {semana.notas_revision}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-text2">
+                      Esta semana está marcada para verificación antes de emitir el S-140. Puedes agregar una nota con los cambios por confirmar.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {hayReconfirmaciones && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-amber-50/85 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs text-amber-900 dark:text-amber-200">
                   <div className="flex items-start sm:items-center gap-2.5 min-w-0">
@@ -397,8 +584,15 @@ export default function TarjetaSemanaDesktop({
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                   <div>
                     <span className="font-semibold">Reunión desplazada: </span>
-                    <span>Esta reunión se llevará a cabo el {formatFechaLegible(impacto.fechaEfectiva)} {impacto.horaEfectiva ? `a las ${impacto.horaEfectiva} hrs` : ''}.</span>
-                    {impacto.motivo && <span className="block text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">Motivo: {impacto.motivo}</span>}
+                    <span>
+                      Esta reunión se llevará a cabo el {formatFechaLegible(impacto.fechaEfectiva)}{' '}
+                      {impacto.horaEfectiva ? `a las ${impacto.horaEfectiva} hrs` : ''}.
+                    </span>
+                    {impacto.motivo && (
+                      <span className="block text-[11px] text-blue-700 dark:text-blue-300 mt-0.5">
+                        Motivo: {impacto.motivo}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -442,13 +636,8 @@ export default function TarjetaSemanaDesktop({
                     return true
                   }
                   const asigA = asignaciones.find(a => a.parte_id === p.id && a.rol === 'ayudante')
-                  const pr = asigP?.participacion_id ? historial.find(h => h.id === asigP.participacion_id) : null
-                  const ar = asigA?.participacion_id ? historial.find(h => h.id === asigA.participacion_id) : null
-                  const pCambio = !!asigP?.participacion_id && pr && pr.clave !== asigP?.clave
-                  const aCambio = !!asigA?.participacion_id && ar && ar.clave !== asigA?.clave
-                  const aNuevo = p.requiere_ayudante && asigA?.clave && asigP?.participacion_id && !asigA?.participacion_id
-                  const aRem = p.requiere_ayudante && !asigA?.clave && ar
-                  return !!asigP?.confirmado && !(pCambio || aCambio || aNuevo || aRem)
+                  const { necesitaReconfirmar } = evaluarReconfirmacionParte(p, asigP, asigA, historial)
+                  return !!asigP?.confirmado && !necesitaReconfirmar
                 }).length
 
                 const secDot = {
@@ -460,7 +649,7 @@ export default function TarjetaSemanaDesktop({
                 }[sec] || 'bg-zinc-400'
 
                 return (
-                  <div key={sec} className="space-y-2">
+                  <div key={sec} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-border/80">
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${secDot}`} />
@@ -491,11 +680,14 @@ export default function TarjetaSemanaDesktop({
                         fechaSemana={semana.fecha_inicio}
                         semanaAsignados={semanaAsignados}
                         onAsignar={onAsignar}
+                        onQuitar={onQuitar}
+                        onIntercambiar={onIntercambiar}
                         onConfirmar={onConfirmar}
                         clavePresidente={clavePresidente}
                         modoLectura={modoLectura}
                         evento={evento}
                         horaCalculada={mapaHoras[parte.id]}
+                        highlightQuery={highlightQuery}
                       />
                     ))}
                   </div>
@@ -503,39 +695,66 @@ export default function TarjetaSemanaDesktop({
               })}
 
               {!modoLectura && (
-                <div className="flex items-center justify-end pt-3 border-t border-border/80 gap-3">
-                  {confirmadas < totalPartes && totalPartes > 0 && (
+                <div className="flex flex-wrap items-center justify-between pt-3 border-t border-border/80 gap-2.5">
+                  <div className="flex items-center gap-2">
+                    {tieneAsignacionesPrevias && onLimpiarAsignaciones && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        icon={Eraser}
+                        onClick={() => onLimpiarAsignaciones(semana.id)}
+                        className="text-text3 hover:text-danger"
+                      >
+                        Limpiar semana
+                      </Button>
+                    )}
+                    {onCambiarEstadoRevision && !mostrarBannerRevision && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        icon={MessageSquareText}
+                        onClick={openNotaEditor}
+                        className="text-text3 hover:text-text1"
+                      >
+                        Nota de revisión
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {confirmadas < totalPartes && totalPartes > 0 && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={Sparkles}
+                        onClick={() => onSugerirSemana?.(semana.id)}
+                      >
+                        {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                      </Button>
+                    )}
+                    {mostrarBotonRevisar && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={CheckCircle2}
+                        onClick={() => onRevisarSemana?.(semana)}
+                      >
+                        Revisar y aprobar semana
+                      </Button>
+                    )}
                     <Button
-                      variant="secondary"
+                      variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
                       size="sm"
-                      icon={Sparkles}
-                      onClick={() => onSugerirSemana?.(semana.id)}
+                      icon={hayReconfirmaciones ? RotateCcw : CheckCheck}
+                      onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
                     >
-                      {todasSugeridas || todasAsignadas ? 'Regenerar sugerencias' : 'Completar con sugerencias'}
+                      {hayReconfirmaciones
+                        ? 'Actualizar confirmaciones pendientes'
+                        : pct === 100 && totalPartes > 0
+                          ? 'Toda la semana confirmada'
+                          : 'Confirmar toda la semana'}
                     </Button>
-                  )}
-                  {mostrarBotonRevisar && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={CheckCircle2}
-                      onClick={() => onRevisarSemana?.(semana)}
-                    >
-                      Revisar y aprobar semana
-                    </Button>
-                  )}
-                  <Button
-                    variant={hayReconfirmaciones ? 'danger' : pct === 100 ? 'secondary' : 'accent'}
-                    size="sm"
-                    icon={hayReconfirmaciones ? RotateCcw : CheckCheck}
-                    onClick={() => onConfirmarTodo(semana.id, partes, asignaciones)}
-                  >
-                    {hayReconfirmaciones
-                      ? 'Actualizar confirmaciones pendientes'
-                      : pct === 100 && totalPartes > 0
-                        ? 'Toda la semana confirmada'
-                        : 'Confirmar toda la semana'}
-                  </Button>
+                  </div>
                 </div>
               )}
             </>

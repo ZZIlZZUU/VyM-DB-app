@@ -40,6 +40,7 @@ export function useKeyboardShortcuts({
   onOpenNuevaAsignacion,
 }) {
   const waitingLeaderRef = useRef(null)
+  const heldLeaderRef = useRef(null)
   const gTimer = useRef(null)
   const bindingsRef = useRef(loadKeybinds())
 
@@ -75,12 +76,17 @@ export function useKeyboardShortcuts({
       const currentBindings = bindingsRef.current || loadKeybinds()
       const typing = isTyping()
 
-      // 1. Si estamos esperando la segunda tecla de una secuencia (G + tecla)
-      if (waitingLeaderRef.current) {
-        const activeLeader = waitingLeaderRef.current
-        clearLeader()
+      // 1. Si estamos manteniendo o esperando la segunda tecla de una secuencia (G + tecla)
+      const activeLeader = heldLeaderRef.current || waitingLeaderRef.current
+      if (activeLeader) {
+        const pressedToken = normalizeKeyToken(e.key)
+        if (pressedToken === activeLeader && e.repeat) {
+          return
+        }
+        if (!heldLeaderRef.current) {
+          clearLeader()
+        }
         if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          const pressedToken = normalizeKeyToken(e.key)
           for (const def of KEYBIND_DEFINITIONS) {
             if (def.group !== 'nav') continue
             const seq = parseSequenceBinding(currentBindings[def.id])
@@ -132,6 +138,7 @@ export function useKeyboardShortcuts({
 
         if (hasSequenceWithLeader) {
           clearLeader()
+          heldLeaderRef.current = token
           waitingLeaderRef.current = token
           gTimer.current = setTimeout(() => {
             waitingLeaderRef.current = null
@@ -141,9 +148,34 @@ export function useKeyboardShortcuts({
       }
     }
 
+    function handleKeyUp(e) {
+      if (heldLeaderRef.current && normalizeKeyToken(e.key) === heldLeaderRef.current) {
+        heldLeaderRef.current = null
+      }
+    }
+
+    function handleBlur() {
+      heldLeaderRef.current = null
+      clearLeader()
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        heldLeaderRef.current = null
+        clearLeader()
+      }
+    }
+
     window.addEventListener('keydown', handler)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       window.removeEventListener('keydown', handler)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      heldLeaderRef.current = null
       clearLeader()
     }
   }, [
